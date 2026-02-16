@@ -14,6 +14,7 @@ import type {
   ErrorRecord,
   RunStartedRecord,
   TraceSavedRecord,
+  SteeringReceivedRecord,
 } from '@/types/stream-events';
 
 let eventIdCounter = 0;
@@ -135,6 +136,15 @@ export function mapEventToRecord(event: StreamEvent): StreamEventRecord | null {
         },
       } as TraceSavedRecord;
 
+    case 'steering_received':
+      return {
+        ...base,
+        type: 'steering_received',
+        data: {
+          message: event.message || '',
+        },
+      } as SteeringReceivedRecord;
+
     default:
       return null;
   }
@@ -222,6 +232,10 @@ export function serializeEventsToText(events: StreamEventRecord[]): string {
 
       case 'error':
         result += `\n❌ Error: ${event.data.message}\n`;
+        break;
+
+      case 'steering_received':
+        result += `\n🎯 Steering: ${event.data.message}\n`;
         break;
 
       // run_started and trace_saved don't produce visible text

@@ -7,6 +7,7 @@ Each tool is defined as a dict with:
 - input_schema: JSON schema for parameters
 - function: The actual function to execute
 """
+import asyncio
 import json
 import os
 import re
@@ -1544,3 +1545,21 @@ def call_tool(
         return json.dumps(result, ensure_ascii=False)
     except Exception as e:
         return json.dumps({"error": f"Tool execution failed: {str(e)}"})
+
+
+async def acall_tool(
+    name: str,
+    arguments: Dict[str, Any],
+    allowed_skills: Optional[List[str]] = None,
+    tool_functions: Optional[Dict[str, Callable]] = None,
+) -> str:
+    """Async wrapper: runs sync call_tool in a thread pool executor.
+
+    All tool functions are synchronous (subprocess, sync DB, MCP stdio).
+    This wrapper makes them awaitable without blocking the event loop.
+    """
+    loop = asyncio.get_running_loop()
+    return await loop.run_in_executor(
+        None,
+        lambda: call_tool(name, arguments, allowed_skills, tool_functions),
+    )

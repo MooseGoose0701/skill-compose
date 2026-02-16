@@ -78,5 +78,10 @@
     "user": "Tú",
     "assistant": "Asistente",
     "system": "Sistema"
+  },
+  "steering": {
+    "placeholder": "Dirigir al agente...",
+    "button": "Dirigir",
+    "label": "Dirección"
   }
 }

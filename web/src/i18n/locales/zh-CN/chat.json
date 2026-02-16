@@ -78,5 +78,10 @@
     "user": "你",
     "assistant": "助手",
     "system": "系统"
+  },
+  "steering": {
+    "placeholder": "引导 Agent...",
+    "button": "引导",
+    "label": "引导消息"
   }
 }

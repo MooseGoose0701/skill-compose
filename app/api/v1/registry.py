@@ -381,7 +381,7 @@ Important constraints:
 - Delete unnecessary example files
 """
 
-        agent_result = agent.run(agent_request)
+        agent_result = agent.run_sync(agent_request)
         duration_ms = int((time.time() - start_time) * 1000)
 
         # Update trace in database (sync)
@@ -1224,7 +1224,7 @@ Important constraints:
 - Maintain the SKILL.md format specification
 """
 
-        agent_result = agent.run(agent_request)
+        agent_result = agent.run_sync(agent_request)
         duration_ms = int((time.time() - start_time) * 1000)
 
         # Update trace in database (sync)
@@ -1326,7 +1326,7 @@ Important constraints:
 - Maintain the SKILL.md format specification
 """
 
-        agent_result = agent.run(agent_request)
+        agent_result = agent.run_sync(agent_request)
         duration_ms = int((time.time() - start_time) * 1000)
 
         # Update trace in database (sync)

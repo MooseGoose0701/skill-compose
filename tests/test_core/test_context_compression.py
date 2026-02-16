@@ -2,21 +2,21 @@
 Tests for agent context window compression.
 
 Tests the compression helpers (_should_compress, _serialize_messages_for_summary,
-_compress_messages) and the integration into run() / run_stream().
+_compress_messages) and the integration into run().
 """
+import asyncio
 import json
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch, MagicMock, AsyncMock
 
 import pytest
 
 from app.agent.agent import (
     SkillsAgent,
     StreamEvent,
-    MODEL_CONTEXT_LIMITS,
-    DEFAULT_CONTEXT_LIMIT,
     COMPRESSION_THRESHOLD_RATIO,
-    RECENT_TURNS_TO_KEEP,
+    MAX_RECENT_TURNS,
 )
+from app.llm.models import MODEL_CONTEXT_LIMITS, DEFAULT_CONTEXT_LIMIT
 from tests.mocks.mock_anthropic import (
     MockResponse,
     MockTextBlock,
@@ -204,25 +204,26 @@ class TestSerializeMessages:
 
 
 # ===========================================================================
-# _compress_messages
+# _compress_messages (async)
 # ===========================================================================
 
+@pytest.mark.asyncio
 class TestCompressMessages:
-    def test_not_enough_messages_skips(self):
+    async def test_not_enough_messages_skips(self):
         agent = _make_agent()
-        # Only 2 messages — less than RECENT_TURNS_TO_KEEP * 2
+        # Only 2 messages — not enough logical turns
         messages = [
             {"role": "user", "content": "Hello"},
             {"role": "assistant", "content": [{"type": "text", "text": "Hi"}]},
         ]
-        result, s_in, s_out = agent._compress_messages(messages)
+        result, s_in, s_out = await agent._compress_messages(messages)
         assert result is messages  # unchanged
         assert s_in == 0
         assert s_out == 0
 
-    def test_compresses_long_conversation(self):
+    async def test_compresses_long_conversation(self):
         agent = _make_agent()
-        # Mock the summarization API call
+        # Mock the summarization API call (async)
         summary_response = MockResponse(
             content=[MockTextBlock(text="Summary of conversation")],
             stop_reason="end_turn",
@@ -231,7 +232,7 @@ class TestCompressMessages:
         agent.client = create_mock_llm_client([summary_response])
 
         messages = _build_conversation(10)  # 20 messages
-        compressed, s_in, s_out = agent._compress_messages(messages)
+        compressed, s_in, s_out = await agent._compress_messages(messages)
 
         # Should have: 1 summary + 1 ack + recent messages
         assert len(compressed) < len(messages)
@@ -240,7 +241,7 @@ class TestCompressMessages:
         assert s_in == 500
         assert s_out == 100
 
-    def test_summary_message_format(self):
+    async def test_summary_message_format(self):
         agent = _make_agent()
         summary_response = MockResponse(
             content=[MockTextBlock(text="This is the summary")],
@@ -250,14 +251,14 @@ class TestCompressMessages:
         agent.client = create_mock_llm_client([summary_response])
 
         messages = _build_conversation(10)
-        compressed, _, _ = agent._compress_messages(messages)
+        compressed, _, _ = await agent._compress_messages(messages)
 
         summary_msg = compressed[0]["content"]
         assert "This session is being continued" in summary_msg
         assert "This is the summary" in summary_msg
         assert "Continue with the last task" in summary_msg
 
-    def test_recent_messages_preserved(self):
+    async def test_recent_messages_preserved(self):
         agent = _make_agent()
         summary_response = MockResponse(
             content=[MockTextBlock(text="Summary")],
@@ -267,7 +268,7 @@ class TestCompressMessages:
         agent.client = create_mock_llm_client([summary_response])
 
         messages = _build_conversation(10)  # 20 messages total
-        compressed, _, _ = agent._compress_messages(messages)
+        compressed, _, _ = await agent._compress_messages(messages)
 
         # The last few messages should be present in compressed output
         last_msg = messages[-1]
@@ -276,7 +277,7 @@ class TestCompressMessages:
             for m in compressed
         )
 
-    def test_maintains_user_assistant_alternation(self):
+    async def test_maintains_user_assistant_alternation(self):
         agent = _make_agent()
         summary_response = MockResponse(
             content=[MockTextBlock(text="Summary")],
@@ -286,7 +287,7 @@ class TestCompressMessages:
         agent.client = create_mock_llm_client([summary_response])
 
         messages = _build_conversation(10)
-        compressed, _, _ = agent._compress_messages(messages)
+        compressed, _, _ = await agent._compress_messages(messages)
 
         # First message should be user (summary)
         assert compressed[0]["role"] == "user"
@@ -296,13 +297,13 @@ class TestCompressMessages:
                 f"Messages {i-1} and {i} both have role '{compressed[i]['role']}'"
             )
 
-    def test_fallback_on_api_failure(self):
+    async def test_fallback_on_api_failure(self):
         agent = _make_agent()
         agent.client = MagicMock()
-        agent.client.create.side_effect = Exception("API error")
+        agent.client.acreate = AsyncMock(side_effect=Exception("API error"))
 
         messages = _build_conversation(10)
-        compressed, s_in, s_out = agent._compress_messages(messages)
+        compressed, s_in, s_out = await agent._compress_messages(messages)
 
         # Should still return compressed messages (fallback)
         assert len(compressed) < len(messages)
@@ -311,7 +312,7 @@ class TestCompressMessages:
         assert s_in == 0
         assert s_out == 0
 
-    def test_tool_conversation_compression(self):
+    async def test_tool_conversation_compression(self):
         """Test compression with tool calls and tool results."""
         agent = _make_agent()
         summary_response = MockResponse(
@@ -322,23 +323,24 @@ class TestCompressMessages:
         agent.client = create_mock_llm_client([summary_response])
 
         messages = _build_tool_conversation(5)  # 20 messages (4 per pair)
-        compressed, s_in, s_out = agent._compress_messages(messages)
+        compressed, s_in, s_out = await agent._compress_messages(messages)
 
         assert len(compressed) < len(messages)
         assert s_in == 300
 
 
 # ===========================================================================
-# Integration: run() with compression
+# Integration: run() with compression (async)
 # ===========================================================================
 
+@pytest.mark.asyncio
 class TestRunWithCompression:
-    def test_compression_triggered_in_run(self):
+    async def test_compression_triggered_in_run(self):
         """When input_tokens exceeds threshold, compression should fire."""
         agent = _make_agent(max_turns=3)
 
         # Provide enough conversation history so _compress_messages has enough
-        # messages to split (needs > RECENT_TURNS_TO_KEEP * 2 = 6 messages).
+        # messages to split.
         history = _build_conversation(5)  # 10 messages
 
         # First response: high token count triggers compression on next turn
@@ -362,9 +364,9 @@ class TestRunWithCompression:
 
         agent.client = create_mock_llm_client([high_token_response, summary_response, final_response])
 
-        # Mock call_tool to return something
-        with patch("app.agent.agent.call_tool", return_value="tool output"):
-            result = agent.run("Do something", conversation_history=history)
+        # Mock acall_tool to return something
+        with patch("app.agent.agent.acall_tool", new_callable=AsyncMock, return_value="tool output"):
+            result = await agent.run("Do something", conversation_history=history)
 
         assert result.success is True
         assert result.answer == "Task complete"
@@ -372,7 +374,7 @@ class TestRunWithCompression:
         assert result.total_input_tokens == 150_000 + 500 + 5000
         assert result.total_output_tokens == 100 + 100 + 200
 
-    def test_no_compression_below_threshold(self):
+    async def test_no_compression_below_threshold(self):
         """Compression should not fire when tokens are below threshold."""
         agent = _make_agent(max_turns=2)
 
@@ -383,19 +385,22 @@ class TestRunWithCompression:
         )
         agent.client = create_mock_llm_client([response])
 
-        result = agent.run("Simple question")
+        result = await agent.run("Simple question")
         assert result.success is True
         # Only one API call, no compression
-        assert agent.client.create.call_count == 1
+        assert agent.client.acreate.call_count == 1
 
 
 # ===========================================================================
-# Integration: run_stream() with compression
+# Integration: run() streaming with compression (async)
 # ===========================================================================
 
+@pytest.mark.asyncio
 class TestRunStreamWithCompression:
-    def test_compression_emits_event(self):
-        """run_stream should yield a context_compressed event when compressing."""
+    async def test_compression_emits_event(self):
+        """run() with event_stream should push a context_compressed event when compressing."""
+        from app.agent.event_stream import EventStream
+
         agent = _make_agent(max_turns=3)
 
         # Provide enough conversation history for compression to have messages to split
@@ -419,11 +424,17 @@ class TestRunStreamWithCompression:
 
         agent.client = create_mock_llm_client([high_token_response, summary_response, final_response])
 
+        event_stream = EventStream()
         events = []
-        with patch("app.agent.agent.call_tool", return_value="tool output"):
-            gen = agent.run_stream("Do something", conversation_history=history)
-            for event in gen:
+
+        async def collect_events():
+            async for event in event_stream:
                 events.append(event)
+
+        with patch("app.agent.agent.acall_tool", new_callable=AsyncMock, return_value="tool output"):
+            collector = asyncio.create_task(collect_events())
+            await agent.run("Do something", conversation_history=history, event_stream=event_stream)
+            await collector
 
         event_types = [e.event_type for e in events]
         assert "context_compressed" in event_types
@@ -433,8 +444,10 @@ class TestRunStreamWithCompression:
         assert compressed_event.data["previous_tokens"] == 150_000
         assert compressed_event.data["context_limit"] == 200_000
 
-    def test_no_compression_event_below_threshold(self):
-        """run_stream should NOT emit context_compressed when below threshold."""
+    async def test_no_compression_event_below_threshold(self):
+        """run() with event_stream should NOT push context_compressed when below threshold."""
+        from app.agent.event_stream import EventStream
+
         agent = _make_agent(max_turns=2)
 
         response = MockResponse(
@@ -444,7 +457,17 @@ class TestRunStreamWithCompression:
         )
         agent.client = create_mock_llm_client([response])
 
-        events = list(agent.run_stream("Simple question"))
+        event_stream = EventStream()
+        events = []
+
+        async def collect_events():
+            async for event in event_stream:
+                events.append(event)
+
+        collector = asyncio.create_task(collect_events())
+        await agent.run("Simple question", event_stream=event_stream)
+        await collector
+
         event_types = [e.event_type for e in events]
         assert "context_compressed" not in event_types
 
@@ -453,10 +476,11 @@ class TestRunStreamWithCompression:
 # max_tokens truncation handling
 # ===========================================================================
 
+@pytest.mark.asyncio
 class TestMaxTokensTruncation:
     """Tests for handling stop_reason='max_tokens' which produces incomplete tool calls."""
 
-    def test_run_recovers_from_truncated_tool_call(self):
+    async def test_run_recovers_from_truncated_tool_call(self):
         """run() should not execute truncated tool calls and should ask Claude to retry."""
         agent = _make_agent(max_turns=3)
 
@@ -481,18 +505,18 @@ class TestMaxTokensTruncation:
 
         agent.client = create_mock_llm_client([truncated_response, retry_response, final_response])
 
-        with patch("app.agent.agent.call_tool", return_value='{"success": true}') as mock_call:
-            result = agent.run("Generate a report")
+        with patch("app.agent.agent.acall_tool", new_callable=AsyncMock, return_value='{"success": true}') as mock_call:
+            result = await agent.run("Generate a report")
 
         assert result.success is True
         assert result.answer == "Done"
-        # call_tool should only be called once (for the retry), not for the truncated call
+        # acall_tool should only be called once (for the retry), not for the truncated call
         assert mock_call.call_count == 1
         # The truncated call should have generated a step with an error
         truncation_steps = [s for s in result.steps if s.role == "tool" and "truncated" in (s.content or "")]
         assert len(truncation_steps) == 1
 
-    def test_run_truncated_no_tool_calls_ends_normally(self):
+    async def test_run_truncated_no_tool_calls_ends_normally(self):
         """max_tokens with no tool calls (just text truncation) should end the turn normally."""
         agent = _make_agent(max_turns=2)
 
@@ -502,12 +526,6 @@ class TestMaxTokensTruncation:
             stop_reason="max_tokens",
             usage=MockUsage(input_tokens=1000, output_tokens=4096),
         )
-        # The agent loop continues since stop_reason != "end_turn",
-        # but there are no tool_calls so it falls through.
-        # Actually, the current code checks: if stop_reason == "end_turn" and not tool_calls
-        # So max_tokens with no tool_calls will NOT return — it goes to "Execute tool calls"
-        # which is an empty loop, then adds empty tool_results.
-        # This is fine — the next turn Claude can continue.
         next_response = MockResponse(
             content=[MockTextBlock(text="Final answer")],
             stop_reason="end_turn",
@@ -515,12 +533,14 @@ class TestMaxTokensTruncation:
         )
 
         agent.client = create_mock_llm_client([truncated_text_response, next_response])
-        result = agent.run("Write something long")
+        result = await agent.run("Write something long")
 
         assert result.success is True
 
-    def test_stream_emits_error_for_truncated_tool_call(self):
-        """run_stream() should emit tool_result error events for truncated calls."""
+    async def test_stream_emits_error_for_truncated_tool_call(self):
+        """run() with event_stream should emit tool_result error events for truncated calls."""
+        from app.agent.event_stream import EventStream
+
         agent = _make_agent(max_turns=3)
 
         truncated_response = MockResponse(
@@ -541,10 +561,17 @@ class TestMaxTokensTruncation:
 
         agent.client = create_mock_llm_client([truncated_response, retry_response, final_response])
 
+        event_stream = EventStream()
         events = []
-        with patch("app.agent.agent.call_tool", return_value='{"success": true}'):
-            for event in agent.run_stream("Generate report"):
+
+        async def collect_events():
+            async for event in event_stream:
                 events.append(event)
+
+        with patch("app.agent.agent.acall_tool", new_callable=AsyncMock, return_value='{"success": true}'):
+            collector = asyncio.create_task(collect_events())
+            await agent.run("Generate report", event_stream=event_stream)
+            await collector
 
         event_types = [e.event_type for e in events]
 
@@ -558,7 +585,7 @@ class TestMaxTokensTruncation:
         # Should still complete successfully
         assert "complete" in event_types
 
-    def test_multiple_truncated_tool_calls(self):
+    async def test_multiple_truncated_tool_calls(self):
         """Multiple tool calls in a truncated response should all be handled."""
         agent = _make_agent(max_turns=3)
 
@@ -579,11 +606,11 @@ class TestMaxTokensTruncation:
 
         agent.client = create_mock_llm_client([truncated_response, final_response])
 
-        with patch("app.agent.agent.call_tool") as mock_call:
-            result = agent.run("Do two things")
+        with patch("app.agent.agent.acall_tool", new_callable=AsyncMock) as mock_call:
+            result = await agent.run("Do two things")
 
         assert result.success is True
-        # call_tool should NOT have been called for truncated calls
+        # acall_tool should NOT have been called for truncated calls
         assert mock_call.call_count == 0
         # Both truncated tool calls should generate error steps
         truncation_steps = [s for s in result.steps if "truncated" in (s.content or "")]

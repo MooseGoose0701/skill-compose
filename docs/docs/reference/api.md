@@ -50,12 +50,39 @@ Same request body as `/run`. Returns Server-Sent Events (SSE) with event types:
 | `tool_call` | Tool call started |
 | `tool_result` | Tool call result |
 | `output_file` | Auto-detected output file (`file_id`, `filename`, `size`, `content_type`, `download_url`) |
+| `steering_received` | Steering message was injected by the user |
 | `context_compressed` | History was compressed |
 | `complete` | Agent finished (`answer`, `success`, `total_turns`, `skills_used`) |
 | `trace_saved` | Trace saved to database |
 | `error` | Error occurred |
 
 Text arrives incrementally via `text_delta` events as the LLM generates tokens, enabling real-time display. Accumulate consecutive `text_delta` chunks to build the full assistant message. If the stream connection fails (e.g., API timeout), the system automatically retries with a non-streaming fallback.
+
+### Steer Running Agent
+
+```
+POST /api/v1/agent/run/stream/{trace_id}/steer
+```
+
+Inject a steering message into a running agent stream. The agent picks up the message at the next tool boundary.
+
+**Request Body:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `message` | string | Yes | Steering message (min 1 character) |
+
+**Response:** `{"status": "injected", "trace_id": "..."}`
+
+**Errors:**
+
+| Code | Condition |
+|------|-----------|
+| `404` | No active run for this trace_id |
+| `409` | Agent has already completed |
+| `422` | Empty message |
+
+**Multi-worker behavior:** If the stream runs on a different worker, the endpoint checks the database for a running trace and writes the message to a filesystem queue. The streaming worker polls the queue and injects the message.
 
 ---
 
@@ -390,6 +417,7 @@ SSE streaming chat. Only available when `api_response_mode` is `streaming` (retu
 | `tool_call` | Tool call started |
 | `tool_result` | Tool call result |
 | `output_file` | Auto-detected output file |
+| `steering_received` | Steering message was injected by the user |
 | `complete` | Agent finished (`answer`, `success`, `total_turns`, `skills_used`) |
 | `context_compressed` | History was compressed |
 | `trace_saved` | Trace saved to database |
@@ -420,6 +448,24 @@ Synchronous chat. Only available when `api_response_mode` is `non_streaming` (re
 | `session_id` | string? | Session ID (useful when auto-generated) |
 
 **Message persistence:** When `success` is `true`, the agent's complete internal messages (including all `tool_use` and `tool_result` blocks) replace the session's messages array.
+
+### Steer Published Agent
+
+```
+POST /api/v1/published/{agent_id}/chat/{trace_id}/steer
+```
+
+Inject a steering message into a running published agent stream. Same behavior as the [agent steer endpoint](#steer-running-agent).
+
+**Request Body:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `message` | string | Yes | Steering message (min 1 character) |
+
+**Response:** `{"status": "injected", "trace_id": "..."}`
+
+**Errors:** `404` (no active run), `409` (already completed), `422` (empty message).
 
 ### Get Session
 

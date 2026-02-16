@@ -148,12 +148,26 @@ curl -N -X POST http://localhost:62610/api/v1/published/{agent_id}/chat \
 | `tool_call` | Tool call started |
 | `tool_result` | Tool call result |
 | `output_file` | Auto-detected output file |
+| `steering_received` | Steering message was injected by the user |
 | `complete` | Agent finished (contains `answer`, `success`, `total_turns`) |
 | `context_compressed` | History was compressed (long conversations) |
 | `trace_saved` | Trace record saved to database |
 | `error` | Error occurred |
 
 Text arrives incrementally via `text_delta` events as the LLM generates tokens. Accumulate them to build the full response. If the stream connection drops, the system retries automatically.
+
+#### Steering a Running Agent
+
+While the agent is processing, you can inject a steering message to redirect its behavior:
+
+```bash
+# trace_id is returned in the run_started event
+curl -X POST http://localhost:62610/api/v1/published/{agent_id}/chat/{trace_id}/steer \
+  -H "Content-Type: application/json" \
+  -d '{"message": "Try a different approach"}'
+```
+
+The agent picks up the message at its next tool boundary. See [Agents — Steering](/concepts/agents#steering-mid-execution-intervention) for details.
 
 ### Non-Streaming Chat
 

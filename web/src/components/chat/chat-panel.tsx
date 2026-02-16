@@ -4,7 +4,7 @@ import React from "react";
 import { flushSync } from "react-dom";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
-import { RotateCcw, Paperclip, X, Wrench, Plug, ChevronDown, ChevronUp, Square, Bot, Cpu, Maximize2, Server } from "lucide-react";
+import { RotateCcw, Paperclip, X, Wrench, Plug, ChevronDown, ChevronUp, Square, Bot, Cpu, Maximize2, Server, Navigation } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
@@ -181,9 +181,28 @@ export function ChatPanel({ isOpen, onClose, defaultSkills = [] }: ChatPanelProp
     }
   }, [agentPresets, selectedAgentPreset, systemPrompt, setSystemPrompt]);
 
+  const handleSteer = async (message: string) => {
+    const traceId = currentTraceIdRef.current;
+    if (!traceId) return;
+    try {
+      await agentApi.steerAgent(traceId, message);
+      setInput("");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to send steering message");
+    }
+  };
+
   const handleSubmit = async () => {
-    // Use store.getState() to avoid stale closure - prevents concurrent runs from double-clicks
-    if (!input.trim() || useChatStore.getState().isRunning) return;
+    if (!input.trim()) return;
+
+    // Steering mode: inject message into running agent
+    if (useChatStore.getState().isRunning && currentTraceIdRef.current) {
+      await handleSteer(input.trim());
+      return;
+    }
+
+    // Normal mode: prevent concurrent runs
+    if (useChatStore.getState().isRunning) return;
 
     // Create abort controller for this request
     const abortController = new AbortController();
@@ -826,9 +845,8 @@ export function ChatPanel({ isOpen, onClose, defaultSkills = [] }: ChatPanelProp
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Type your request..."
+            placeholder={isRunning ? "Steer the agent..." : "Type your request..."}
             className="min-h-[80px] resize-none"
-            disabled={isRunning}
           />
         </div>
         <div className="flex justify-between items-center mt-2">
@@ -856,10 +874,16 @@ export function ChatPanel({ isOpen, onClose, defaultSkills = [] }: ChatPanelProp
             </span>
           </div>
           {isRunning ? (
-            <Button onClick={handleStop} variant="destructive">
-              <Square className="h-4 w-4 mr-1" />
-              Stop
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button onClick={handleStop} variant="destructive" size="sm">
+                <Square className="h-4 w-4 mr-1" />
+                Stop
+              </Button>
+              <Button onClick={handleSubmit} disabled={!input.trim()} size="sm">
+                <Navigation className="h-4 w-4 mr-1" />
+                Steer
+              </Button>
+            </div>
           ) : (
             <Button onClick={handleSubmit} disabled={!input.trim()}>
               Send

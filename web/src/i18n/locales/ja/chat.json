@@ -78,5 +78,10 @@
     "user": "あなた",
     "assistant": "アシスタント",
     "system": "システム"
+  },
+  "steering": {
+    "placeholder": "エージェントを操舵...",
+    "button": "操舵",
+    "label": "ステアリング"
   }
 }

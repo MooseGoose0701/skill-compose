@@ -5,6 +5,7 @@ Endpoints tested:
 - GET  /api/v1/published/{id}                     — Get published agent info
 - GET  /api/v1/published/{id}/sessions/{sid}       — Get session messages
 - POST /api/v1/published/{id}/chat                 — SSE streaming chat
+- POST /api/v1/published/{id}/chat/{trace_id}/steer — Steer running agent
 
 Note: Published endpoints use AsyncSessionLocal directly (not get_db),
 so we must mock AsyncSessionLocal to control database interactions.
@@ -14,13 +15,15 @@ import json
 import uuid
 from contextlib import asynccontextmanager
 from datetime import datetime
-from types import SimpleNamespace
 from unittest.mock import patch, MagicMock, AsyncMock
 
+import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models import AgentPresetDB, PublishedSessionDB
+from app.agent.agent import StreamEvent
+from app.agent.event_stream import EventStream
+from app.db.models import AgentPresetDB, AgentTraceDB, PublishedSessionDB
 
 API = "/api/v1/published"
 
@@ -183,15 +186,15 @@ class TestGetSession:
 
 
 def _make_stream_events():
-    """Minimal stream events for a successful agent run."""
+    """Minimal StreamEvent objects for a successful agent run."""
     return [
-        SimpleNamespace(event_type="turn_start", turn=1, data={"turn": 1}),
-        SimpleNamespace(
+        StreamEvent(event_type="turn_start", turn=1, data={"turn": 1}),
+        StreamEvent(
             event_type="assistant",
             turn=1,
             data={"content": "Hello!", "turn": 1},
         ),
-        SimpleNamespace(
+        StreamEvent(
             event_type="complete",
             turn=1,
             data={
@@ -201,9 +204,47 @@ def _make_stream_events():
                 "total_input_tokens": 100,
                 "total_output_tokens": 50,
                 "skills_used": [],
+                "output_files": [],
+                "final_messages": [],
             },
         ),
     ]
+
+
+def _make_mock_agent_instance(events=None):
+    """Create a mock SkillsAgent whose run() pushes events to event_stream."""
+    from app.agent.agent import AgentResult
+
+    if events is None:
+        events = _make_stream_events()
+
+    complete_event = next((e for e in events if e.event_type == "complete"), None)
+    result = AgentResult(
+        success=complete_event.data.get("success", True) if complete_event else True,
+        answer=complete_event.data.get("answer", "Done") if complete_event else "Done",
+        total_turns=complete_event.data.get("total_turns", 1) if complete_event else 1,
+        total_input_tokens=complete_event.data.get("total_input_tokens", 100) if complete_event else 100,
+        total_output_tokens=complete_event.data.get("total_output_tokens", 50) if complete_event else 50,
+        skills_used=complete_event.data.get("skills_used", []) if complete_event else [],
+        output_files=complete_event.data.get("output_files", []) if complete_event else [],
+        final_messages=complete_event.data.get("final_messages", []) if complete_event else [],
+    )
+
+    mock_instance = MagicMock()
+    mock_instance.model = "kimi-k2.5"
+    mock_instance.model_provider = "kimi"
+    mock_instance.cleanup = MagicMock()
+
+    async def mock_run(request, conversation_history=None, image_contents=None,
+                       event_stream=None, cancellation_event=None):
+        if event_stream:
+            for event in events:
+                await event_stream.push(event)
+            await event_stream.close()
+        return result
+
+    mock_instance.run = AsyncMock(side_effect=mock_run)
+    return mock_instance
 
 
 class TestPublishedChat:
@@ -238,11 +279,12 @@ class TestPublishedChat:
     ):
         """Chatting with a valid published agent returns SSE stream."""
         preset = _make_preset(published=True)
+        preset.model_provider = None
+        preset.model_name = None
+        preset.executor_id = None
 
         # Mock agent
-        mock_instance = MagicMock()
-        mock_instance.run_stream.return_value = iter(_make_stream_events())
-        MockAgent.return_value = mock_instance
+        MockAgent.return_value = _make_mock_agent_instance()
 
         # Build a mock session local that returns preset on first call,
         # then no session (new session), then works for trace/session saves
@@ -285,3 +327,103 @@ class TestPublishedChat:
         first = json.loads(lines[0].replace("data: ", ""))
         assert first["event_type"] == "run_started"
         assert first["session_id"] == session_id
+
+
+# ---------------------------------------------------------------------------
+# POST /published/{agent_id}/chat/{trace_id}/steer
+# ---------------------------------------------------------------------------
+
+
+class TestPublishedSteer:
+    """Tests for POST /api/v1/published/{agent_id}/chat/{trace_id}/steer."""
+
+    async def test_steer_no_active_run_404(self, client: AsyncClient):
+        """Steering a non-existent trace returns 404."""
+        agent_id = str(uuid.uuid4())
+        resp = await client.post(
+            f"{API}/{agent_id}/chat/nonexistent-trace/steer",
+            json={"message": "switch to plan B"},
+        )
+        assert resp.status_code == 404
+        assert "No active run" in resp.json()["detail"]
+
+    async def test_steer_completed_run_409(self, client: AsyncClient):
+        """Steering a completed (closed) stream returns 409."""
+        from app.api.v1.published import _active_streams
+
+        es = EventStream()
+        await es.close()
+        _active_streams["pub-trace-closed"] = es
+
+        agent_id = str(uuid.uuid4())
+        try:
+            resp = await client.post(
+                f"{API}/{agent_id}/chat/pub-trace-closed/steer",
+                json={"message": "too late"},
+            )
+            assert resp.status_code == 409
+            assert "already completed" in resp.json()["detail"]
+        finally:
+            _active_streams.pop("pub-trace-closed", None)
+
+    async def test_steer_injects_message(self, client: AsyncClient):
+        """Steering an active published stream injects the message."""
+        from app.api.v1.published import _active_streams
+
+        es = EventStream()
+        _active_streams["pub-trace-active"] = es
+
+        agent_id = str(uuid.uuid4())
+        try:
+            resp = await client.post(
+                f"{API}/{agent_id}/chat/pub-trace-active/steer",
+                json={"message": "use a different approach"},
+            )
+            assert resp.status_code == 200
+            body = resp.json()
+            assert body["status"] == "injected"
+
+            # Verify the injection was received
+            assert es.has_injection() is True
+            assert es.get_injection_nowait() == "use a different approach"
+        finally:
+            _active_streams.pop("pub-trace-active", None)
+
+    async def test_steer_cross_worker_via_filesystem(self, client: AsyncClient, db_session):
+        """Cross-worker steering: running trace in DB + filesystem queue."""
+        from app.agent.steering import STEERING_DIR, cleanup_steering_dir
+
+        trace = AgentTraceDB(
+            request="test",
+            skills_used=[],
+            model="test",
+            model_provider="test",
+            status="running",
+            success=False,
+            answer="",
+            total_turns=0,
+            total_input_tokens=0,
+            total_output_tokens=0,
+            steps=[],
+            llm_calls=[],
+            duration_ms=0,
+        )
+        db_session.add(trace)
+        await db_session.commit()
+
+        agent_id = str(uuid.uuid4())
+        try:
+            resp = await client.post(
+                f"{API}/{agent_id}/chat/{trace.id}/steer",
+                json={"message": "published cross-worker steer"},
+            )
+            assert resp.status_code == 200
+            assert resp.json()["status"] == "injected"
+
+            # Verify filesystem message
+            trace_dir = STEERING_DIR / trace.id
+            msg_files = list(trace_dir.glob("*.msg"))
+            assert len(msg_files) == 1
+            assert msg_files[0].read_text(encoding="utf-8") == "published cross-worker steer"
+        finally:
+            cleanup_steering_dir(trace.id)

@@ -19,7 +19,6 @@ import uuid
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from datetime import datetime
-from types import SimpleNamespace
 from typing import Dict, List, Optional
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -27,6 +26,7 @@ import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agent.agent import StreamEvent
 from tests.test_e2e.conftest import parse_sse_events
 
 
@@ -106,7 +106,7 @@ class TestCompressionTurnBoundariesE2E:
         mock_resp.text_content = summary_text
         mock_resp.usage = MagicMock(input_tokens=500, output_tokens=200)
         agent.client = MagicMock()
-        agent.client.create = MagicMock(return_value=mock_resp)
+        agent.client.acreate = AsyncMock(return_value=mock_resp)
 
     async def test_01_simple_turns_boundary_detection(self):
         """Simple user/assistant pairs: each pair is one logical turn."""
@@ -118,7 +118,7 @@ class TestCompressionTurnBoundariesE2E:
         for i in range(5):
             messages.extend(_make_simple_turn(f"Q{i}", f"A{i}"))
 
-        compressed, s_in, s_out = agent._compress_messages(messages)
+        compressed, s_in, s_out = await agent._compress_messages(messages)
         # Should keep last 3 turns = 6 messages, compress first 2 turns
         # compressed = [summary_user, ack_assistant] + 6 recent = 8
         assert compressed[0]["role"] == "user"
@@ -152,7 +152,7 @@ class TestCompressionTurnBoundariesE2E:
         # Turn 5: current question
         messages = turn1 + turn2 + turn3 + turn4 + [{"role": "user", "content": "What model?"}]
 
-        compressed, _, _ = agent._compress_messages(messages)
+        compressed, _, _ = await agent._compress_messages(messages)
 
         # Should keep last 3 logical turns (turn 3, 4, 5)
         # Recent starts at turn 3's user message "Add rainbow"
@@ -178,7 +178,7 @@ class TestCompressionTurnBoundariesE2E:
             {"name": "get_skill", "result": "content"},
         ], "Hi!")
 
-        result, s_in, s_out = agent._compress_messages(messages)
+        result, s_in, s_out = await agent._compress_messages(messages)
         assert result is messages  # Unchanged
         assert s_in == 0
         assert s_out == 0
@@ -198,7 +198,7 @@ class TestCompressionTurnBoundariesE2E:
         turn3 = _make_simple_turn("Turn 3", "Done 3")
 
         messages = turn1 + turn2 + turn3
-        compressed, _, _ = agent._compress_messages(messages)
+        compressed, _, _ = await agent._compress_messages(messages)
 
         # Summary message exists
         assert compressed[0]["role"] == "user"
@@ -236,7 +236,7 @@ class TestCompressionTurnBoundariesE2E:
             {"role": "user", "content": "Real user turn 5"},
         ]
 
-        compressed, _, _ = agent._compress_messages(messages)
+        compressed, _, _ = await agent._compress_messages(messages)
 
         # 5 real turn boundaries. Keep 3 → compress turns 1-2, keep turns 3-5.
         # Turn 3 starts at "Real user turn 3"
@@ -278,7 +278,7 @@ class TestCompressionTokenBudgetE2E:
         mock_resp.text_content = "<summary>\n## Test\nSummary\n</summary>"
         mock_resp.usage = MagicMock(input_tokens=500, output_tokens=200)
         agent.client = MagicMock()
-        agent.client.create = MagicMock(return_value=mock_resp)
+        agent.client.acreate = AsyncMock(return_value=mock_resp)
 
     async def test_01_max_three_turns_cap(self):
         """Even with small turns, never keep more than MAX_RECENT_TURNS (3)."""
@@ -290,7 +290,7 @@ class TestCompressionTokenBudgetE2E:
         for i in range(10):
             messages.extend(_make_simple_turn(f"Q{i}", f"A{i}"))
 
-        compressed, _, _ = agent._compress_messages(messages)
+        compressed, _, _ = await agent._compress_messages(messages)
 
         # Count real user messages in recent portion (after summary)
         recent_user_texts = [
@@ -312,7 +312,7 @@ class TestCompressionTokenBudgetE2E:
         for i in range(5):
             messages.extend(_make_heavy_tool_turn(f"Heavy task {i}", result_size=80000))
 
-        compressed, _, _ = agent._compress_messages(messages)
+        compressed, _, _ = await agent._compress_messages(messages)
 
         # Count kept user text messages
         recent_user_texts = [
@@ -333,7 +333,7 @@ class TestCompressionTokenBudgetE2E:
         for i in range(5):
             messages.extend(_make_heavy_tool_turn(f"Task {i}", result_size=10000))
 
-        compressed, _, _ = agent._compress_messages(messages)
+        compressed, _, _ = await agent._compress_messages(messages)
 
         # At least 1 recent user text message
         recent_user_texts = [
@@ -348,7 +348,7 @@ class TestCompressionTokenBudgetE2E:
 
         # Only 2 tiny turns — both fit and under cap of 3
         messages = _make_simple_turn("Q1", "A1") + _make_simple_turn("Q2", "A2")
-        result, s_in, s_out = agent._compress_messages(messages)
+        result, s_in, s_out = await agent._compress_messages(messages)
 
         assert result is messages  # Returned as-is
         assert s_in == 0
@@ -366,7 +366,7 @@ class TestCompressionTokenBudgetE2E:
         messages.extend(_make_simple_turn("Light 2", "OK 2"))
         messages.append({"role": "user", "content": "Final"})
 
-        compressed, _, _ = agent._compress_messages(messages)
+        compressed, _, _ = await agent._compress_messages(messages)
 
         # Light turns are tiny, should be included; heavy turns may exceed budget
         # The 2 light + "Final" should definitely be in recent
@@ -407,13 +407,13 @@ class TestCompressionSummaryFormatE2E:
         mock_resp.text_content = llm_summary
         mock_resp.usage = MagicMock(input_tokens=500, output_tokens=200)
         agent.client = MagicMock()
-        agent.client.create = MagicMock(return_value=mock_resp)
+        agent.client.acreate = AsyncMock(return_value=mock_resp)
 
         messages = []
         for i in range(5):
             messages.extend(_make_simple_turn(f"Q{i}", f"A{i}"))
 
-        compressed, _, _ = agent._compress_messages(messages)
+        compressed, _, _ = await agent._compress_messages(messages)
 
         summary_content = compressed[0]["content"]
         # Should contain the summary tags exactly once
@@ -425,13 +425,13 @@ class TestCompressionSummaryFormatE2E:
         """When LLM call fails, fallback text gets wrapped in <summary> tags."""
         agent = self._make_agent()
         agent.client = MagicMock()
-        agent.client.create = MagicMock(side_effect=Exception("API error"))
+        agent.client.acreate = AsyncMock(side_effect=Exception("API error"))
 
         messages = []
         for i in range(5):
             messages.extend(_make_simple_turn(f"Q{i}", f"A{i}"))
 
-        compressed, _, _ = agent._compress_messages(messages)
+        compressed, _, _ = await agent._compress_messages(messages)
 
         summary_content = compressed[0]["content"]
         assert "<summary>" in summary_content
@@ -444,13 +444,13 @@ class TestCompressionSummaryFormatE2E:
         mock_resp.text_content = "<summary>\nTest summary\n</summary>"
         mock_resp.usage = MagicMock(input_tokens=100, output_tokens=50)
         agent.client = MagicMock()
-        agent.client.create = MagicMock(return_value=mock_resp)
+        agent.client.acreate = AsyncMock(return_value=mock_resp)
 
         messages = []
         for i in range(5):
             messages.extend(_make_simple_turn(f"Q{i}", f"A{i}"))
 
-        compressed, s_in, s_out = agent._compress_messages(messages)
+        compressed, s_in, s_out = await agent._compress_messages(messages)
 
         # [0] summary user message
         assert compressed[0]["role"] == "user"
@@ -496,7 +496,7 @@ class TestCompressionSummaryFormatE2E:
         mock_resp.text_content = "<summary>\nSummary\n</summary>"
         mock_resp.usage = MagicMock(input_tokens=100, output_tokens=50)
         agent.client = MagicMock()
-        agent.client.create = MagicMock(return_value=mock_resp)
+        agent.client.acreate = AsyncMock(return_value=mock_resp)
 
         # 4 turns: first has tool, rest are simple
         turn1 = _make_tool_turn("T1", [{"name": "bash", "result": "ok"}], "Done1")
@@ -508,7 +508,7 @@ class TestCompressionSummaryFormatE2E:
         turn4 = _make_simple_turn("T4", "Done4")
 
         messages = turn1 + turn2 + turn3 + turn4
-        compressed, _, _ = agent._compress_messages(messages)
+        compressed, _, _ = await agent._compress_messages(messages)
 
         # Extract recent portion (skip summary + ack)
         recent = compressed[2:]
@@ -674,17 +674,21 @@ class TestPublishedSessionFullMessagesE2E:
             ]},
         ]
 
-        # Mock agent streaming
+        # Mock agent with async run() that pushes events to event_stream
         mock_instance = MagicMock()
-        mock_instance.run_stream.return_value = iter([
-            SimpleNamespace(event_type="turn_start", turn=1, data={"turn": 1}),
-            SimpleNamespace(event_type="tool_result", turn=1, data={
+        mock_instance.cleanup = MagicMock()
+        mock_instance.model = "kimi-k2.5"
+        mock_instance.model_provider = "kimi"
+
+        events_to_push = [
+            StreamEvent(event_type="turn_start", turn=1, data={"turn": 1}),
+            StreamEvent(event_type="tool_result", turn=1, data={
                 "tool_name": "list_skills", "tool_input": {}, "tool_result": '{"skills": ["a","b"]}',
             }),
-            SimpleNamespace(event_type="assistant", turn=2, data={
+            StreamEvent(event_type="assistant", turn=2, data={
                 "content": "Found 2 skills: a, b", "turn": 2,
             }),
-            SimpleNamespace(event_type="complete", turn=2, data={
+            StreamEvent(event_type="complete", turn=2, data={
                 "success": True,
                 "answer": "Found 2 skills: a, b",
                 "total_turns": 2,
@@ -693,7 +697,22 @@ class TestPublishedSessionFullMessagesE2E:
                 "skills_used": [],
                 "final_messages": final_msgs,
             }),
-        ])
+        ]
+
+        async def mock_run(request, conversation_history=None, image_contents=None,
+                           event_stream=None, cancellation_event=None):
+            if event_stream:
+                for event in events_to_push:
+                    await event_stream.push(event)
+                await event_stream.close()
+            from app.agent.agent import AgentResult
+            return AgentResult(
+                success=True, answer="Found 2 skills: a, b",
+                total_turns=2, total_input_tokens=200, total_output_tokens=30,
+                skills_used=[], final_messages=final_msgs,
+            )
+
+        mock_instance.run = AsyncMock(side_effect=mock_run)
         MockAgent.return_value = mock_instance
 
         # Mock AsyncSessionLocal with DB interactions tracking
@@ -742,15 +761,11 @@ class TestPublishedSessionFullMessagesE2E:
                 mock_session_record.messages = []
                 mock_result.scalar_one_or_none.return_value = mock_session_record
 
-                original_execute = AsyncMock(return_value=mock_result)
-
                 async def capture_execute(stmt, *args, **kwargs):
-                    # Check if this is an update statement
                     if hasattr(stmt, 'compile'):
                         compiled = stmt.compile(compile_kwargs={"literal_binds": True})
                         stmt_str = str(compiled)
                         if "UPDATE" in stmt_str and "messages" in stmt_str:
-                            # Extract messages from the update parameters
                             params = stmt.compile().params
                             if "messages" in params:
                                 saved_messages["data"] = params["messages"]
@@ -815,21 +830,15 @@ class TestPublishedSessionFullMessagesE2E:
         ]
 
         from app.agent.agent import AgentResult
-        mock_result = MagicMock()
-        mock_result.success = True
-        mock_result.answer = "Hi!"
-        mock_result.total_turns = 1
-        mock_result.total_input_tokens = 100
-        mock_result.total_output_tokens = 20
-        mock_result.steps = []
-        mock_result.error = None
-        mock_result.log_file = None
-        mock_result.skills_used = []
-        mock_result.output_files = []
-        mock_result.final_messages = final_msgs
+        mock_result = AgentResult(
+            success=True, answer="Hi!", total_turns=1,
+            total_input_tokens=100, total_output_tokens=20,
+            skills_used=[], output_files=[], final_messages=final_msgs,
+        )
 
         mock_instance = MagicMock()
-        mock_instance.run.return_value = mock_result
+        mock_instance.run = AsyncMock(return_value=mock_result)
+        mock_instance.cleanup = MagicMock()
         mock_instance.model = "kimi-k2.5"
         mock_instance.model_provider = "kimi"
         MockAgent.return_value = mock_instance
