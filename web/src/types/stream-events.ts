@@ -115,6 +115,16 @@ export interface TraceSavedRecord extends StreamEventRecordBase {
   data: TraceSavedData;
 }
 
+// Steering received event data
+export interface SteeringReceivedData {
+  message: string;
+}
+
+export interface SteeringReceivedRecord extends StreamEventRecordBase {
+  type: 'steering_received';
+  data: SteeringReceivedData;
+}
+
 // Union type of all stream event records
 export type StreamEventRecord =
   | TurnStartRecord
@@ -125,7 +135,8 @@ export type StreamEventRecord =
   | CompleteRecord
   | ErrorRecord
   | RunStartedRecord
-  | TraceSavedRecord;
+  | TraceSavedRecord
+  | SteeringReceivedRecord;
 
 // Type guard functions
 export function isTurnStartRecord(record: StreamEventRecord): record is TurnStartRecord {

@@ -24,6 +24,8 @@ import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agent.agent import StreamEvent
+
 from tests.factories import make_skill, make_skill_version, make_skill_file, make_trace
 
 from tests.test_e2e.conftest import parse_sse_events
@@ -72,7 +74,8 @@ class _MockAgentResult:
 
 def _make_mock_agent(result=None):
     instance = MagicMock()
-    instance.run.return_value = result or _MockAgentResult()
+    instance.run = AsyncMock(return_value=result or _MockAgentResult())
+    instance.cleanup = MagicMock()
     instance.model = "claude-sonnet-4-5-20250929"
     instance.model_provider = "anthropic"  # Required for multi-LLM support
     return instance
@@ -80,13 +83,13 @@ def _make_mock_agent(result=None):
 
 def _make_stream_events(answer="E2E stream done"):
     return [
-        SimpleNamespace(event_type="turn_start", turn=1, data={"turn": 1}),
-        SimpleNamespace(
+        StreamEvent(event_type="turn_start", turn=1, data={"turn": 1}),
+        StreamEvent(
             event_type="assistant",
             turn=1,
             data={"content": answer, "turn": 1},
         ),
-        SimpleNamespace(
+        StreamEvent(
             event_type="complete",
             turn=1,
             data={
@@ -103,6 +106,40 @@ def _make_stream_events(answer="E2E stream done"):
             },
         ),
     ]
+
+
+def _make_streaming_mock_agent(events=None, answer="E2E stream done"):
+    """Create mock agent that pushes events to event_stream in async run()."""
+    if events is None:
+        events = _make_stream_events(answer)
+
+    complete_event = next((e for e in events if e.event_type == "complete"), None)
+    result = _MockAgentResult(
+        success=complete_event.data.get("success", True) if complete_event else True,
+        answer=complete_event.data.get("answer", answer) if complete_event else answer,
+        total_turns=complete_event.data.get("total_turns", 1) if complete_event else 1,
+        total_input_tokens=complete_event.data.get("total_input_tokens", 100) if complete_event else 100,
+        total_output_tokens=complete_event.data.get("total_output_tokens", 50) if complete_event else 50,
+        skills_used=complete_event.data.get("skills_used", []) if complete_event else [],
+        output_files=complete_event.data.get("output_files", []) if complete_event else [],
+        final_messages=complete_event.data.get("final_messages", []) if complete_event else [],
+    )
+
+    mock_instance = MagicMock()
+    mock_instance.model = "claude-sonnet-4-5-20250929"
+    mock_instance.model_provider = "anthropic"
+    mock_instance.cleanup = MagicMock()
+
+    async def mock_run(request, conversation_history=None, image_contents=None,
+                       event_stream=None, cancellation_event=None):
+        if event_stream:
+            for event in events:
+                await event_stream.push(event)
+            await event_stream.close()
+        return result
+
+    mock_instance.run = AsyncMock(side_effect=mock_run)
+    return mock_instance
 
 
 def _mock_session_local():
@@ -656,10 +693,7 @@ class TestAgentRunAndTraceE2E:
     async def test_06_run_stream(
         self, MockAgent, MockSessionLocal, e2e_client: AsyncClient
     ):
-        mock_instance = MagicMock()
-        mock_instance.run_stream.return_value = iter(_make_stream_events())
-        mock_instance.model = "claude-sonnet-4-5-20250929"
-        MockAgent.return_value = mock_instance
+        MockAgent.return_value = _make_streaming_mock_agent()
         MockSessionLocal.side_effect = lambda: _mock_session_local()()
 
         resp = await e2e_client.post(
@@ -927,9 +961,7 @@ class TestPublishedAgentSessionE2E:
         pid = type(self)._state["preset_id"]
 
         # Mock agent
-        mock_instance = MagicMock()
-        mock_instance.run_stream.return_value = iter(_make_stream_events("Published reply"))
-        MockAgent.return_value = mock_instance
+        MockAgent.return_value = _make_streaming_mock_agent(answer="Published reply")
 
         # Mock AsyncSessionLocal: first call finds preset, second finds no session
         from app.db.models import AgentPresetDB
@@ -2336,28 +2368,28 @@ class TestAutoDetectOutputFilesE2E:
             },
         ]
         stream_events = [
-            SimpleNamespace(event_type="turn_start", turn=1, data={"turn": 1}),
-            SimpleNamespace(
+            StreamEvent(event_type="turn_start", turn=1, data={"turn": 1}),
+            StreamEvent(
                 event_type="tool_call",
                 turn=1,
                 data={"tool_name": "execute_code", "tool_input": {"code": "..."}},
             ),
-            SimpleNamespace(
+            StreamEvent(
                 event_type="tool_result",
                 turn=1,
                 data={"tool_name": "execute_code", "tool_result": '{"success":true}'},
             ),
-            SimpleNamespace(
+            StreamEvent(
                 event_type="output_file",
                 turn=1,
                 data=mock_output_files[0],
             ),
-            SimpleNamespace(
+            StreamEvent(
                 event_type="assistant",
                 turn=1,
                 data={"content": "Here is your file", "turn": 1},
             ),
-            SimpleNamespace(
+            StreamEvent(
                 event_type="complete",
                 turn=1,
                 data={
@@ -2372,11 +2404,7 @@ class TestAutoDetectOutputFilesE2E:
             ),
         ]
 
-        mock_instance = MagicMock()
-        mock_instance.run_stream.return_value = iter(stream_events)
-        mock_instance.model = "claude-sonnet-4-5-20250929"
-        mock_instance.model_provider = "anthropic"
-        MockAgent.return_value = mock_instance
+        MockAgent.return_value = _make_streaming_mock_agent(events=stream_events, answer="Here is your file")
         MockSessionLocal.side_effect = lambda: _mock_session_local()()
 
         resp = await e2e_client.post(
@@ -2405,11 +2433,7 @@ class TestAutoDetectOutputFilesE2E:
         self, MockAgent, MockSessionLocal, e2e_client: AsyncClient
     ):
         """POST /agent/run/stream without output files → no output_file events."""
-        mock_instance = MagicMock()
-        mock_instance.run_stream.return_value = iter(_make_stream_events("Just text"))
-        mock_instance.model = "claude-sonnet-4-5-20250929"
-        mock_instance.model_provider = "anthropic"
-        MockAgent.return_value = mock_instance
+        MockAgent.return_value = _make_streaming_mock_agent(answer="Just text")
         MockSessionLocal.side_effect = lambda: _mock_session_local()()
 
         resp = await e2e_client.post(

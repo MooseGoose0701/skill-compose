@@ -8,6 +8,7 @@ import { ToolResultItem } from "./tool-result-item";
 import { OutputFileCard } from "./output-file-card";
 import { CompleteBanner } from "./complete-banner";
 import { ErrorBanner } from "./error-banner";
+import { SteeringMessage } from "./steering-message";
 
 interface StreamEventsRendererProps {
   events: StreamEventRecord[];
@@ -57,6 +58,9 @@ export function StreamEventsRenderer({ events, expandAll = false, isStreaming = 
           case 'error':
             return <ErrorBanner key={event.id} data={event.data} />;
 
+          case 'steering_received':
+            return <SteeringMessage key={event.id} data={event.data} />;
+
           // run_started and trace_saved don't have visible UI
           case 'run_started':
           case 'trace_saved':
@@ -78,3 +82,4 @@ export { ToolResultItem } from "./tool-result-item";
 export { OutputFileCard } from "./output-file-card";
 export { CompleteBanner } from "./complete-banner";
 export { ErrorBanner } from "./error-banner";
+export { SteeringMessage } from "./steering-message";

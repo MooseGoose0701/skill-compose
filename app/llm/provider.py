@@ -13,7 +13,7 @@ Supports:
 import json
 import os
 from dataclasses import dataclass, field
-from typing import Any, Dict, Generator, List, Optional
+from typing import Any, AsyncGenerator, Dict, Generator, List, Optional
 
 from app.llm.models import get_context_limit
 
@@ -105,6 +105,7 @@ class LLMClient:
         self.model = model
         self.api_key = api_key or self._get_api_key(provider)
         self._client = None
+        self._async_client = None
 
     def _get_api_key(self, provider: str) -> str:
         """Get API key from environment based on provider."""
@@ -154,6 +155,39 @@ class LLMClient:
             import anthropic
             self._client = anthropic.Anthropic(api_key=self.api_key)
         return self._client
+
+    def _get_async_openai_client(self):
+        """Get or create async OpenAI client for OpenAI-compatible providers."""
+        if self._async_client is None:
+            from openai import AsyncOpenAI
+            import httpx
+            base_url = PROVIDER_BASE_URLS.get(self.provider)
+            timeout = httpx.Timeout(600.0, connect=10.0)
+
+            if self.provider == "openrouter":
+                self._async_client = AsyncOpenAI(
+                    api_key=self.api_key,
+                    base_url=base_url,
+                    timeout=timeout,
+                    default_headers={
+                        "HTTP-Referer": "https://github.com/skill-compose",
+                        "X-Title": "Skill Compose",
+                    },
+                )
+            else:
+                self._async_client = AsyncOpenAI(
+                    api_key=self.api_key,
+                    base_url=base_url,
+                    timeout=timeout,
+                )
+        return self._async_client
+
+    def _get_async_anthropic_client(self):
+        """Get or create async Anthropic client."""
+        if self._async_client is None:
+            import anthropic
+            self._async_client = anthropic.AsyncAnthropic(api_key=self.api_key)
+        return self._async_client
 
     def get_context_limit(self) -> int:
         """Get the context window limit for the current model."""
@@ -631,6 +665,218 @@ class LLMClient:
             except:
                 args = {}
 
+            content.append(LLMToolCall(
+                id=tc_data["id"],
+                name=tc_data["name"],
+                input=args,
+            ))
+
+        yield LLMResponse(
+            content=content,
+            stop_reason=stop_reason,
+            usage=usage,
+            model=self.model,
+        )
+
+    # ============ Async Methods ============
+
+    async def acreate(
+        self,
+        messages: List[Dict],
+        system: Optional[str] = None,
+        tools: Optional[List[Dict]] = None,
+        max_tokens: int = 16384,
+    ) -> LLMResponse:
+        """Async version of create(). Same interface, uses async SDK clients."""
+        provider_limit = PROVIDER_MAX_TOKENS.get(self.provider)
+        if provider_limit:
+            max_tokens = min(max_tokens, provider_limit)
+
+        if self.provider == "anthropic":
+            return await self._acreate_anthropic(messages, system, tools, max_tokens)
+        else:
+            return await self._acreate_openai_compatible(messages, system, tools, max_tokens)
+
+    async def _acreate_anthropic(
+        self,
+        messages: List[Dict],
+        system: Optional[str],
+        tools: Optional[List[Dict]],
+        max_tokens: int,
+    ) -> LLMResponse:
+        """Async completion using Anthropic SDK."""
+        client = self._get_async_anthropic_client()
+        kwargs = {
+            "model": self.model,
+            "max_tokens": max_tokens,
+            "messages": messages,
+        }
+        if system:
+            kwargs["system"] = system
+        if tools:
+            kwargs["tools"] = tools
+
+        response = await client.messages.create(**kwargs)
+        return self._parse_anthropic_response(response)
+
+    async def _acreate_openai_compatible(
+        self,
+        messages: List[Dict],
+        system: Optional[str],
+        tools: Optional[List[Dict]],
+        max_tokens: int,
+    ) -> LLMResponse:
+        """Async completion using OpenAI SDK."""
+        client = self._get_async_openai_client()
+        converted_messages = self._convert_messages_to_openai(messages, system)
+        converted_tools = self._convert_tools_to_openai(tools)
+
+        kwargs = {
+            "model": self.model,
+            "messages": converted_messages,
+            "max_tokens": max_tokens,
+        }
+        if converted_tools:
+            kwargs["tools"] = converted_tools
+        if self.provider == "kimi":
+            kwargs["extra_body"] = {"thinking": {"type": "disabled"}}
+
+        response = await client.chat.completions.create(**kwargs)
+        return self._parse_openai_response(response)
+
+    async def acreate_stream(
+        self,
+        messages: List[Dict],
+        system: Optional[str] = None,
+        tools: Optional[List[Dict]] = None,
+        max_tokens: int = 16384,
+    ) -> AsyncGenerator[LLMResponse, None]:
+        """Async version of create_stream(). Yields LLMResponse deltas, then final response."""
+        provider_limit = PROVIDER_MAX_TOKENS.get(self.provider)
+        if provider_limit:
+            max_tokens = min(max_tokens, provider_limit)
+
+        if self.provider == "anthropic":
+            async for resp in self._acreate_stream_anthropic(messages, system, tools, max_tokens):
+                yield resp
+        else:
+            async for resp in self._acreate_stream_openai_compatible(messages, system, tools, max_tokens):
+                yield resp
+
+    async def _acreate_stream_anthropic(
+        self,
+        messages: List[Dict],
+        system: Optional[str],
+        tools: Optional[List[Dict]],
+        max_tokens: int,
+    ) -> AsyncGenerator[LLMResponse, None]:
+        """Async streaming using Anthropic SDK."""
+        client = self._get_async_anthropic_client()
+        kwargs = {
+            "model": self.model,
+            "max_tokens": max_tokens,
+            "messages": messages,
+        }
+        if system:
+            kwargs["system"] = system
+        if tools:
+            kwargs["tools"] = tools
+
+        async with client.messages.stream(**kwargs) as stream:
+            async for text in stream.text_stream:
+                if text:
+                    yield LLMResponse(
+                        content=[LLMTextBlock(text=text)],
+                        is_delta=True,
+                        model=self.model,
+                    )
+            response = await stream.get_final_message()
+
+        yield self._parse_anthropic_response(response)
+
+    async def _acreate_stream_openai_compatible(
+        self,
+        messages: List[Dict],
+        system: Optional[str],
+        tools: Optional[List[Dict]],
+        max_tokens: int,
+    ) -> AsyncGenerator[LLMResponse, None]:
+        """Async streaming using OpenAI SDK."""
+        client = self._get_async_openai_client()
+        converted_messages = self._convert_messages_to_openai(messages, system)
+        converted_tools = self._convert_tools_to_openai(tools)
+
+        kwargs = {
+            "model": self.model,
+            "messages": converted_messages,
+            "max_tokens": max_tokens,
+            "stream": True,
+        }
+        if converted_tools:
+            kwargs["tools"] = converted_tools
+        if self.provider == "kimi":
+            kwargs["extra_body"] = {"thinking": {"type": "disabled"}}
+
+        response = await client.chat.completions.create(**kwargs)
+
+        accumulated_text = ""
+        accumulated_tool_calls = {}
+        usage = LLMUsage()
+        stop_reason = "end_turn"
+
+        async for chunk in response:
+            if chunk.choices:
+                choice = chunk.choices[0]
+                delta = choice.delta
+
+                if delta.content:
+                    accumulated_text += delta.content
+                    yield LLMResponse(
+                        content=[LLMTextBlock(text=delta.content)],
+                        is_delta=True,
+                        model=self.model,
+                    )
+
+                if delta.tool_calls:
+                    for tc in delta.tool_calls:
+                        idx = tc.index
+                        if idx not in accumulated_tool_calls:
+                            accumulated_tool_calls[idx] = {
+                                "id": tc.id or "",
+                                "name": "",
+                                "arguments": "",
+                            }
+                        if tc.id:
+                            accumulated_tool_calls[idx]["id"] = tc.id
+                        if tc.function:
+                            if tc.function.name:
+                                accumulated_tool_calls[idx]["name"] = tc.function.name
+                            if tc.function.arguments:
+                                accumulated_tool_calls[idx]["arguments"] += tc.function.arguments
+
+                if choice.finish_reason:
+                    if choice.finish_reason == "stop":
+                        stop_reason = "end_turn"
+                    elif choice.finish_reason == "tool_calls":
+                        stop_reason = "tool_use"
+                    elif choice.finish_reason == "length":
+                        stop_reason = "max_tokens"
+                    else:
+                        stop_reason = choice.finish_reason
+
+            if chunk.usage:
+                usage.input_tokens = chunk.usage.prompt_tokens or 0
+                usage.output_tokens = chunk.usage.completion_tokens or 0
+
+        content = []
+        if accumulated_text:
+            content.append(LLMTextBlock(text=accumulated_text))
+
+        for tc_data in accumulated_tool_calls.values():
+            try:
+                args = json.loads(tc_data["arguments"])
+            except:
+                args = {}
             content.append(LLMToolCall(
                 id=tc_data["id"],
                 name=tc_data["name"],
