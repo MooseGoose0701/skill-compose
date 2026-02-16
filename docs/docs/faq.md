@@ -89,12 +89,17 @@ Increase **Max Turns** in the agent configuration. Default is 60. For complex mu
 2. **Reduce skills** — fewer skills means less context to process
 3. **Be specific** — vague requests require more agent rounds
 
+### Can I redirect the agent while it's running?
+
+Yes. While the agent is executing, the input field stays active. Type a message and press Enter to send a **steering message**. The agent picks it up at the next tool boundary and adjusts its behavior — no need to stop and restart. See [Agents — Steering](/concepts/agents#steering-mid-execution-intervention).
+
 ### Agent stuck in a loop
 
-1. Click **Stop** to halt execution
-2. Rephrase your request more specifically
-3. Try a different model
-4. Review traces for the repeated pattern
+1. Send a steering message to redirect it (e.g., "Stop repeating and try a different approach")
+2. Click **Stop** to halt execution
+3. Rephrase your request more specifically
+4. Try a different model
+5. Review traces for the repeated pattern
 
 ---
 

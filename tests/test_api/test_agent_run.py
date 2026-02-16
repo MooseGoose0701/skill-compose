@@ -10,7 +10,7 @@ Covers:
 
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from httpx import AsyncClient
@@ -65,7 +65,7 @@ class MockAgentResult:
 def _make_mock_agent(result: Optional[MockAgentResult] = None):
     """Return a MagicMock that behaves like SkillsAgent."""
     instance = MagicMock()
-    instance.run.return_value = result or MockAgentResult()
+    instance.run = AsyncMock(return_value=result or MockAgentResult())
     instance.model = "kimi-k2.5"
     instance.model_provider = "kimi"
     return instance

@@ -3,7 +3,7 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import { useParams } from "next/navigation";
 import { flushSync } from "react-dom";
-import { Paperclip, X, Square, Bot, Loader2, MessageSquarePlus } from "lucide-react";
+import { Paperclip, X, Square, Bot, Loader2, MessageSquarePlus, Navigation } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { publishedAgentApi, filesApi } from "@/lib/api";
@@ -67,6 +67,7 @@ export default function PublishedChatPage() {
   // Refs
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const currentTraceIdRef = useRef<string | null>(null);
 
   // Load agent info + restore session
   useEffect(() => {
@@ -165,8 +166,27 @@ export default function PublishedChatPage() {
     setUploadedFiles([]);
   };
 
+  const handleSteer = async (message: string) => {
+    const traceId = currentTraceIdRef.current;
+    if (!traceId) return;
+    try {
+      await publishedAgentApi.steerAgent(agentId, traceId, message);
+      setInput("");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to send steering message");
+    }
+  };
+
   const handleSubmit = async () => {
-    if (!input.trim() || isRunning) return;
+    if (!input.trim()) return;
+
+    // Steering mode
+    if (isRunning && currentTraceIdRef.current) {
+      await handleSteer(input.trim());
+      return;
+    }
+
+    if (isRunning) return;
 
     const abortController = new AbortController();
     abortControllerRef.current = abortController;
@@ -322,6 +342,7 @@ export default function PublishedChatPage() {
             switch (event.event_type) {
               case "run_started":
                 traceId = event.trace_id;
+                currentTraceIdRef.current = traceId || null;
                 flushSync(() => {
                   updateMessage(loadingMessageId, { traceId });
                 });
@@ -390,6 +411,7 @@ export default function PublishedChatPage() {
       setStreamingEvents([]);
       setCurrentOutputFiles([]);
       abortControllerRef.current = null;
+      currentTraceIdRef.current = null;
     }
   };
 
@@ -411,6 +433,7 @@ export default function PublishedChatPage() {
     setStreamingEvents([]);
     setCurrentOutputFiles([]);
     abortControllerRef.current = null;
+    currentTraceIdRef.current = null;
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -542,9 +565,8 @@ export default function PublishedChatPage() {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Type your message..."
+              placeholder={isRunning ? "Steer the agent..." : "Type your message..."}
               className="min-h-[80px] resize-none"
-              disabled={isRunning}
             />
           </div>
           <div className="flex justify-between items-center mt-2">
@@ -572,10 +594,16 @@ export default function PublishedChatPage() {
               </span>
             </div>
             {isRunning ? (
-              <Button onClick={handleStop} variant="destructive">
-                <Square className="h-4 w-4 mr-1" />
-                Stop
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button onClick={handleStop} variant="destructive" size="sm">
+                  <Square className="h-4 w-4 mr-1" />
+                  Stop
+                </Button>
+                <Button onClick={handleSubmit} disabled={!input.trim()} size="sm">
+                  <Navigation className="h-4 w-4 mr-1" />
+                  Steer
+                </Button>
+              </div>
             ) : (
               <Button onClick={handleSubmit} disabled={!input.trim()}>
                 Send

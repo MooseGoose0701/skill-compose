@@ -1,9 +1,9 @@
 """
-Skills Agent - An agent that uses skills and tools to complete tasks
+Skills Agent - An async agent that uses skills and tools to complete tasks
 
 The agent:
 1. Receives a user request
-2. Uses an LLM (via LiteLLM) to decide what to do
+2. Uses an LLM (via native SDK) to decide what to do
 3. Calls tools (list_skills, get_skill, execute_code, etc.)
 4. Loops until task is complete
 5. Returns the final result
@@ -14,19 +14,23 @@ Supports multiple LLM providers:
 - OpenAI (GPT-4o, o1)
 - Google (Gemini)
 """
+import asyncio
 import copy
 import json
 import os
 import uuid
 from datetime import datetime
-from typing import Any, Dict, Generator, List, Optional
+from typing import Any, Dict, Generator, List, Optional, TYPE_CHECKING
 from dataclasses import dataclass, field, asdict
 
 from app.config import settings
-from app.agent.tools import TOOLS, call_tool, get_tools_for_agent, BASE_TOOLS, get_mcp_client, WORKING_DIR
+from app.agent.tools import TOOLS, call_tool, acall_tool, get_tools_for_agent, BASE_TOOLS, get_mcp_client, WORKING_DIR
 from app.core.tools_registry import get_all_tools, get_tools_by_ids, tools_to_claude_format
 from app.llm import LLMClient, LLMTextBlock, LLMToolCall
 from app.llm.models import MODEL_CONTEXT_LIMITS, DEFAULT_CONTEXT_LIMIT, get_context_limit
+
+if TYPE_CHECKING:
+    from app.agent.event_stream import EventStream
 
 # Context window compression constants
 COMPRESSION_THRESHOLD_RATIO = 0.7  # Trigger compression when input tokens exceed 70% of limit
@@ -431,21 +435,18 @@ class SkillsAgent:
 
         return text
 
-    def _compress_messages(self, messages: List[Dict]) -> tuple:
+    async def _compress_messages(self, messages: List[Dict]) -> tuple:
         """Compress old messages into a structured summary, keeping recent turns.
 
         Returns:
             (compressed_messages, summary_input_tokens, summary_output_tokens)
         """
         # Find logical turn boundaries: indices of real user messages (not tool_result).
-        # A logical turn = user text message + all subsequent tool_use/tool_result/assistant messages.
-        # Splitting at these boundaries ensures we never orphan a tool_use/tool_result pair.
         turn_boundaries = []
         for i, msg in enumerate(messages):
             if msg.get("role") != "user":
                 continue
             content = msg.get("content", "")
-            # A real user message has string content or list content without tool_result blocks
             if isinstance(content, str):
                 turn_boundaries.append(i)
             elif isinstance(content, list):
@@ -463,7 +464,6 @@ class SkillsAgent:
             return messages, 0, 0
 
         # Dynamically select how many recent turns to keep within token budget.
-        # Walk backwards from the most recent turn, accumulating estimated tokens.
         max_recent_tokens = int(self._get_context_limit() * RECENT_TURNS_TOKEN_BUDGET)
         accumulated_tokens = 0
         keep_turns = 0
@@ -471,7 +471,6 @@ class SkillsAgent:
         for idx in range(len(turn_boundaries) - 1, -1, -1):
             turn_start = turn_boundaries[idx]
             turn_end = turn_boundaries[idx + 1] if idx + 1 < len(turn_boundaries) else len(messages)
-            # Estimate tokens for this turn's messages
             turn_chars = sum(
                 len(json.dumps(messages[i].get("content", ""), ensure_ascii=False))
                 for i in range(turn_start, turn_end)
@@ -508,7 +507,7 @@ class SkillsAgent:
         summary_input_tokens = 0
         summary_output_tokens = 0
         try:
-            summary_response = self.client.create(
+            summary_response = await self.client.acreate(
                 messages=[{
                     "role": "user",
                     "content": f"Please summarize the following conversation:\n\n{serialized}"
@@ -533,8 +532,6 @@ class SkillsAgent:
                 summary_text = summary_text[:5000] + "\n\n[... truncated ...]\n\n" + summary_text[-5000:]
 
         # Build the compression message.
-        # The LLM-generated summary_text already contains <summary> tags.
-        # For the fallback (raw serialized text), wrap it manually.
         if "<summary>" not in summary_text:
             summary_text = f"<summary>\n{summary_text}\n</summary>"
 
@@ -550,7 +547,6 @@ class SkillsAgent:
         compressed = [{"role": "user", "content": compression_content}]
 
         # If recent_messages starts with a user message, we need an assistant acknowledgment
-        # to maintain proper alternation after our summary user message
         if recent_messages and recent_messages[0].get("role") == "user":
             compressed.append({
                 "role": "assistant",
@@ -587,25 +583,32 @@ class SkillsAgent:
 
         return log_file
 
-    def run(
+    async def run(
         self,
         request: str,
         conversation_history: Optional[List[Dict]] = None,
         image_contents: Optional[List[Dict]] = None,
+        event_stream: Optional["EventStream"] = None,
+        cancellation_event: Optional[asyncio.Event] = None,
     ) -> AgentResult:
         """
-        Run the agent on a user request.
+        Run the agent on a user request (async).
+
+        When event_stream is provided, pushes StreamEvent objects for SSE streaming.
+        When event_stream is None, runs silently and returns the result.
 
         Args:
             request: The user's request/task
             conversation_history: Optional list of previous messages for multi-turn conversation.
-                                  Each message should have {"role": "user"|"assistant", "content": "..."}
-            image_contents: Optional list of Anthropic-format image blocks to include in the first user message.
-                           Each block: {"type": "image", "source": {"type": "base64", "media_type": "...", "data": "..."}}
+            image_contents: Optional list of Anthropic-format image blocks.
+            event_stream: Optional EventStream for pushing streaming events.
+            cancellation_event: Optional asyncio.Event — set to signal cancellation.
 
         Returns:
             AgentResult with the final answer and execution steps
         """
+        streaming = event_stream is not None
+
         # Build the user message content (text or multipart with images)
         if image_contents:
             user_content = image_contents + [{"type": "text", "text": request}]
@@ -618,6 +621,7 @@ class SkillsAgent:
             messages.append({"role": "user", "content": user_content})
         else:
             messages = [{"role": "user", "content": user_content}]
+
         steps: List[AgentStep] = []
         llm_calls: List[LLMCall] = []
         used_skills: set = set()
@@ -629,28 +633,141 @@ class SkillsAgent:
         last_input_tokens = 0
 
         while turns < self.max_turns:
+            # Check cancellation
+            if cancellation_event and cancellation_event.is_set():
+                if self.verbose:
+                    print("\n[Cancelled] Agent execution cancelled by user")
+                break
+
             turns += 1
 
             # Context compression check
             if last_input_tokens > 0 and self._should_compress(last_input_tokens):
                 if self.verbose:
                     print(f"\n[Context Compression] Input tokens ({last_input_tokens}) exceeded threshold, compressing...")
-                messages, s_in, s_out = self._compress_messages(messages)
+                messages, s_in, s_out = await self._compress_messages(messages)
                 total_input_tokens += s_in
                 total_output_tokens += s_out
+
+                if streaming:
+                    await event_stream.push(StreamEvent(
+                        event_type="context_compressed",
+                        turn=turns,
+                        data={
+                            "previous_tokens": last_input_tokens,
+                            "context_limit": self._get_context_limit(),
+                        }
+                    ))
+
+            # Emit turn start event
+            if streaming:
+                await event_stream.push(StreamEvent(
+                    event_type="turn_start",
+                    turn=turns,
+                    data={"max_turns": self.max_turns}
+                ))
 
             if self.verbose:
                 print(f"\n{'='*50}")
                 print(f"Turn {turns}")
                 print(f"{'='*50}")
 
-            # Call LLM
-            response = self.client.create(
-                messages=messages,
-                system=self.system_prompt,
-                tools=self.tools,
-                max_tokens=16384,
-            )
+            # Call LLM — streaming vs non-streaming
+            response = None
+
+            if streaming:
+                # Streaming: yield text deltas, collect final response
+                try:
+                    async for resp in self.client.acreate_stream(
+                        messages=messages,
+                        system=self.system_prompt,
+                        tools=self.tools,
+                        max_tokens=16384,
+                    ):
+                        # Check cancellation during streaming
+                        if cancellation_event and cancellation_event.is_set():
+                            break
+
+                        if resp.is_delta:
+                            for block in resp.content:
+                                if isinstance(block, LLMTextBlock) and block.text:
+                                    await event_stream.push(StreamEvent(
+                                        event_type="text_delta",
+                                        turn=turns,
+                                        data={"text": block.text}
+                                    ))
+                        else:
+                            response = resp
+                except Exception as stream_err:
+                    if self.verbose:
+                        print(f"\n[Stream Error] {stream_err}")
+                    if self._is_retryable_error(stream_err):
+                        if self.verbose:
+                            print(f"[Stream Retry] Retrying with non-streaming call after 2s...")
+                        await asyncio.sleep(2)
+                        try:
+                            response = await self.client.acreate(
+                                messages=messages,
+                                system=self.system_prompt,
+                                tools=self.tools,
+                                max_tokens=16384,
+                            )
+                        except Exception as retry_err:
+                            if self.verbose:
+                                print(f"[Stream Retry] Retry also failed: {retry_err}")
+            else:
+                # Non-streaming: single call
+                response = await self.client.acreate(
+                    messages=messages,
+                    system=self.system_prompt,
+                    tools=self.tools,
+                    max_tokens=16384,
+                )
+
+            # Check cancellation after LLM call
+            if cancellation_event and cancellation_event.is_set():
+                if self.verbose:
+                    print("\n[Cancelled] Agent execution cancelled by user")
+                break
+
+            # Guard against missing response
+            if response is None:
+                error_msg = "LLM stream failed and retry was unsuccessful"
+                if streaming:
+                    await event_stream.push(StreamEvent(
+                        event_type="error",
+                        turn=turns,
+                        data={"message": error_msg}
+                    ))
+                result = AgentResult(
+                    success=False,
+                    answer=error_msg,
+                    steps=steps,
+                    llm_calls=llm_calls,
+                    total_turns=turns,
+                    total_input_tokens=total_input_tokens,
+                    total_output_tokens=total_output_tokens,
+                    error=error_msg,
+                    skills_used=sorted(used_skills),
+                    output_files=output_files,
+                    final_messages=messages,
+                )
+                if streaming:
+                    await event_stream.push(StreamEvent(
+                        event_type="complete",
+                        turn=turns,
+                        data={
+                            "success": False,
+                            "answer": error_msg,
+                            "total_turns": turns,
+                            "total_input_tokens": total_input_tokens,
+                            "total_output_tokens": total_output_tokens,
+                            "skills_used": sorted(used_skills),
+                            "output_files": output_files,
+                        }
+                    ))
+                    await event_stream.close()
+                return result
 
             # Record token usage
             input_tokens = response.usage.input_tokens
@@ -694,6 +811,16 @@ class SkillsAgent:
                         "input": tool_input,
                     })
 
+                    if streaming:
+                        await event_stream.push(StreamEvent(
+                            event_type="tool_call",
+                            turn=turns,
+                            data={
+                                "tool_name": block.name,
+                                "tool_input": tool_input,
+                            }
+                        ))
+
             # Add assistant message
             messages.append({"role": "assistant", "content": assistant_content})
 
@@ -714,14 +841,12 @@ class SkillsAgent:
                 if self.verbose:
                     print(f"\n[Warning] Response truncated (max_tokens). Discarding {len(tool_calls)} potentially incomplete tool call(s).")
 
-                # Don't execute truncated tool calls; ask Claude to retry with shorter output
                 truncation_msg = (
                     "Your previous response was truncated because it exceeded the maximum output length. "
                     "The tool call(s) were incomplete and could not be executed. "
                     "Please try again with a shorter approach — for example, break the task into smaller steps "
                     "or generate less code at once."
                 )
-                # Build tool_result errors for each truncated call so the API message format stays valid
                 tool_results = []
                 for tool_call in tool_calls:
                     tool_results.append({
@@ -736,12 +861,37 @@ class SkillsAgent:
                         tool_name=tool_call["name"],
                         tool_input=tool_call["input"],
                     ))
+                    if streaming:
+                        await event_stream.push(StreamEvent(
+                            event_type="tool_result",
+                            turn=turns,
+                            data={
+                                "tool_name": tool_call["name"],
+                                "tool_result": "Error: Response truncated (max_tokens). Tool call was incomplete.",
+                                "tool_input": tool_call["input"],
+                            }
+                        ))
                 messages.append({"role": "user", "content": tool_results})
                 continue
 
-            # If no tool calls, we're done
+            # If no tool calls, we're done — unless there's a steering message
             if response.stop_reason == "end_turn" and not tool_calls:
-                # Extract final answer from last text block
+                # Check for steering message before finishing
+                if event_stream and event_stream.has_injection():
+                    steering_msg = event_stream.get_injection_nowait()
+                    if steering_msg:
+                        messages.append({
+                            "role": "user",
+                            "content": f"[User Steering Message]: {steering_msg}"
+                        })
+                        if streaming:
+                            await event_stream.push(StreamEvent(
+                                event_type="steering_received",
+                                turn=turns,
+                                data={"message": steering_msg}
+                            ))
+                        continue  # Don't finish, loop back to LLM with steering message
+
                 final_answer = response.text_content
 
                 result = AgentResult(
@@ -757,17 +907,42 @@ class SkillsAgent:
                     final_messages=messages,
                 )
                 result.log_file = self._save_log(request, result)
+
+                if streaming:
+                    await event_stream.push(StreamEvent(
+                        event_type="complete",
+                        turn=turns,
+                        data={
+                            "success": True,
+                            "answer": final_answer,
+                            "total_turns": turns,
+                            "total_input_tokens": total_input_tokens,
+                            "total_output_tokens": total_output_tokens,
+                            "skills_used": sorted(used_skills),
+                            "output_files": output_files,
+                            "final_messages": messages,
+                        }
+                    ))
+                    await event_stream.close()
+
                 return result
 
             # Execute tool calls
             tool_results = []
             for tool_call in tool_calls:
-                if self.verbose:
-                    print(f"\nTool: {tool_call['name']}")
-                    print(f"Input: {json.dumps(tool_call['input'], ensure_ascii=False)[:3000]}")
+                # Check cancellation before each tool
+                if cancellation_event and cancellation_event.is_set():
+                    if self.verbose:
+                        print("\n[Cancelled] Agent execution cancelled before tool execution")
+                    break
 
                 tool_name = tool_call["name"]
-                result = call_tool(
+
+                if self.verbose:
+                    print(f"\nTool: {tool_name}")
+                    print(f"Input: {json.dumps(tool_call['input'], ensure_ascii=False)[:3000]}")
+
+                tool_result = await acall_tool(
                     tool_name,
                     tool_call["input"],
                     allowed_skills=self.allowed_skills,
@@ -778,26 +953,13 @@ class SkillsAgent:
                 if tool_name == "get_skill" and tool_call["input"].get("skill_name"):
                     used_skills.add(tool_call["input"]["skill_name"])
 
-                # Collect auto-detected output files from execute_code/bash/write
-                if tool_name in ("execute_code", "bash", "write"):
-                    try:
-                        rd = json.loads(result)
-                        for nf in rd.get("new_files", []):
-                            url = nf.get("download_url", "")
-                            if url and url not in output_file_paths:
-                                output_file_paths.add(url)
-                                nf["file_id"] = str(uuid.uuid4())
-                                output_files.append(nf)
-                    except (json.JSONDecodeError, TypeError):
-                        pass
-
                 if self.verbose:
-                    print(f"Result: {result[:3000]}")
-                    if len(result) > 3000:
+                    print(f"Result: {tool_result[:3000]}")
+                    if len(tool_result) > 3000:
                         print('...(truncated)')
 
                 # Truncate tool result for LLM context (preserve full result for logs/steps)
-                llm_result = truncate_tool_result(tool_name, result)
+                llm_result = truncate_tool_result(tool_name, tool_result)
 
                 tool_results.append({
                     "type": "tool_result",
@@ -807,379 +969,23 @@ class SkillsAgent:
 
                 steps.append(AgentStep(
                     role="tool",
-                    content=result,
-                    tool_name=tool_call["name"],
-                    tool_input=tool_call["input"],
-                    tool_result=result,
-                ))
-
-            # Add tool results
-            messages.append({"role": "user", "content": tool_results})
-
-        # Max turns reached — give Claude one final turn to summarize progress
-        if self.verbose:
-            print(f"\n[Max Turns] Reached {self.max_turns} turns, requesting final summary...")
-
-        messages.append({
-            "role": "user",
-            "content": (
-                f"You have reached the maximum number of turns ({self.max_turns}). "
-                "You cannot make any more tool calls. Please provide a final summary of "
-                "what you have accomplished so far and what remains to be done."
-            ),
-        })
-
-        try:
-            final_response = self.client.create(
-                messages=messages,
-                system=self.system_prompt,
-                max_tokens=4096,
-            )
-            final_input = final_response.usage.input_tokens
-            final_output = final_response.usage.output_tokens
-            total_input_tokens += final_input
-            total_output_tokens += final_output
-
-            final_answer = final_response.text_content
-            if final_answer:
-                steps.append(AgentStep(role="assistant", content=final_answer))
-        except Exception as e:
-            if self.verbose:
-                print(f"[Max Turns] Final summary call failed: {e}")
-            final_answer = "Max turns reached without completing the task."
-
-        result = AgentResult(
-            success=False,
-            answer=final_answer,
-            steps=steps,
-            llm_calls=llm_calls,
-            total_turns=turns,
-            total_input_tokens=total_input_tokens,
-            total_output_tokens=total_output_tokens,
-            error="max_turns_exceeded",
-            skills_used=sorted(used_skills),
-            output_files=output_files,
-            final_messages=messages,
-        )
-        result.log_file = self._save_log(request, result)
-        return result
-
-    def run_stream(
-        self,
-        request: str,
-        conversation_history: Optional[List[Dict]] = None,
-        image_contents: Optional[List[Dict]] = None,
-    ) -> Generator[StreamEvent, None, AgentResult]:
-        """
-        Run the agent with streaming events.
-
-        Yields StreamEvent objects for each step, then returns AgentResult.
-        """
-        # Build the user message content (text or multipart with images)
-        if image_contents:
-            user_content = image_contents + [{"type": "text", "text": request}]
-        else:
-            user_content = request
-
-        # Build messages from conversation history + new request
-        if conversation_history:
-            messages = list(conversation_history)
-            messages.append({"role": "user", "content": user_content})
-        else:
-            messages = [{"role": "user", "content": user_content}]
-
-        steps: List[AgentStep] = []
-        llm_calls: List[LLMCall] = []
-        used_skills: set = set()
-        output_files: List[Dict] = []
-        output_file_paths: set = set()  # For deduplication
-        turns = 0
-        total_input_tokens = 0
-        total_output_tokens = 0
-        last_input_tokens = 0
-
-        while turns < self.max_turns:
-            turns += 1
-
-            # Context compression check
-            if last_input_tokens > 0 and self._should_compress(last_input_tokens):
-                if self.verbose:
-                    print(f"\n[Context Compression] Input tokens ({last_input_tokens}) exceeded threshold, compressing...")
-                messages, s_in, s_out = self._compress_messages(messages)
-                total_input_tokens += s_in
-                total_output_tokens += s_out
-
-                # Notify frontend about compression
-                yield StreamEvent(
-                    event_type="context_compressed",
-                    turn=turns,
-                    data={
-                        "previous_tokens": last_input_tokens,
-                        "context_limit": self._get_context_limit(),
-                    }
-                )
-
-            # Emit turn start event
-            yield StreamEvent(
-                event_type="turn_start",
-                turn=turns,
-                data={"max_turns": self.max_turns}
-            )
-
-            # Call LLM with streaming to emit text deltas
-            final_response = None
-            try:
-                for resp in self.client.create_stream(
-                    messages=messages,
-                    system=self.system_prompt,
-                    tools=self.tools,
-                    max_tokens=16384,
-                ):
-                    if resp.is_delta:
-                        # Emit incremental text delta
-                        for block in resp.content:
-                            if isinstance(block, LLMTextBlock) and block.text:
-                                yield StreamEvent(
-                                    event_type="text_delta",
-                                    turn=turns,
-                                    data={"text": block.text}
-                                )
-                    else:
-                        final_response = resp
-            except Exception as stream_err:
-                # Stream failed (e.g., API connection dropped mid-stream)
-                if self.verbose:
-                    print(f"\n[Stream Error] {stream_err}")
-                if self._is_retryable_error(stream_err):
-                    # Retry with non-streaming call (avoids duplicate text_delta events)
-                    if self.verbose:
-                        print(f"[Stream Retry] Retrying with non-streaming call after 2s...")
-                    import time as _time
-                    _time.sleep(2)
-                    try:
-                        final_response = self.client.create(
-                            messages=messages,
-                            system=self.system_prompt,
-                            tools=self.tools,
-                            max_tokens=16384,
-                        )
-                    except Exception as retry_err:
-                        if self.verbose:
-                            print(f"[Stream Retry] Retry also failed: {retry_err}")
-
-            # Guard against missing response (both stream and retry failed)
-            if final_response is None:
-                error_msg = "LLM stream failed and retry was unsuccessful"
-                yield StreamEvent(
-                    event_type="error",
-                    turn=turns,
-                    data={"message": error_msg}
-                )
-                yield StreamEvent(
-                    event_type="complete",
-                    turn=turns,
-                    data={
-                        "success": False,
-                        "answer": error_msg,
-                        "total_turns": turns,
-                        "total_input_tokens": total_input_tokens,
-                        "total_output_tokens": total_output_tokens,
-                        "skills_used": sorted(used_skills),
-                        "output_files": output_files,
-                    }
-                )
-                return AgentResult(
-                    success=False,
-                    answer=error_msg,
-                    steps=steps,
-                    llm_calls=llm_calls,
-                    total_turns=turns,
-                    total_input_tokens=total_input_tokens,
-                    total_output_tokens=total_output_tokens,
-                    error=error_msg,
-                    skills_used=sorted(used_skills),
-                    output_files=output_files,
-                    final_messages=messages,
-                )
-
-            response = final_response
-
-            # Record token usage
-            input_tokens = response.usage.input_tokens
-            output_tokens = response.usage.output_tokens
-            total_input_tokens += input_tokens
-            total_output_tokens += output_tokens
-            last_input_tokens = input_tokens
-
-            # Process response
-            assistant_content = []
-            tool_calls = []
-
-            for block in response.content:
-                if isinstance(block, LLMTextBlock):
-                    assistant_content.append({"type": "text", "text": block.text})
-
-                    step = AgentStep(role="assistant", content=block.text)
-                    steps.append(step)
-
-                    # Text was already streamed via text_delta events, skip full assistant event
-
-                elif isinstance(block, LLMToolCall):
-                    # Deep copy input to prevent any SDK mutation
-                    tool_input = copy.deepcopy(block.input) if block.input else {}
-                    assistant_content.append({
-                        "type": "tool_use",
-                        "id": block.id,
-                        "name": block.name,
-                        "input": tool_input,
-                    })
-                    tool_calls.append({
-                        "id": block.id,
-                        "name": block.name,
-                        "input": tool_input,
-                    })
-
-                    # Emit tool call event
-                    yield StreamEvent(
-                        event_type="tool_call",
-                        turn=turns,
-                        data={
-                            "tool_name": block.name,
-                            "tool_input": tool_input,
-                        }
-                    )
-
-            # Add assistant message
-            messages.append({"role": "assistant", "content": assistant_content})
-
-            # Record LLM call
-            llm_calls.append(LLMCall(
-                turn=turns,
-                timestamp=datetime.now().isoformat(),
-                model=self.model,
-                request_messages=messages[:-1],
-                response_content=assistant_content,
-                stop_reason=response.stop_reason,
-                input_tokens=input_tokens,
-                output_tokens=output_tokens,
-            ))
-
-            # Handle max_tokens truncation — tool calls may be incomplete
-            if response.stop_reason == "max_tokens" and tool_calls:
-                if self.verbose:
-                    print(f"\n[Warning] Response truncated (max_tokens). Discarding {len(tool_calls)} potentially incomplete tool call(s).")
-
-                truncation_msg = (
-                    "Your previous response was truncated because it exceeded the maximum output length. "
-                    "The tool call(s) were incomplete and could not be executed. "
-                    "Please try again with a shorter approach — for example, break the task into smaller steps "
-                    "or generate less code at once."
-                )
-                tool_results = []
-                for tool_call in tool_calls:
-                    tool_results.append({
-                        "type": "tool_result",
-                        "tool_use_id": tool_call["id"],
-                        "content": json.dumps({"error": truncation_msg}),
-                        "is_error": True,
-                    })
-                    step = AgentStep(
-                        role="tool",
-                        content=json.dumps({"error": "Response truncated (max_tokens) — tool call incomplete"}),
-                        tool_name=tool_call["name"],
-                        tool_input=tool_call["input"],
-                    )
-                    steps.append(step)
-                    yield StreamEvent(
-                        event_type="tool_result",
-                        turn=turns,
-                        data={
-                            "tool_name": tool_call["name"],
-                            "tool_result": "Error: Response truncated (max_tokens). Tool call was incomplete.",
-                            "tool_input": tool_call["input"],
-                        }
-                    )
-                messages.append({"role": "user", "content": tool_results})
-                continue
-
-            # If no tool calls, we're done
-            if response.stop_reason == "end_turn" and not tool_calls:
-                final_answer = response.text_content
-
-                result = AgentResult(
-                    success=True,
-                    answer=final_answer,
-                    steps=steps,
-                    llm_calls=llm_calls,
-                    total_turns=turns,
-                    total_input_tokens=total_input_tokens,
-                    total_output_tokens=total_output_tokens,
-                    skills_used=sorted(used_skills),
-                    output_files=output_files,
-                    final_messages=messages,
-                )
-                result.log_file = self._save_log(request, result)
-
-                # Emit complete event
-                yield StreamEvent(
-                    event_type="complete",
-                    turn=turns,
-                    data={
-                        "success": True,
-                        "answer": final_answer,
-                        "total_turns": turns,
-                        "total_input_tokens": total_input_tokens,
-                        "total_output_tokens": total_output_tokens,
-                        "skills_used": sorted(used_skills),
-                        "output_files": output_files,
-                        "final_messages": messages,
-                    }
-                )
-                return result
-
-            # Execute tool calls
-            tool_results = []
-            for tool_call in tool_calls:
-                tool_name = tool_call["name"]
-                tool_result = call_tool(
-                    tool_name,
-                    tool_call["input"],
-                    allowed_skills=self.allowed_skills,
-                    tool_functions=self.tool_functions
-                )
-
-                # Track actually used skills
-                if tool_name == "get_skill" and tool_call["input"].get("skill_name"):
-                    used_skills.add(tool_call["input"]["skill_name"])
-
-                # Truncate tool result for LLM context (preserve full result for logs/steps/SSE)
-                llm_result = truncate_tool_result(tool_name, tool_result)
-
-                tool_results.append({
-                    "type": "tool_result",
-                    "tool_use_id": tool_call["id"],
-                    "content": llm_result,
-                })
-
-                step = AgentStep(
-                    role="tool",
                     content=tool_result,
                     tool_name=tool_name,
                     tool_input=tool_call["input"],
                     tool_result=tool_result,
-                )
-                steps.append(step)
+                ))
 
-                # Emit tool result event (truncate for SSE display)
-                yield StreamEvent(
-                    event_type="tool_result",
-                    turn=turns,
-                    data={
-                        "tool_name": tool_name,
-                        "tool_input": tool_call["input"],
-                        "tool_result": tool_result[:3000],
-                    }
-                )
+                if streaming:
+                    # Emit tool result event (truncate for SSE display)
+                    await event_stream.push(StreamEvent(
+                        event_type="tool_result",
+                        turn=turns,
+                        data={
+                            "tool_name": tool_name,
+                            "tool_input": tool_call["input"],
+                            "tool_result": tool_result[:3000],
+                        }
+                    ))
 
                 # Auto-detect output files from execute_code/bash/write
                 if tool_name in ("execute_code", "bash", "write"):
@@ -1192,59 +998,90 @@ class SkillsAgent:
                                 file_id = str(uuid.uuid4())
                                 nf["file_id"] = file_id
                                 output_files.append(nf)
-                                yield StreamEvent(
-                                    event_type="output_file",
-                                    turn=turns,
-                                    data={
-                                        "file_id": file_id,
-                                        "filename": nf.get("filename"),
-                                        "size": nf.get("size"),
-                                        "content_type": nf.get("content_type"),
-                                        "download_url": nf.get("download_url"),
-                                    }
-                                )
+                                if streaming:
+                                    await event_stream.push(StreamEvent(
+                                        event_type="output_file",
+                                        turn=turns,
+                                        data={
+                                            "file_id": file_id,
+                                            "filename": nf.get("filename"),
+                                            "size": nf.get("size"),
+                                            "content_type": nf.get("content_type"),
+                                            "download_url": nf.get("download_url"),
+                                        }
+                                    ))
                     except (json.JSONDecodeError, TypeError):
                         pass
+
+            # If cancelled during tool execution, break out
+            if cancellation_event and cancellation_event.is_set():
+                break
 
             # Add tool results
             messages.append({"role": "user", "content": tool_results})
 
-        # Max turns reached — give Claude one final turn to summarize progress
-        if self.verbose:
-            print(f"\n[Max Turns] Reached {self.max_turns} turns, requesting final summary...")
+            # Check for steering message injection after tool results
+            if event_stream and event_stream.has_injection():
+                steering_msg = event_stream.get_injection_nowait()
+                if steering_msg:
+                    messages.append({
+                        "role": "user",
+                        "content": f"[User Steering Message]: {steering_msg}"
+                    })
+                    if streaming:
+                        await event_stream.push(StreamEvent(
+                            event_type="steering_received",
+                            turn=turns,
+                            data={"message": steering_msg}
+                        ))
 
-        messages.append({
-            "role": "user",
-            "content": (
-                f"You have reached the maximum number of turns ({self.max_turns}). "
-                "You cannot make any more tool calls. Please provide a final summary of "
-                "what you have accomplished so far and what remains to be done."
-            ),
-        })
+        # Exited the loop — either max turns or cancellation
 
-        final_answer = "Max turns reached without completing the task."
-        try:
-            final_response = self.client.create(
-                messages=messages,
-                system=self.system_prompt,
-                max_tokens=4096,
-            )
-            final_input = final_response.usage.input_tokens
-            final_output = final_response.usage.output_tokens
-            total_input_tokens += final_input
-            total_output_tokens += final_output
+        # Determine if cancelled
+        was_cancelled = cancellation_event and cancellation_event.is_set()
 
-            final_answer = final_response.text_content
-            if final_answer:
-                steps.append(AgentStep(role="assistant", content=final_answer))
-                yield StreamEvent(
-                    event_type="assistant",
-                    turn=turns + 1,
-                    data={"content": final_answer}
-                )
-        except Exception as e:
+        if was_cancelled:
+            final_answer = "Agent execution was cancelled."
+            error_msg = "cancelled"
+        else:
+            # Max turns reached — give Claude one final turn to summarize progress
             if self.verbose:
-                print(f"[Max Turns] Final summary call failed: {e}")
+                print(f"\n[Max Turns] Reached {self.max_turns} turns, requesting final summary...")
+
+            messages.append({
+                "role": "user",
+                "content": (
+                    f"You have reached the maximum number of turns ({self.max_turns}). "
+                    "You cannot make any more tool calls. Please provide a final summary of "
+                    "what you have accomplished so far and what remains to be done."
+                ),
+            })
+
+            final_answer = "Max turns reached without completing the task."
+            error_msg = "max_turns_exceeded"
+            try:
+                final_response = await self.client.acreate(
+                    messages=messages,
+                    system=self.system_prompt,
+                    max_tokens=4096,
+                )
+                final_input = final_response.usage.input_tokens
+                final_output = final_response.usage.output_tokens
+                total_input_tokens += final_input
+                total_output_tokens += final_output
+
+                final_answer = final_response.text_content
+                if final_answer:
+                    steps.append(AgentStep(role="assistant", content=final_answer))
+                    if streaming:
+                        await event_stream.push(StreamEvent(
+                            event_type="assistant",
+                            turn=turns + 1,
+                            data={"content": final_answer}
+                        ))
+            except Exception as e:
+                if self.verbose:
+                    print(f"[Max Turns] Final summary call failed: {e}")
 
         result = AgentResult(
             success=False,
@@ -1254,28 +1091,44 @@ class SkillsAgent:
             total_turns=turns,
             total_input_tokens=total_input_tokens,
             total_output_tokens=total_output_tokens,
-            error="max_turns_exceeded",
+            error=error_msg,
             skills_used=sorted(used_skills),
             output_files=output_files,
             final_messages=messages,
         )
         result.log_file = self._save_log(request, result)
 
-        yield StreamEvent(
-            event_type="complete",
-            turn=turns,
-            data={
-                "success": False,
-                "answer": final_answer,
-                "total_turns": turns,
-                "total_input_tokens": total_input_tokens,
-                "total_output_tokens": total_output_tokens,
-                "error": "max_turns_exceeded",
-                "output_files": output_files,
-                "final_messages": messages,
-            }
-        )
+        if streaming:
+            await event_stream.push(StreamEvent(
+                event_type="complete",
+                turn=turns,
+                data={
+                    "success": False,
+                    "answer": final_answer,
+                    "total_turns": turns,
+                    "total_input_tokens": total_input_tokens,
+                    "total_output_tokens": total_output_tokens,
+                    "error": error_msg,
+                    "output_files": output_files,
+                    "final_messages": messages,
+                }
+            ))
+            await event_stream.close()
+
         return result
+
+    def run_sync(
+        self,
+        request: str,
+        conversation_history: Optional[List[Dict]] = None,
+        image_contents: Optional[List[Dict]] = None,
+    ) -> AgentResult:
+        """Synchronous wrapper for background tasks (registry.py).
+
+        Creates a new event loop and runs the async run() method.
+        Must NOT be called from within an existing event loop.
+        """
+        return asyncio.run(self.run(request, conversation_history, image_contents))
 
     def cleanup(self) -> None:
         """

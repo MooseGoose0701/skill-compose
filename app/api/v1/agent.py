@@ -6,25 +6,24 @@ import logging
 import time
 from dataclasses import asdict
 from pathlib import Path
-from typing import Optional, List, Tuple
-from concurrent.futures import ThreadPoolExecutor
+from typing import Dict, Optional, List, Tuple
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.agent import SkillsAgent
+from app.agent import SkillsAgent, EventStream, write_steering_message, poll_steering_messages, cleanup_steering_dir
 from app.db.database import get_db, AsyncSessionLocal, SyncSessionLocal
 from app.db.models import AgentTraceDB, AgentPresetDB
 
 logger = logging.getLogger("skills_api")
 
-# Thread pool for running sync generators
-_executor = ThreadPoolExecutor(max_workers=8)
-
 router = APIRouter(prefix="/agent", tags=["Agent"])
+
+# Module-level registry of active streaming runs (trace_id → EventStream)
+_active_streams: Dict[str, EventStream] = {}
 
 
 async def _update_trace_async(trace_id: str, values: dict):
@@ -126,6 +125,43 @@ class AgentResponse(BaseModel):
     error: Optional[str] = None
     trace_id: Optional[str] = None  # ID of saved trace for later reference
     output_files: Optional[List[dict]] = None
+
+
+class SteerRequest(BaseModel):
+    """Request to inject a steering message into a running agent."""
+    message: str = Field(..., description="Steering message to inject", min_length=1)
+
+
+@router.post("/run/stream/{trace_id}/steer")
+async def steer_agent(trace_id: str, body: SteerRequest, db: AsyncSession = Depends(get_db)):
+    """Inject a steering message into a running agent stream.
+
+    Uses a hybrid approach for multi-worker support:
+    1. Fast path: if the stream is in this worker's memory, inject directly
+    2. Cross-worker path: verify trace is running in DB, write to filesystem queue
+       (a polling task in the streaming worker picks it up)
+    """
+    # Fast path: same worker
+    event_stream = _active_streams.get(trace_id)
+    if event_stream:
+        if event_stream.closed:
+            raise HTTPException(status_code=409, detail="Agent has already completed")
+        await event_stream.inject(body.message)
+        return {"status": "injected", "trace_id": trace_id}
+
+    # Cross-worker path: check DB for running trace, then write to filesystem
+    from sqlalchemy import select
+    result = await db.execute(
+        select(AgentTraceDB).where(AgentTraceDB.id == trace_id)
+    )
+    trace = result.scalar_one_or_none()
+    if not trace:
+        raise HTTPException(status_code=404, detail="No active run found for this trace_id")
+    if trace.status != "running":
+        raise HTTPException(status_code=409, detail="Agent has already completed")
+
+    write_steering_message(trace_id, body.message)
+    return {"status": "injected", "trace_id": trace_id}
 
 
 async def _resolve_agent_config(request: AgentRequest, db: AsyncSession) -> dict:
@@ -265,32 +301,9 @@ IMPORTANT: Use the absolute file paths shown above when reading or processing fi
     return actual_request, image_contents
 
 
-@router.post("/run", response_model=AgentResponse)
-async def run_agent(request: AgentRequest, db: AsyncSession = Depends(get_db)):
-    """
-    Run the skills agent on a task.
-
-    The agent will:
-    1. List available skills
-    2. Read relevant skill documentation
-    3. Write and execute code
-    4. Return the final result
-
-    Execution traces are automatically saved to the database.
-
-    All built-in tools are always available to the agent.
-    MCP tools depend on the equipped_mcp_servers parameter.
-
-    Example:
-        POST /api/v1/agent/run
-        {"request": "Analyze sales data and generate a report"}
-    """
-    # Resolve config from agent_id or individual fields
-    config = await _resolve_agent_config(request, db)
-
-    start_time = time.time()
-
-    agent = SkillsAgent(
+def _create_agent(config: dict) -> SkillsAgent:
+    """Create a SkillsAgent from resolved config."""
+    return SkillsAgent(
         model=config.get("model_name"),
         model_provider=config.get("model_provider"),
         max_turns=config["max_turns"],
@@ -301,6 +314,27 @@ async def run_agent(request: AgentRequest, db: AsyncSession = Depends(get_db)):
         custom_system_prompt=config["system_prompt"],
         executor_name=config.get("executor_name"),
     )
+
+
+@router.post("/run", response_model=AgentResponse)
+async def run_agent(request: AgentRequest, db: AsyncSession = Depends(get_db)):
+    """
+    Run the skills agent on a task (non-streaming).
+
+    The agent will:
+    1. List available skills
+    2. Read relevant skill documentation
+    3. Write and execute code
+    4. Return the final result
+
+    Execution traces are automatically saved to the database.
+    """
+    # Resolve config from agent_id or individual fields
+    config = await _resolve_agent_config(request, db)
+
+    start_time = time.time()
+
+    agent = _create_agent(config)
 
     try:
         # Convert conversation history to dict format for agent
@@ -316,7 +350,7 @@ async def run_agent(request: AgentRequest, db: AsyncSession = Depends(get_db)):
             model_name=config.get("model_name"),
         )
 
-        result = agent.run(actual_request, conversation_history=history, image_contents=image_contents)
+        result = await agent.run(actual_request, conversation_history=history, image_contents=image_contents)
 
         duration_ms = int((time.time() - start_time) * 1000)
 
@@ -393,45 +427,8 @@ async def run_agent_stream(request: AgentRequest, db: AsyncSession = Depends(get
     if request.conversation_history:
         history = [{"role": msg.role, "content": msg.content} for msg in request.conversation_history]
 
-    # Create queue for thread communication
-    import queue
-    event_queue: queue.Queue = queue.Queue()
-
-    def run_agent_in_thread():
-        """Run the synchronous agent in a separate thread."""
-        agent = None
-        try:
-            agent = SkillsAgent(
-                model=config.get("model_name"),
-                model_provider=config.get("model_provider"),
-                max_turns=config["max_turns"],
-                verbose=False,
-                allowed_skills=config["skills"],
-                allowed_tools=config["allowed_tools"],
-                equipped_mcp_servers=config["equipped_mcp_servers"],
-                custom_system_prompt=config["system_prompt"],
-                executor_name=config.get("executor_name"),
-            )
-
-            for event in agent.run_stream(actual_request, conversation_history=history, image_contents=image_contents):
-                event_data = {
-                    "event_type": event.event_type,
-                    "turn": event.turn,
-                    **event.data
-                }
-                event_queue.put(("event", event_data))
-
-            event_queue.put(("done", None))
-        except Exception as e:
-            event_queue.put(("error", str(e)))
-        finally:
-            # Always cleanup workspace
-            if agent:
-                agent.cleanup()
-
     async def event_generator():
         start_time = time.time()
-        loop = asyncio.get_event_loop()
 
         # Create trace record at the start (with running status)
         trace_id = None
@@ -462,8 +459,39 @@ async def run_agent_stream(request: AgentRequest, db: AsyncSession = Depends(get
         # Send run_started event with trace_id immediately
         yield f"data: {json.dumps({'event_type': 'run_started', 'turn': 0, 'trace_id': trace_id})}\n\n"
 
-        # Start agent in thread
-        future = loop.run_in_executor(_executor, run_agent_in_thread)
+        # Create agent, event stream, and cancellation event
+        agent = SkillsAgent(
+            model=config.get("model_name"),
+            model_provider=config.get("model_provider"),
+            max_turns=config["max_turns"],
+            verbose=False,
+            allowed_skills=config["skills"],
+            allowed_tools=config["allowed_tools"],
+            equipped_mcp_servers=config["equipped_mcp_servers"],
+            custom_system_prompt=config["system_prompt"],
+            executor_name=config.get("executor_name"),
+        )
+
+        event_stream = EventStream()
+        cancel_event = asyncio.Event()
+
+        # Register stream for steering (same-worker fast path + cross-worker polling)
+        if trace_id:
+            _active_streams[trace_id] = event_stream
+        steering_task = asyncio.create_task(
+            poll_steering_messages(trace_id, event_stream)
+        ) if trace_id else None
+
+        # Run agent in a background task
+        agent_task = asyncio.create_task(
+            agent.run(
+                actual_request,
+                conversation_history=history,
+                image_contents=image_contents,
+                event_stream=event_stream,
+                cancellation_event=cancel_event,
+            )
+        )
 
         last_complete_event = None
         collected_steps = []  # Collect steps during streaming
@@ -471,67 +499,73 @@ async def run_agent_stream(request: AgentRequest, db: AsyncSession = Depends(get
         was_cancelled = False
 
         try:
-            while True:
-                # Check queue for events (non-blocking with small timeout)
-                try:
-                    # Use run_in_executor to avoid blocking the event loop
-                    msg_type, data = await loop.run_in_executor(
-                        None, lambda: event_queue.get(timeout=0.1)
-                    )
+            async for event in event_stream:
+                event_data = {
+                    "event_type": event.event_type,
+                    "turn": event.turn,
+                    **event.data
+                }
+                yield f"data: {json.dumps(event_data, ensure_ascii=False)}\n\n"
 
-                    if msg_type == "done":
-                        break
-                    elif msg_type == "error":
-                        yield f"data: {json.dumps({'event_type': 'error', 'turn': 0, 'error': data})}\n\n"
-                        break
-                    elif msg_type == "event":
-                        yield f"data: {json.dumps(data, ensure_ascii=False)}\n\n"
+                # Collect steps from events
+                event_type = event.event_type
+                if event_type == "text_delta":
+                    current_text_buffer += event.data.get("text", "")
+                elif event_type == "assistant" and event.data.get("content"):
+                    collected_steps.append({
+                        "role": "assistant",
+                        "content": event.data.get("content", "")[:2000],
+                        "tool_name": None,
+                        "tool_input": None,
+                    })
+                elif event_type in ("tool_call", "tool_result", "turn_start", "complete"):
+                    # Flush buffered text as assistant step
+                    if current_text_buffer:
+                        collected_steps.append({
+                            "role": "assistant",
+                            "content": current_text_buffer[:2000],
+                            "tool_name": None,
+                            "tool_input": None,
+                        })
+                        current_text_buffer = ""
+                    if event_type == "tool_result":
+                        collected_steps.append({
+                            "role": "tool",
+                            "content": event.data.get("tool_result", "")[:5000],
+                            "tool_name": event.data.get("tool_name"),
+                            "tool_input": event.data.get("tool_input"),
+                        })
+                    elif event_type == "complete":
+                        last_complete_event = event.data
 
-                        # Collect steps from events
-                        event_type = data.get("event_type")
-                        if event_type == "text_delta":
-                            current_text_buffer += data.get("text", "")
-                        elif event_type == "assistant" and data.get("content"):
-                            collected_steps.append({
-                                "role": "assistant",
-                                "content": data.get("content", "")[:2000],
-                                "tool_name": None,
-                                "tool_input": None,
-                            })
-                        elif event_type in ("tool_call", "tool_result", "turn_start", "complete"):
-                            # Flush buffered text as assistant step
-                            if current_text_buffer:
-                                collected_steps.append({
-                                    "role": "assistant",
-                                    "content": current_text_buffer[:2000],
-                                    "tool_name": None,
-                                    "tool_input": None,
-                                })
-                                current_text_buffer = ""
-                            if event_type == "tool_result":
-                                collected_steps.append({
-                                    "role": "tool",
-                                    "content": data.get("tool_result", "")[:5000],
-                                    "tool_name": data.get("tool_name"),
-                                    "tool_input": data.get("tool_input"),
-                                })
-                            elif event_type == "complete":
-                                last_complete_event = data
-
-                except queue.Empty:
-                    # No event yet, continue waiting
-                    await asyncio.sleep(0.05)
-                    continue
-
-            # Wait for thread to finish
-            await future
+            # Wait for agent task to complete (it should already be done after stream closes)
+            await agent_task
 
         except (asyncio.CancelledError, GeneratorExit):
             # Request was cancelled (e.g., user clicked Stop)
             was_cancelled = True
-            # Don't re-raise, let finally block update the trace
+            cancel_event.set()       # Signal agent to stop
+            agent_task.cancel()      # Cancel agent task
+            try:
+                await agent_task
+            except asyncio.CancelledError:
+                pass
 
         finally:
+            # Stop steering poll and clean up
+            if steering_task:
+                steering_task.cancel()
+                try:
+                    await steering_task
+                except asyncio.CancelledError:
+                    pass
+            if trace_id:
+                cleanup_steering_dir(trace_id)
+                _active_streams.pop(trace_id, None)
+
+            # Always cleanup workspace
+            agent.cleanup()
+
             # Always update trace record with final results
             duration_ms = int((time.time() - start_time) * 1000)
 

@@ -710,7 +710,7 @@ const AGENT_API_BASE = BACKEND_API_BASE;
 
 // Stream event types
 export interface StreamEvent {
-  event_type: 'run_started' | 'turn_start' | 'text_delta' | 'assistant' | 'tool_call' | 'tool_result' | 'output_file' | 'complete' | 'error' | 'trace_saved';
+  event_type: 'run_started' | 'turn_start' | 'text_delta' | 'assistant' | 'tool_call' | 'tool_result' | 'output_file' | 'complete' | 'error' | 'trace_saved' | 'steering_received';
   turn: number;
   // For turn_start
   max_turns?: number;
@@ -832,6 +832,21 @@ export const agentApi = {
           }
         }
       }
+    }
+  },
+
+  steerAgent: async (traceId: string, message: string): Promise<void> => {
+    const response = await fetch(
+      `${AGENT_API_BASE}/agent/run/stream/${encodeURIComponent(traceId)}/steer`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message }),
+      }
+    );
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error.detail || `Steer failed: ${response.statusText}`);
     }
   },
 };
@@ -1359,6 +1374,21 @@ export const publishedAgentApi = {
           }
         }
       }
+    }
+  },
+
+  steerAgent: async (agentId: string, traceId: string, message: string): Promise<void> => {
+    const response = await fetch(
+      `${PUBLISHED_API_BASE}/published/${encodeURIComponent(agentId)}/chat/${encodeURIComponent(traceId)}/steer`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message }),
+      }
+    );
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error.detail || `Steer failed: ${response.statusText}`);
     }
   },
 

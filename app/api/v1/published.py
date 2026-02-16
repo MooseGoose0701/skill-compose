@@ -8,17 +8,16 @@ Provides public (no auth) endpoints for:
 import asyncio
 import json
 import time
-from typing import Optional, List
+from typing import Dict, Optional, List
 from datetime import datetime
-from concurrent.futures import ThreadPoolExecutor
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import select, update, delete, func, desc
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.agent import SkillsAgent
+from app.agent import SkillsAgent, EventStream, write_steering_message, poll_steering_messages, cleanup_steering_dir
 from app.api.v1.agent import _finalize_trace
 from app.config import get_settings
 from app.db.database import AsyncSessionLocal, get_db
@@ -26,9 +25,15 @@ from app.db.models import AgentPresetDB, AgentTraceDB, PublishedSessionDB, Execu
 
 settings = get_settings()
 
-_executor = ThreadPoolExecutor(max_workers=4)
-
 router = APIRouter(prefix="/published", tags=["published"])
+
+# Module-level registry of active streaming runs (trace_id → EventStream)
+_active_streams: Dict[str, EventStream] = {}
+
+
+class SteerRequest(BaseModel):
+    """Request to inject a steering message into a running published agent."""
+    message: str = Field(..., description="Steering message to inject", min_length=1)
 
 
 class UploadedFile(BaseModel):
@@ -287,6 +292,137 @@ async def get_session(agent_id: str, session_id: str):
         )
 
 
+@router.post("/{agent_id}/chat/{trace_id}/steer")
+async def steer_published_agent(
+    agent_id: str, trace_id: str, body: SteerRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """Inject a steering message into a running published agent stream.
+
+    Hybrid approach for multi-worker support:
+    1. Fast path: same worker direct inject
+    2. Cross-worker: DB check + filesystem queue
+    """
+    # Fast path: same worker
+    event_stream = _active_streams.get(trace_id)
+    if event_stream:
+        if event_stream.closed:
+            raise HTTPException(status_code=409, detail="Agent has already completed")
+        await event_stream.inject(body.message)
+        return {"status": "injected", "trace_id": trace_id}
+
+    # Cross-worker path
+    result = await db.execute(
+        select(AgentTraceDB).where(AgentTraceDB.id == trace_id)
+    )
+    trace = result.scalar_one_or_none()
+    if not trace:
+        raise HTTPException(status_code=404, detail="No active run found for this trace_id")
+    if trace.status != "running":
+        raise HTTPException(status_code=409, detail="Agent has already completed")
+
+    write_steering_message(trace_id, body.message)
+    return {"status": "injected", "trace_id": trace_id}
+
+
+async def _load_or_create_session(session_id: Optional[str], agent_id: str):
+    """Load existing session or create a new one. Returns (session_id, history)."""
+    history = None
+
+    if session_id:
+        async with AsyncSessionLocal() as db:
+            result = await db.execute(
+                select(PublishedSessionDB).where(
+                    PublishedSessionDB.id == session_id,
+                    PublishedSessionDB.agent_id == agent_id,
+                )
+            )
+            session_record = result.scalar_one_or_none()
+            if session_record:
+                history = session_record.messages or []
+            else:
+                new_session = PublishedSessionDB(
+                    id=session_id,
+                    agent_id=agent_id,
+                    messages=[],
+                )
+                db.add(new_session)
+                await db.commit()
+    else:
+        async with AsyncSessionLocal() as db:
+            new_session = PublishedSessionDB(
+                agent_id=agent_id,
+                messages=[],
+            )
+            db.add(new_session)
+            await db.commit()
+            session_id = new_session.id
+
+    return session_id, history
+
+
+async def _save_session_messages(session_id: str, final_answer: str, request_text: str, final_messages=None):
+    """Save full conversation messages to session."""
+    try:
+        async with AsyncSessionLocal() as session_db:
+            result = await session_db.execute(
+                select(PublishedSessionDB).where(
+                    PublishedSessionDB.id == session_id,
+                )
+            )
+            session_record = result.scalar_one_or_none()
+            if session_record:
+                if final_messages:
+                    await session_db.execute(
+                        update(PublishedSessionDB)
+                        .where(PublishedSessionDB.id == session_id)
+                        .values(
+                            messages=final_messages,
+                            updated_at=datetime.utcnow(),
+                        )
+                    )
+                else:
+                    current_messages = session_record.messages or []
+                    current_messages.append({"role": "user", "content": request_text})
+                    if final_answer:
+                        current_messages.append({"role": "assistant", "content": final_answer})
+                    await session_db.execute(
+                        update(PublishedSessionDB)
+                        .where(PublishedSessionDB.id == session_id)
+                        .values(
+                            messages=current_messages,
+                            updated_at=datetime.utcnow(),
+                        )
+                    )
+                await session_db.commit()
+    except Exception:
+        pass  # Don't fail the response if session save fails
+
+
+async def _resolve_published_config(preset):
+    """Resolve config from a published preset, including executor name."""
+    executor_name = None
+    if preset.executor_id:
+        async with AsyncSessionLocal() as db:
+            executor_result = await db.execute(
+                select(ExecutorDB).where(ExecutorDB.id == preset.executor_id)
+            )
+            executor = executor_result.scalar_one_or_none()
+            if executor:
+                executor_name = executor.name
+
+    return {
+        "skills": preset.skill_ids,
+        "allowed_tools": preset.builtin_tools,
+        "max_turns": preset.max_turns,
+        "equipped_mcp_servers": preset.mcp_servers,
+        "system_prompt": preset.system_prompt,
+        "model_provider": preset.model_provider,
+        "model_name": preset.model_name,
+        "executor_name": executor_name,
+    }
+
+
 @router.post("/{agent_id}/chat")
 async def published_chat(agent_id: str, request: PublishedChatRequest):
     """SSE streaming chat with a published agent."""
@@ -303,70 +439,16 @@ async def published_chat(agent_id: str, request: PublishedChatRequest):
         if not preset:
             raise HTTPException(status_code=404, detail="Published agent not found")
 
-        # Validate response mode
         if preset.api_response_mode == "non_streaming":
             raise HTTPException(
                 status_code=400,
                 detail="This agent is configured for non-streaming mode. Use /chat/sync endpoint."
             )
 
-        # Resolve executor name if executor_id is set
-        executor_name = None
-        if preset.executor_id:
-            executor_result = await db.execute(
-                select(ExecutorDB).where(ExecutorDB.id == preset.executor_id)
-            )
-            executor = executor_result.scalar_one_or_none()
-            if executor:
-                executor_name = executor.name
+        config = await _resolve_published_config(preset)
 
-        # Capture preset config
-        config = {
-            "skills": preset.skill_ids,
-            "allowed_tools": preset.builtin_tools,
-            "max_turns": preset.max_turns,
-            "equipped_mcp_servers": preset.mcp_servers,
-            "system_prompt": preset.system_prompt,
-            "model_provider": preset.model_provider,
-            "model_name": preset.model_name,
-            "executor_name": executor_name,
-        }
-
-    # Session management: load existing or create with client-provided ID
-    session_id = request.session_id
-    history = None
-
-    if session_id:
-        async with AsyncSessionLocal() as db:
-            result = await db.execute(
-                select(PublishedSessionDB).where(
-                    PublishedSessionDB.id == session_id,
-                    PublishedSessionDB.agent_id == agent_id,
-                )
-            )
-            session_record = result.scalar_one_or_none()
-            if session_record:
-                # Existing session — load history
-                history = session_record.messages or []
-            else:
-                # Client-provided ID, first use — create session with this ID
-                new_session = PublishedSessionDB(
-                    id=session_id,
-                    agent_id=agent_id,
-                    messages=[],
-                )
-                db.add(new_session)
-                await db.commit()
-    else:
-        # No session_id provided — auto-generate
-        async with AsyncSessionLocal() as db:
-            new_session = PublishedSessionDB(
-                agent_id=agent_id,
-                messages=[],
-            )
-            db.add(new_session)
-            await db.commit()
-            session_id = new_session.id
+    # Session management
+    session_id, history = await _load_or_create_session(request.session_id, agent_id)
 
     # Build actual request with file info and image blocks
     from app.api.v1.agent import _build_request_with_files
@@ -377,49 +459,17 @@ async def published_chat(agent_id: str, request: PublishedChatRequest):
         model_name=config.get("model_name"),
     )
 
-    # Create queue for thread communication
-    import queue
-    event_queue: queue.Queue = queue.Queue()
-
-    def run_agent_in_thread():
-        try:
-            agent = SkillsAgent(
-                model=config.get("model_name"),
-                model_provider=config.get("model_provider"),
-                max_turns=config["max_turns"],
-                verbose=False,
-                allowed_skills=config["skills"],
-                allowed_tools=config["allowed_tools"],
-                equipped_mcp_servers=config["equipped_mcp_servers"],
-                custom_system_prompt=config["system_prompt"],
-                executor_name=config.get("executor_name"),
-            )
-
-            for event in agent.run_stream(actual_request, conversation_history=history, image_contents=image_contents):
-                event_data = {
-                    "event_type": event.event_type,
-                    "turn": event.turn,
-                    **event.data
-                }
-                event_queue.put(("event", event_data))
-
-            event_queue.put(("done", None))
-        except Exception as e:
-            event_queue.put(("error", str(e)))
-
     async def event_generator():
         start_time = time.time()
-        loop = asyncio.get_event_loop()
 
         # Create trace record
         trace_id = None
         async with AsyncSessionLocal() as trace_db:
-            # Determine actual model for trace
             actual_model = config.get("model_name") or settings.default_model_name
             actual_provider = config.get("model_provider") or settings.default_model_provider
             trace = AgentTraceDB(
                 request=request.request,
-                skills_used=[],  # Will be updated on completion with actually used skills
+                skills_used=[],
                 model=actual_model,
                 model_provider=actual_provider,
                 status="running",
@@ -437,75 +487,111 @@ async def published_chat(agent_id: str, request: PublishedChatRequest):
             await trace_db.commit()
             trace_id = trace.id
 
-        # Include session_id in run_started event
         yield f"data: {json.dumps({'event_type': 'run_started', 'turn': 0, 'trace_id': trace_id, 'session_id': session_id})}\n\n"
 
-        # Start agent in thread
-        future = loop.run_in_executor(_executor, run_agent_in_thread)
+        # Create agent, event stream, and cancellation event
+        agent = SkillsAgent(
+            model=config.get("model_name"),
+            model_provider=config.get("model_provider"),
+            max_turns=config["max_turns"],
+            verbose=False,
+            allowed_skills=config["skills"],
+            allowed_tools=config["allowed_tools"],
+            equipped_mcp_servers=config["equipped_mcp_servers"],
+            custom_system_prompt=config["system_prompt"],
+            executor_name=config.get("executor_name"),
+        )
+
+        event_stream = EventStream()
+        cancel_event = asyncio.Event()
+
+        # Register stream for steering (same-worker fast path + cross-worker polling)
+        if trace_id:
+            _active_streams[trace_id] = event_stream
+        steering_task = asyncio.create_task(
+            poll_steering_messages(trace_id, event_stream)
+        ) if trace_id else None
+
+        agent_task = asyncio.create_task(
+            agent.run(
+                actual_request,
+                conversation_history=history,
+                image_contents=image_contents,
+                event_stream=event_stream,
+                cancellation_event=cancel_event,
+            )
+        )
 
         last_complete_event = None
         collected_steps = []
-        current_text_buffer = ""  # Accumulate text_delta chunks
+        current_text_buffer = ""
         was_cancelled = False
 
         try:
-            while True:
-                try:
-                    msg_type, data = await loop.run_in_executor(
-                        None, lambda: event_queue.get(timeout=0.1)
-                    )
+            async for event in event_stream:
+                event_data = {
+                    "event_type": event.event_type,
+                    "turn": event.turn,
+                    **event.data
+                }
+                yield f"data: {json.dumps(event_data, ensure_ascii=False)}\n\n"
 
-                    if msg_type == "done":
-                        break
-                    elif msg_type == "error":
-                        yield f"data: {json.dumps({'event_type': 'error', 'turn': 0, 'error': data})}\n\n"
-                        break
-                    elif msg_type == "event":
-                        yield f"data: {json.dumps(data, ensure_ascii=False)}\n\n"
+                event_type = event.event_type
+                if event_type == "text_delta":
+                    current_text_buffer += event.data.get("text", "")
+                elif event_type == "assistant" and event.data.get("content"):
+                    collected_steps.append({
+                        "role": "assistant",
+                        "content": event.data.get("content", "")[:2000],
+                        "tool_name": None,
+                        "tool_input": None,
+                    })
+                elif event_type in ("tool_call", "tool_result", "turn_start", "complete"):
+                    if current_text_buffer:
+                        collected_steps.append({
+                            "role": "assistant",
+                            "content": current_text_buffer[:2000],
+                            "tool_name": None,
+                            "tool_input": None,
+                        })
+                        current_text_buffer = ""
+                    if event_type == "tool_result":
+                        collected_steps.append({
+                            "role": "tool",
+                            "content": event.data.get("tool_result", "")[:5000],
+                            "tool_name": event.data.get("tool_name"),
+                            "tool_input": event.data.get("tool_input"),
+                        })
+                    elif event_type == "complete":
+                        last_complete_event = event.data
 
-                        event_type = data.get("event_type")
-                        if event_type == "text_delta":
-                            current_text_buffer += data.get("text", "")
-                        elif event_type == "assistant" and data.get("content"):
-                            collected_steps.append({
-                                "role": "assistant",
-                                "content": data.get("content", "")[:2000],
-                                "tool_name": None,
-                                "tool_input": None,
-                            })
-                        elif event_type in ("tool_call", "tool_result", "turn_start", "complete"):
-                            # Flush buffered text as assistant step
-                            if current_text_buffer:
-                                collected_steps.append({
-                                    "role": "assistant",
-                                    "content": current_text_buffer[:2000],
-                                    "tool_name": None,
-                                    "tool_input": None,
-                                })
-                                current_text_buffer = ""
-                            if event_type == "tool_result":
-                                collected_steps.append({
-                                    "role": "tool",
-                                    "content": data.get("tool_result", "")[:5000],
-                                    "tool_name": data.get("tool_name"),
-                                    "tool_input": data.get("tool_input"),
-                                })
-                            elif event_type == "complete":
-                                last_complete_event = data
-
-                except queue.Empty:
-                    await asyncio.sleep(0.05)
-                    continue
-
-            await future
+            await agent_task
 
         except (asyncio.CancelledError, GeneratorExit):
             was_cancelled = True
+            cancel_event.set()
+            agent_task.cancel()
+            try:
+                await agent_task
+            except asyncio.CancelledError:
+                pass
 
         finally:
+            # Stop steering poll and clean up
+            if steering_task:
+                steering_task.cancel()
+                try:
+                    await steering_task
+                except asyncio.CancelledError:
+                    pass
+            if trace_id:
+                cleanup_steering_dir(trace_id)
+                _active_streams.pop(trace_id, None)
+
+            agent.cleanup()
+
             duration_ms = int((time.time() - start_time) * 1000)
 
-            # Update trace (resilient to task cancellation)
             if was_cancelled:
                 final_status = "cancelled"
                 is_success = False
@@ -534,45 +620,14 @@ async def published_chat(agent_id: str, request: PublishedChatRequest):
                 "duration_ms": duration_ms,
             })
 
-            # Save full conversation messages to session (includes tool_use/tool_result)
+            # Save full conversation messages to session
             if not was_cancelled and session_id and last_complete_event:
-                try:
-                    async with AsyncSessionLocal() as session_db:
-                        result = await session_db.execute(
-                            select(PublishedSessionDB).where(
-                                PublishedSessionDB.id == session_id,
-                            )
-                        )
-                        session_record = result.scalar_one_or_none()
-                        if session_record:
-                            # Use full messages from agent (contains all tool_use/tool_result context)
-                            full_messages = last_complete_event.get("final_messages")
-                            if full_messages:
-                                await session_db.execute(
-                                    update(PublishedSessionDB)
-                                    .where(PublishedSessionDB.id == session_id)
-                                    .values(
-                                        messages=full_messages,
-                                        updated_at=datetime.utcnow(),
-                                    )
-                                )
-                            else:
-                                # Fallback: append text-only if final_messages not available
-                                current_messages = session_record.messages or []
-                                current_messages.append({"role": "user", "content": request.request})
-                                if final_answer:
-                                    current_messages.append({"role": "assistant", "content": final_answer})
-                                await session_db.execute(
-                                    update(PublishedSessionDB)
-                                    .where(PublishedSessionDB.id == session_id)
-                                    .values(
-                                        messages=current_messages,
-                                        updated_at=datetime.utcnow(),
-                                    )
-                                )
-                            await session_db.commit()
-                except Exception:
-                    pass  # Don't fail the response if session save fails
+                await _save_session_messages(
+                    session_id,
+                    final_answer,
+                    request.request,
+                    final_messages=last_complete_event.get("final_messages"),
+                )
 
         if not was_cancelled:
             yield f"data: {json.dumps({'event_type': 'trace_saved', 'turn': 0, 'trace_id': trace_id})}\n\n"
@@ -604,70 +659,16 @@ async def published_chat_sync(agent_id: str, request: PublishedChatRequest):
         if not preset:
             raise HTTPException(status_code=404, detail="Published agent not found")
 
-        # Validate response mode
         if preset.api_response_mode == "streaming":
             raise HTTPException(
                 status_code=400,
                 detail="This agent is configured for streaming mode. Use /chat endpoint."
             )
 
-        # Resolve executor name if executor_id is set
-        executor_name = None
-        if preset.executor_id:
-            executor_result = await db.execute(
-                select(ExecutorDB).where(ExecutorDB.id == preset.executor_id)
-            )
-            executor = executor_result.scalar_one_or_none()
-            if executor:
-                executor_name = executor.name
+        config = await _resolve_published_config(preset)
 
-        # Capture preset config
-        config = {
-            "skills": preset.skill_ids,
-            "allowed_tools": preset.builtin_tools,
-            "max_turns": preset.max_turns,
-            "equipped_mcp_servers": preset.mcp_servers,
-            "system_prompt": preset.system_prompt,
-            "model_provider": preset.model_provider,
-            "model_name": preset.model_name,
-            "executor_name": executor_name,
-        }
-
-    # Session management: load existing or create with client-provided ID
-    session_id = request.session_id
-    history = None
-
-    if session_id:
-        async with AsyncSessionLocal() as db:
-            result = await db.execute(
-                select(PublishedSessionDB).where(
-                    PublishedSessionDB.id == session_id,
-                    PublishedSessionDB.agent_id == agent_id,
-                )
-            )
-            session_record = result.scalar_one_or_none()
-            if session_record:
-                # Existing session — load history
-                history = session_record.messages or []
-            else:
-                # Client-provided ID, first use — create session with this ID
-                new_session = PublishedSessionDB(
-                    id=session_id,
-                    agent_id=agent_id,
-                    messages=[],
-                )
-                db.add(new_session)
-                await db.commit()
-    else:
-        # No session_id provided — auto-generate
-        async with AsyncSessionLocal() as db:
-            new_session = PublishedSessionDB(
-                agent_id=agent_id,
-                messages=[],
-            )
-            db.add(new_session)
-            await db.commit()
-            session_id = new_session.id
+    # Session management
+    session_id, history = await _load_or_create_session(request.session_id, agent_id)
 
     # Build actual request with file info and image blocks
     from app.api.v1.agent import _build_request_with_files
@@ -705,50 +706,52 @@ async def published_chat_sync(agent_id: str, request: PublishedChatRequest):
         await trace_db.commit()
         trace_id = trace.id
 
-    # Run agent synchronously
-    loop = asyncio.get_event_loop()
-    result_data = {"success": False, "answer": "", "error": None, "steps": [], "total_turns": 0}
+    # Run agent (async, non-streaming — no event_stream)
+    agent = SkillsAgent(
+        model=config.get("model_name"),
+        model_provider=config.get("model_provider"),
+        max_turns=config["max_turns"],
+        verbose=False,
+        allowed_skills=config["skills"],
+        allowed_tools=config["allowed_tools"],
+        equipped_mcp_servers=config["equipped_mcp_servers"],
+        custom_system_prompt=config["system_prompt"],
+        executor_name=config.get("executor_name"),
+    )
 
-    def run_agent_sync():
-        try:
-            agent = SkillsAgent(
-                model=config.get("model_name"),
-                model_provider=config.get("model_provider"),
-                max_turns=config["max_turns"],
-                verbose=False,
-                allowed_skills=config["skills"],
-                allowed_tools=config["allowed_tools"],
-                equipped_mcp_servers=config["equipped_mcp_servers"],
-                custom_system_prompt=config["system_prompt"],
-                executor_name=config.get("executor_name"),
-            )
+    try:
+        agent_result = await agent.run(actual_request, conversation_history=history, image_contents=image_contents)
+    except Exception as e:
+        agent_result = None
+        error_str = str(e)
+    finally:
+        agent.cleanup()
 
-            result = agent.run(actual_request, conversation_history=history, image_contents=image_contents)
-            return {
-                "success": result.success,
-                "answer": result.answer,
-                "error": result.error,
-                "total_turns": result.total_turns,
-                "total_input_tokens": result.total_input_tokens,
-                "total_output_tokens": result.total_output_tokens,
-                "skills_used": result.skills_used,
-                "output_files": result.output_files or None,
-                "final_messages": result.final_messages,
-                "steps": [
-                    {
-                        "role": step.role,
-                        "content": step.content[:5000] if step.content else "",
-                        "tool_name": step.tool_name,
-                        "tool_input": step.tool_input,
-                    }
-                    for step in (result.steps or [])
-                ],
-            }
-        except Exception as e:
-            return {"success": False, "answer": "", "error": str(e), "steps": [], "total_turns": 0}
-
-    result_data = await loop.run_in_executor(_executor, run_agent_sync)
     duration_ms = int((time.time() - start_time) * 1000)
+
+    if agent_result:
+        result_data = {
+            "success": agent_result.success,
+            "answer": agent_result.answer,
+            "error": agent_result.error,
+            "total_turns": agent_result.total_turns,
+            "total_input_tokens": agent_result.total_input_tokens,
+            "total_output_tokens": agent_result.total_output_tokens,
+            "skills_used": agent_result.skills_used,
+            "output_files": agent_result.output_files or None,
+            "final_messages": agent_result.final_messages,
+            "steps": [
+                {
+                    "role": step.role,
+                    "content": step.content[:5000] if step.content else "",
+                    "tool_name": step.tool_name,
+                    "tool_input": step.tool_input,
+                }
+                for step in (agent_result.steps or [])
+            ],
+        }
+    else:
+        result_data = {"success": False, "answer": "", "error": error_str, "steps": [], "total_turns": 0}
 
     # Update trace
     async with AsyncSessionLocal() as trace_db:
@@ -771,45 +774,14 @@ async def published_chat_sync(agent_id: str, request: PublishedChatRequest):
         )
         await trace_db.commit()
 
-    # Save full conversation messages to session (includes tool_use/tool_result)
+    # Save full conversation messages to session
     if session_id and result_data.get("success"):
-        try:
-            async with AsyncSessionLocal() as session_db:
-                result = await session_db.execute(
-                    select(PublishedSessionDB).where(
-                        PublishedSessionDB.id == session_id,
-                    )
-                )
-                session_record = result.scalar_one_or_none()
-                if session_record:
-                    # Use full messages from agent (contains all tool_use/tool_result context)
-                    full_messages = result_data.get("final_messages")
-                    if full_messages:
-                        await session_db.execute(
-                            update(PublishedSessionDB)
-                            .where(PublishedSessionDB.id == session_id)
-                            .values(
-                                messages=full_messages,
-                                updated_at=datetime.utcnow(),
-                            )
-                        )
-                    else:
-                        # Fallback: append text-only if final_messages not available
-                        current_messages = session_record.messages or []
-                        current_messages.append({"role": "user", "content": request.request})
-                        if result_data.get("answer"):
-                            current_messages.append({"role": "assistant", "content": result_data["answer"]})
-                        await session_db.execute(
-                            update(PublishedSessionDB)
-                            .where(PublishedSessionDB.id == session_id)
-                            .values(
-                                messages=current_messages,
-                                updated_at=datetime.utcnow(),
-                            )
-                        )
-                    await session_db.commit()
-        except Exception:
-            pass  # Don't fail the response if session save fails
+        await _save_session_messages(
+            session_id,
+            result_data.get("answer", ""),
+            request.request,
+            final_messages=result_data.get("final_messages"),
+        )
 
     return PublishedChatResponse(
         success=result_data.get("success", False),

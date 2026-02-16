@@ -96,6 +96,55 @@ Anyone with the link can chat with the agent using your configuration. Published
 
 See [How to: Publish an Agent](/how-to/publish-agent) for details.
 
+## Steering (Mid-Execution Intervention)
+
+While an agent is running, you can inject **steering messages** to redirect its behavior without stopping the run. The agent picks up your message at the next tool boundary and adjusts its approach.
+
+### How It Works
+
+1. Start a chat — the agent begins executing
+2. While the agent is running, type a message and press Enter (or click **Steer**)
+3. Your message is injected into the agent's context as a `[User Steering Message]`
+4. The agent sees it before its next LLM call and adjusts accordingly
+5. A `steering_received` event appears in the SSE stream
+
+### Injection Points
+
+The agent checks for steering messages at two points:
+
+| Point | When | Effect |
+|-------|------|--------|
+| **After tool results** | Tool execution completes, before next LLM call | Agent sees tool results + your steering together |
+| **Before finishing** | Agent is about to end (`end_turn`), but steering is pending | Agent continues instead of finishing |
+
+### Multi-Worker Support
+
+In Docker deployments with multiple uvicorn workers, steering uses a hybrid approach:
+
+- **Same worker** — direct in-memory injection (fast path)
+- **Cross worker** — filesystem queue (`/tmp/agent_steering/`) with atomic writes + polling (300ms interval)
+
+### Via API
+
+```bash
+# Steer a running agent stream
+curl -X POST http://localhost:62610/api/v1/agent/run/stream/{trace_id}/steer \
+  -H "Content-Type: application/json" \
+  -d '{"message": "Focus on the validation logic instead"}'
+
+# Steer a published agent
+curl -X POST http://localhost:62610/api/v1/published/{agent_id}/chat/{trace_id}/steer \
+  -H "Content-Type: application/json" \
+  -d '{"message": "Use a different approach"}'
+```
+
+**Response:** `{"status": "injected", "trace_id": "..."}`
+
+**Error codes:**
+- `404` — No active run for this trace_id
+- `409` — Agent has already completed
+- `422` — Empty message
+
 ## Execution Traces
 
 Every agent run generates a trace containing:

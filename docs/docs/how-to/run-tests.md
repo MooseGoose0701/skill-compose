@@ -28,7 +28,7 @@ Do not run multiple test suites in parallel — they share the same test databas
 
 ## Test Categories
 
-### Unit Tests (~340 tests, ~45s)
+### Unit Tests (~390 tests, ~55s)
 
 Test individual API endpoints and services using a per-test isolated database. No API keys required.
 
@@ -42,7 +42,7 @@ Or run directly:
 pytest tests/test_api/ tests/test_core/ tests/test_services/ -v
 ```
 
-### E2E Workflow Tests (~160 tests, ~15s)
+### E2E Workflow Tests (~170 tests, ~15s)
 
 End-to-end API workflows using mocked LLM responses. Covers skills lifecycle, agents, traces, file upload, code execution, MCP, and more.
 

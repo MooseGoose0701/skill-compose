@@ -113,15 +113,43 @@ def create_mock_llm_client(responses: Optional[list] = None):
                    MockResponse objects will be automatically converted to LLMResponse.
 
     Returns:
-        A mock LLMClient where client.create() returns LLMResponse objects.
+        A mock LLMClient where client.create()/acreate()/acreate_stream() returns LLMResponse objects.
+        All three methods share a single response queue so calls interleave correctly
+        (e.g. acreate_stream → acreate for summary → acreate_stream).
     """
+    from unittest.mock import AsyncMock
+
     if responses is None:
         responses = [simple_text_response()]
 
     # Convert MockResponse to LLMResponse
     llm_responses = [r.to_llm_response() if isinstance(r, MockResponse) else r for r in responses]
 
+    # Shared call index across all methods
+    call_idx = {"i": 0}
+
+    def _next_response():
+        idx = call_idx["i"]
+        call_idx["i"] += 1
+        return llm_responses[idx] if idx < len(llm_responses) else llm_responses[-1]
+
+    def sync_create(*args, **kwargs):
+        return _next_response()
+
+    async def async_create(*args, **kwargs):
+        return _next_response()
+
+    def make_stream_generator(*args, **kwargs):
+        """Return an async generator that yields the next response as a non-delta final."""
+        resp = _next_response()
+
+        async def _gen():
+            yield resp
+        return _gen()
+
     mock_client = MagicMock()
-    mock_client.create.side_effect = llm_responses
+    mock_client.create = MagicMock(side_effect=sync_create)
+    mock_client.acreate = AsyncMock(side_effect=async_create)
+    mock_client.acreate_stream = MagicMock(side_effect=make_stream_generator)
     mock_client.get_context_limit.return_value = 200_000  # Default Claude context limit
     return mock_client
