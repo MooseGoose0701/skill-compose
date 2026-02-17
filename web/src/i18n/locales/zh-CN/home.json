@@ -61,6 +61,26 @@
   "stats": {
     "skills": "技能",
     "agents": "代理",
+    "mcpServers": "MCP 服务",
+    "executors": "执行器",
     "executions": "执行次数"
+  },
+  "quickActions": {
+    "browseSkills": {
+      "title": "浏览技能",
+      "description": "管理你的技能库"
+    },
+    "createSkill": {
+      "title": "创建技能",
+      "description": "用 AI 构建新技能"
+    },
+    "importSkill": {
+      "title": "导入技能",
+      "description": "从文件或 GitHub 导入"
+    },
+    "evolveSkills": {
+      "title": "进化技能",
+      "description": "基于执行追踪改进"
+    }
   }
 }

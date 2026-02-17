@@ -61,6 +61,26 @@
   "stats": {
     "skills": "Skills",
     "agents": "Agents",
+    "mcpServers": "MCP Servers",
+    "executors": "Executors",
     "executions": "Executions"
+  },
+  "quickActions": {
+    "browseSkills": {
+      "title": "Browse Skills",
+      "description": "Manage your skills library"
+    },
+    "createSkill": {
+      "title": "Create Skill",
+      "description": "Build a new skill with AI"
+    },
+    "importSkill": {
+      "title": "Import Skill",
+      "description": "From file or GitHub"
+    },
+    "evolveSkills": {
+      "title": "Evolve Skills",
+      "description": "Improve from execution traces"
+    }
   }
 }
