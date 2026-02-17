@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import { useParams } from "next/navigation";
-import { Paperclip, X, Square, Bot, Loader2, MessageSquarePlus, Navigation } from "lucide-react";
+import { Paperclip, X, Square, Bot, Loader2, MessageSquarePlus, Navigation, Copy, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { publishedAgentApi } from "@/lib/api";
@@ -11,6 +11,7 @@ import type { ChatMessage } from "@/stores/chat-store";
 import { ChatMessageItem } from "@/components/chat/chat-message";
 import { useChatEngine } from "@/hooks/use-chat-engine";
 import { useTranslation } from "@/i18n/client";
+import { toast } from "sonner";
 
 type LocalMessage = ChatMessage;
 
@@ -26,6 +27,32 @@ function getOrCreateSessionId(agentId: string): string {
   const id = crypto.randomUUID();
   sessionStorage.setItem(key, id);
   return id;
+}
+
+function SessionIdBadge({ sessionId, label, copiedText }: { sessionId: string; label: string; copiedText: string }) {
+  const [copied, setCopied] = useState(false);
+  const shortId = `${sessionId.slice(0, 4)}...${sessionId.slice(-4)}`;
+
+  const handleCopy = useCallback(() => {
+    navigator.clipboard.writeText(sessionId).then(() => {
+      setCopied(true);
+      toast.success(copiedText);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }, [sessionId, copiedText]);
+
+  return (
+    <button
+      onClick={handleCopy}
+      className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-mono text-muted-foreground bg-muted/50 hover:bg-muted transition-colors cursor-pointer shrink-0"
+      title={`${label}: ${sessionId}`}
+      aria-label={`${label}: ${sessionId}`}
+    >
+      <span className="text-muted-foreground/70">{label}:</span>
+      <span>{shortId}</span>
+      {copied ? <Check className="h-3 w-3 text-green-500" /> : <Copy className="h-3 w-3 opacity-50" />}
+    </button>
+  );
 }
 
 export default function PublishedChatPage() {
@@ -209,10 +236,11 @@ export default function PublishedChatPage() {
       {/* Header */}
       <div className="border-b px-6 py-4 flex items-center gap-3 shrink-0">
         <Bot className="h-6 w-6 text-primary" />
-        <div className="flex-1">
+        <div className="flex-1 min-w-0">
           <h1 className="font-semibold text-lg">{agentName}</h1>
           {agentDescription && <p className="text-sm text-muted-foreground">{agentDescription}</p>}
         </div>
+        <SessionIdBadge sessionId={sessionId} label={t('published.sessionId')} copiedText={t('published.sessionIdCopied')} />
         <Button variant="outline" size="sm" onClick={handleNewChat} disabled={isRunning} title={t('newChat')}>
           <MessageSquarePlus className="h-4 w-4 mr-1" />
           {t('newChat')}
