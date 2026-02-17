@@ -59,7 +59,7 @@ export default function Home() {
             </div>
             <div className="flex flex-col items-stretch gap-4 text-center w-full">
               {/* Primary Actions - 4 equal width buttons */}
-              <div className="grid grid-cols-4 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
                 <Link
                   href="/agents"
                   className="inline-flex items-center justify-center rounded-md bg-primary px-6 py-3 text-sm font-medium text-primary-foreground shadow transition-colors hover:bg-primary/90"
@@ -104,7 +104,7 @@ export default function Home() {
                 </Link>
               </div>
               {/* Secondary Navigation - Executors, Tools, MCP, Traces, Sessions */}
-              <div className="grid grid-cols-5 gap-3">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
                 <Link
                   href="/executors"
                   className="inline-flex items-center justify-center rounded-md border border-input bg-background px-6 py-2.5 text-sm font-medium shadow-sm transition-colors hover:bg-accent hover:text-accent-foreground"
@@ -142,7 +142,7 @@ export default function Home() {
                 </Link>
               </div>
               {/* Tertiary Navigation - Files, Terminal, Settings, Backup */}
-              <div className="grid grid-cols-4 gap-3">
+              <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-3">
                 <Link
                   href="/files"
                   className="inline-flex items-center justify-center rounded-md border border-input bg-background px-6 py-2.5 text-sm font-medium shadow-sm transition-colors hover:bg-accent hover:text-accent-foreground"

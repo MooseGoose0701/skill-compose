@@ -1,5 +1,6 @@
 {
   "title": "Chat",
+  "chatPanel": "Chat Panel",
   "placeholder": "Type a message...",
   "send": "Send",
   "stop": "Stop",
@@ -11,11 +12,27 @@
   "generating": "Generating...",
   "openFullscreen": "Open in new window",
   "reset": "Reset",
+  "resetAll": "Reset All",
+  "resetEverything": "Reset Everything",
+  "resetDescription": "Reset everything (messages, files, skills, tools, MCP servers, max turns) and start fresh?",
+  "close": "Close",
+  "manage": "Manage",
   "home": "Home",
   "config": "Config",
   "startConversation": "Start a conversation",
   "typeMessageToBegin": "Type a message below to begin chatting with the agent.",
   "clickConfigToCustomize": "Click Config above to customize settings.",
+  "selectSkillsHint": "Select skills above to limit which skills the agent can use.",
+  "multiTurnHint": "Conversations support multi-turn dialogue.",
+  "configManagedByPreset": "Config managed by preset — edit to switch to custom",
+  "requiredToolsNote": "* Required tools cannot be disabled.",
+  "mcpDefaultNote": "MCP servers are disabled by default.",
+  "enterToSend": "Enter to send",
+  "attach": "Attach",
+  "defaultModel": "Default (Kimi K2.5)",
+  "agentNotAvailable": "Agent Not Available",
+  "builtinTools": "Built-in Tools",
+  "selected": "selected",
   "configuration": {
     "title": "Configuration",
     "agent": "Agent",
@@ -29,6 +46,7 @@
     "mcpServers": "MCP Servers",
     "selectMcpServers": "Select MCP servers",
     "maxTurns": "Max Turns",
+    "turns": "Turns",
     "systemPrompt": "System Prompt",
     "systemPromptPlaceholder": "Custom system prompt...",
     "model": "Model",
@@ -66,6 +84,9 @@
   },
   "error": {
     "sendFailed": "Failed to send message",
+    "steerFailed": "Failed to send steering message",
+    "uploadFailed": "File upload failed",
+    "runFailed": "Failed to run agent",
     "connectionLost": "Connection lost",
     "tryAgain": "Try again"
   },
@@ -83,5 +104,9 @@
     "placeholder": "Steer the agent...",
     "button": "Steer",
     "label": "Steering"
+  },
+  "published": {
+    "typeToBegin": "Type a message below to begin.",
+    "notAvailable": "This agent is not available."
   }
 }

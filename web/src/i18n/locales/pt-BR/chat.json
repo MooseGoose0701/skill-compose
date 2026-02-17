@@ -1,5 +1,6 @@
 {
   "title": "Chat",
+  "chatPanel": "Painel de Chat",
   "placeholder": "Digite uma mensagem...",
   "send": "Enviar",
   "stop": "Parar",
@@ -11,11 +12,27 @@
   "generating": "Gerando...",
   "openFullscreen": "Abrir em nova janela",
   "reset": "Redefinir",
+  "resetAll": "Redefinir Tudo",
+  "resetEverything": "Redefinir Tudo",
+  "resetDescription": "Redefinir tudo (mensagens, arquivos, habilidades, ferramentas, servidores MCP, turnos máximos) e começar do zero?",
+  "close": "Fechar",
+  "manage": "Gerenciar",
   "home": "Início",
   "config": "Configurar",
   "startConversation": "Iniciar uma conversa",
   "typeMessageToBegin": "Digite uma mensagem abaixo para começar a conversar com o agente.",
   "clickConfigToCustomize": "Clique em Configurar acima para personalizar as configurações.",
+  "selectSkillsHint": "Selecione habilidades acima para limitar quais o agente pode usar.",
+  "multiTurnHint": "As conversas suportam diálogos de múltiplos turnos.",
+  "configManagedByPreset": "Configuração gerenciada por preset — edite para mudar para personalizada",
+  "requiredToolsNote": "* Ferramentas obrigatórias não podem ser desabilitadas.",
+  "mcpDefaultNote": "Servidores MCP são desabilitados por padrão.",
+  "enterToSend": "Enter para enviar",
+  "attach": "Anexar",
+  "defaultModel": "Padrão (Kimi K2.5)",
+  "agentNotAvailable": "Agente Não Disponível",
+  "builtinTools": "Ferramentas Integradas",
+  "selected": "selecionado",
   "configuration": {
     "title": "Configuração",
     "agent": "Agente",
@@ -29,6 +46,7 @@
     "mcpServers": "Servidores MCP",
     "selectMcpServers": "Selecionar servidores MCP",
     "maxTurns": "Turnos Máximos",
+    "turns": "Turnos",
     "systemPrompt": "Prompt do Sistema",
     "systemPromptPlaceholder": "Prompt do sistema personalizado...",
     "model": "Modelo",
@@ -66,6 +84,9 @@
   },
   "error": {
     "sendFailed": "Falha ao enviar mensagem",
+    "steerFailed": "Falha ao enviar mensagem de direcionamento",
+    "uploadFailed": "Falha ao enviar arquivo",
+    "runFailed": "Falha ao executar o agente",
     "connectionLost": "Conexão perdida",
     "tryAgain": "Tentar novamente"
   },
@@ -83,5 +104,9 @@
     "placeholder": "Direcionar o agente...",
     "button": "Direcionar",
     "label": "Direcionamento"
+  },
+  "published": {
+    "typeToBegin": "Digite uma mensagem abaixo para começar.",
+    "notAvailable": "Este agente não está disponível."
   }
 }
