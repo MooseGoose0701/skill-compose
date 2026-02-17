@@ -1,5 +1,6 @@
 {
   "title": "聊天",
+  "chatPanel": "聊天面板",
   "placeholder": "输入消息...",
   "send": "发送",
   "stop": "停止",
@@ -11,11 +12,27 @@
   "generating": "生成中...",
   "openFullscreen": "在新窗口中打开",
   "reset": "重置",
+  "resetAll": "全部重置",
+  "resetEverything": "重置所有内容",
+  "resetDescription": "重置所有内容（消息、文件、技能、工具、MCP 服务器、最大轮数）并重新开始？",
+  "close": "关闭",
+  "manage": "管理",
   "home": "首页",
   "config": "配置",
   "startConversation": "开始对话",
   "typeMessageToBegin": "在下方输入消息开始与 Agent 对话。",
   "clickConfigToCustomize": "点击上方 配置 按钮自定义设置。",
+  "selectSkillsHint": "在上方选择技能来限制 Agent 可以使用的技能。",
+  "multiTurnHint": "对话支持多轮对话。",
+  "configManagedByPreset": "配置由预设管理 — 编辑以切换到自定义",
+  "requiredToolsNote": "* 必需的工具不能禁用。",
+  "mcpDefaultNote": "MCP 服务器默认禁用。",
+  "enterToSend": "回车发送",
+  "attach": "附件",
+  "defaultModel": "默认 (Kimi K2.5)",
+  "agentNotAvailable": "Agent 不可用",
+  "builtinTools": "内置工具",
+  "selected": "已选",
   "configuration": {
     "title": "配置",
     "agent": "代理",
@@ -29,6 +46,7 @@
     "mcpServers": "MCP 服务器",
     "selectMcpServers": "选择 MCP 服务器",
     "maxTurns": "最大轮数",
+    "turns": "轮数",
     "systemPrompt": "系统提示词",
     "systemPromptPlaceholder": "自定义系统提示词...",
     "model": "模型",
@@ -66,6 +84,9 @@
   },
   "error": {
     "sendFailed": "发送消息失败",
+    "steerFailed": "发送引导消息失败",
+    "uploadFailed": "文件上传失败",
+    "runFailed": "运行 Agent 失败",
     "connectionLost": "连接已断开",
     "tryAgain": "重试"
   },
@@ -83,5 +104,9 @@
     "placeholder": "引导 Agent...",
     "button": "引导",
     "label": "引导消息"
+  },
+  "published": {
+    "typeToBegin": "在下方输入消息开始。",
+    "notAvailable": "此 Agent 不可用。"
   }
 }
