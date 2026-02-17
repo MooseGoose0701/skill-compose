@@ -38,23 +38,9 @@ import {
   Pencil,
   FileText,
 } from "lucide-react";
-import { BACKEND_API_BASE } from "@/lib/api";
+import { settingsApi } from "@/lib/api";
+import type { EnvVariable, EnvConfigResponse } from "@/lib/api";
 import { useTranslation } from "@/i18n/client";
-
-interface EnvVariable {
-  key: string;
-  value: string;
-  description: string | null;
-  sensitive: boolean;
-  source: string; // "env" or "runtime"
-  category: string; // "custom" or "preset"
-}
-
-interface EnvConfigResponse {
-  variables: EnvVariable[];
-  env_file_path: string;
-  env_file_exists: boolean;
-}
 
 function AddVariableDialog({ onAdd, t, tc }: { onAdd: () => void; t: (key: string, options?: Record<string, unknown>) => string; tc: (key: string) => string }) {
   const [open, setOpen] = React.useState(false);
@@ -75,17 +61,7 @@ function AddVariableDialog({ onAdd, t, tc }: { onAdd: () => void; t: (key: strin
     setIsSubmitting(true);
 
     try {
-      const res = await fetch(`${BACKEND_API_BASE}/settings/env`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ key: key.toUpperCase(), value }),
-      });
-
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.detail || t('add.error'));
-      }
-
+      await settingsApi.createEnv(key.toUpperCase(), value);
       setOpen(false);
       setKey("");
       setValue("");
@@ -380,13 +356,7 @@ export default function EnvironmentPage() {
 
   const { data, isLoading, error, refetch } = useQuery<EnvConfigResponse>({
     queryKey: ["env-config"],
-    queryFn: async () => {
-      const res = await fetch(`${BACKEND_API_BASE}/settings/env`);
-      if (!res.ok) {
-        throw new Error(t('failedToLoad'));
-      }
-      return res.json();
-    },
+    queryFn: () => settingsApi.getEnv(),
   });
 
   const handleSave = async (key: string, value: string) => {
@@ -396,30 +366,12 @@ export default function EnvironmentPage() {
       return;
     }
 
-    const res = await fetch(`${BACKEND_API_BASE}/settings/env`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ key, value }),
-    });
-
-    if (!res.ok) {
-      const err = await res.json();
-      throw new Error(err.detail || t('edit.error'));
-    }
-
+    await settingsApi.updateEnv(key, value);
     await queryClient.invalidateQueries({ queryKey: ["env-config"] });
   };
 
   const handleDelete = async (key: string) => {
-    const res = await fetch(`${BACKEND_API_BASE}/settings/env/${key}`, {
-      method: "DELETE",
-    });
-
-    if (!res.ok) {
-      const err = await res.json();
-      throw new Error(err.detail || t('delete.error'));
-    }
-
+    await settingsApi.deleteEnv(key);
     await queryClient.invalidateQueries({ queryKey: ["env-config"] });
   };
 

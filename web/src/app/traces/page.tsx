@@ -134,7 +134,7 @@ export default function TracesPage() {
               />
             ) : (
               data.traces.map((trace) => (
-                <Link key={trace.id} href={`/traces/${trace.id}`}>
+                <Link key={trace.id} href={`/traces/${trace.id}`} style={{ contentVisibility: 'auto', containIntrinsicSize: 'auto 100px' }}>
                   <Card className="p-4 hover:bg-muted/50 transition-colors cursor-pointer">
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex-1 min-w-0">

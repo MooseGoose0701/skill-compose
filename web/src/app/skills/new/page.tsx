@@ -4,7 +4,8 @@ import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, ExternalLink, Loader2 } from "lucide-react";
+import { ArrowLeft, ExternalLink } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
 import { skillsApi } from "@/lib/api";
 import { useTranslation } from "@/i18n/client";
 import { Button } from "@/components/ui/button";
@@ -255,7 +256,7 @@ export default function NewSkillPage() {
             {isProcessing && (
               <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 text-blue-800 dark:bg-blue-950 dark:border-blue-800 dark:text-blue-200">
                 <div className="flex items-center gap-2">
-                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <Spinner size="sm" />
                   <p className="text-sm font-medium">{pollingMessage}</p>
                 </div>
                 {taskId && (
@@ -285,7 +286,7 @@ export default function NewSkillPage() {
               <Button type="submit" disabled={isProcessing}>
                 {isProcessing ? (
                   <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    <Spinner size="sm" className="mr-2" />
                     {t("create.creating")}
                   </>
                 ) : (

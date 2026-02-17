@@ -1921,4 +1921,65 @@ export const backupApi = {
   },
 };
 
+// ── Settings / Environment Variables ──
+
+export interface EnvVariable {
+  key: string;
+  value: string;
+  description: string | null;
+  sensitive: boolean;
+  source: string;
+  category: string;
+}
+
+export interface EnvConfigResponse {
+  variables: EnvVariable[];
+  env_file_path: string;
+  env_file_exists: boolean;
+}
+
+export const settingsApi = {
+  getEnv: async (): Promise<EnvConfigResponse> => {
+    const response = await fetch(`${BACKEND_API_BASE}/settings/env`);
+    if (!response.ok) {
+      throw new ApiError(response.status, 'Failed to load environment variables');
+    }
+    return response.json();
+  },
+
+  createEnv: async (key: string, value: string): Promise<void> => {
+    const response = await fetch(`${BACKEND_API_BASE}/settings/env`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ key, value }),
+    });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new ApiError(response.status, error.detail || 'Failed to create variable');
+    }
+  },
+
+  updateEnv: async (key: string, value: string): Promise<void> => {
+    const response = await fetch(`${BACKEND_API_BASE}/settings/env`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ key, value }),
+    });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new ApiError(response.status, error.detail || 'Failed to update variable');
+    }
+  },
+
+  deleteEnv: async (key: string): Promise<void> => {
+    const response = await fetch(`${BACKEND_API_BASE}/settings/env/${encodeURIComponent(key)}`, {
+      method: 'DELETE',
+    });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new ApiError(response.status, error.detail || 'Failed to delete variable');
+    }
+  },
+};
+
 export { ApiError };
