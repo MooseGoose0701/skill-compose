@@ -25,7 +25,8 @@
     "snapshot": "Instantánea previa a la restauración guardada como:",
     "dragDrop": "Arrastre y suelte un archivo ZIP de copia de seguridad aquí",
     "orClickToBrowse": "o haga clic en cualquier lugar para explorar",
-    "selectFile": "Elegir archivo .zip"
+    "selectFile": "Elegir archivo .zip",
+    "invalidFileType": "El archivo debe ser un archivo .zip"
   },
   "list": {
     "title": "Copias de seguridad disponibles",
@@ -36,6 +37,10 @@
     "createdAt": "Creado",
     "restoreFrom": "Restaurar",
     "download": "Descargar"
+  },
+  "errors": {
+    "loadFailed": "Error al cargar la lista de respaldos",
+    "warnings": "{{count}} advertencia(s)"
   },
   "stats": {
     "skills": "Habilidades",

@@ -10,10 +10,10 @@ import type { CreateVersionRequest } from "@/types/skill";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CodeEditor } from "@/components/editor/code-editor";
+import { useTranslation } from "@/i18n/client";
 
 const DEFAULT_SKILL_MD = `---
 name: skill-name
@@ -68,6 +68,8 @@ const DEFAULT_MANIFEST = JSON.stringify(
 );
 
 export default function NewVersionPage() {
+  const { t } = useTranslation("skills");
+  const { t: tc } = useTranslation("common");
   const params = useParams();
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -110,9 +112,9 @@ export default function NewVersionPage() {
   });
 
   const validateVersion = (value: string): string | null => {
-    if (!value) return "Version is required";
+    if (!value) return t("newVersion.validation.versionRequired");
     if (!/^\d+\.\d+\.\d+(-[a-zA-Z0-9.]+)?$/.test(value)) {
-      return "Version must be a valid SemVer (e.g., 1.0.0, 1.0.0-beta.1)";
+      return t("newVersion.validation.versionInvalid");
     }
     return null;
   };
@@ -123,7 +125,7 @@ export default function NewVersionPage() {
       JSON.parse(value);
       return null;
     } catch {
-      return `Invalid JSON in ${name}`;
+      return t("newVersion.validation.invalidJson", { name });
     }
   };
 
@@ -142,7 +144,7 @@ export default function NewVersionPage() {
     if (manifestError) newErrors.manifest = manifestError;
 
     if (!skillMd.trim()) {
-      newErrors.skillMd = "SKILL.md content is required";
+      newErrors.skillMd = t("newVersion.validation.skillMdRequired");
     }
 
     if (Object.keys(newErrors).length > 0) {
@@ -163,7 +165,7 @@ export default function NewVersionPage() {
   if (skillLoading) {
     return (
       <div className="container mx-auto py-8">
-        <p className="text-muted-foreground">Loading skill...</p>
+        <p className="text-muted-foreground">{t("newVersion.loadingSkill")}</p>
       </div>
     );
   }
@@ -177,14 +179,14 @@ export default function NewVersionPage() {
           className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground mb-4"
         >
           <ArrowLeft className="mr-2 h-4 w-4" />
-          Back to {skillName}
+          {t("newVersion.backTo", { name: skillName })}
         </Link>
-        <h1 className="text-3xl font-bold">Create New Version</h1>
+        <h1 className="text-3xl font-bold">{t("newVersion.title")}</h1>
         <p className="text-muted-foreground mt-1">
-          Add a new version for{" "}
+          {t("newVersion.subtitle")}{" "}
           <span className="font-medium text-foreground">{skillName}</span>
           {skill?.current_version && (
-            <span className="ml-2">(current: v{skill.current_version})</span>
+            <span className="ml-2">{t("newVersion.currentVersion", { version: skill.current_version })}</span>
           )}
         </p>
       </div>
@@ -194,17 +196,17 @@ export default function NewVersionPage() {
         {/* Version Info */}
         <Card>
           <CardHeader>
-            <CardTitle>Version Information</CardTitle>
+            <CardTitle>{t("newVersion.versionInfo")}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="version">
-                  Version <span className="text-destructive">*</span>
+                  {t("newVersion.versionLabel")} <span className="text-destructive">*</span>
                 </Label>
                 <Input
                   id="version"
-                  placeholder="1.0.0"
+                  placeholder={t("newVersion.versionPlaceholder")}
                   value={version}
                   onChange={(e) => {
                     setVersion(e.target.value);
@@ -213,22 +215,22 @@ export default function NewVersionPage() {
                   className={errors.version ? "border-destructive" : ""}
                 />
                 <p className="text-xs text-muted-foreground">
-                  SemVer format (e.g., 1.0.0, 2.1.0-beta.1)
+                  {t("newVersion.versionHelp")}
                 </p>
                 {errors.version && (
                   <p className="text-xs text-destructive">{errors.version}</p>
                 )}
               </div>
               <div className="space-y-2">
-                <Label htmlFor="commit">Commit Message</Label>
+                <Label htmlFor="commit">{t("newVersion.commitMessage")}</Label>
                 <Input
                   id="commit"
-                  placeholder="Initial version"
+                  placeholder={t("newVersion.commitPlaceholder")}
                   value={commitMessage}
                   onChange={(e) => setCommitMessage(e.target.value)}
                 />
                 <p className="text-xs text-muted-foreground">
-                  Optional description of changes
+                  {t("newVersion.commitHelp")}
                 </p>
               </div>
             </div>
@@ -238,7 +240,7 @@ export default function NewVersionPage() {
         {/* Content Tabs */}
         <Card>
           <CardHeader>
-            <CardTitle>Package Content</CardTitle>
+            <CardTitle>{t("newVersion.packageContent")}</CardTitle>
           </CardHeader>
           <CardContent>
             <Tabs defaultValue="skill-md" className="space-y-4">
@@ -252,8 +254,7 @@ export default function NewVersionPage() {
 
               <TabsContent value="skill-md" className="space-y-2">
                 <p className="text-sm text-muted-foreground">
-                  The main skill documentation in Markdown format with YAML
-                  frontmatter.
+                  {t("newVersion.skillMdDescription")}
                 </p>
                 <CodeEditor
                   value={skillMd}
@@ -268,7 +269,7 @@ export default function NewVersionPage() {
 
               <TabsContent value="schema" className="space-y-2">
                 <p className="text-sm text-muted-foreground">
-                  JSON Schema for input/output validation. Optional.
+                  {t("newVersion.schemaDescription")}
                 </p>
                 <CodeEditor
                   value={schemaJson}
@@ -283,7 +284,7 @@ export default function NewVersionPage() {
 
               <TabsContent value="manifest" className="space-y-2">
                 <p className="text-sm text-muted-foreground">
-                  Package metadata including dependencies and triggers. Optional.
+                  {t("newVersion.manifestDescription")}
                 </p>
                 <CodeEditor
                   value={manifestJson}
@@ -309,10 +310,10 @@ export default function NewVersionPage() {
         {/* Actions */}
         <div className="flex gap-4">
           <Button type="submit" disabled={createMutation.isPending}>
-            {createMutation.isPending ? "Creating..." : "Create Version"}
+            {createMutation.isPending ? t("newVersion.creating") : t("newVersion.createButton")}
           </Button>
           <Button type="button" variant="outline" onClick={() => router.back()}>
-            Cancel
+            {tc("actions.cancel")}
           </Button>
         </div>
       </form>

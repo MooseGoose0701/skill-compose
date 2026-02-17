@@ -33,6 +33,7 @@
   "agentNotAvailable": "Agente No Disponible",
   "builtinTools": "Herramientas Integradas",
   "selected": "seleccionado",
+  "toolRequired": "(obligatorio)",
   "configuration": {
     "title": "Configuración",
     "agent": "Agente",

@@ -343,6 +343,7 @@ export default function PublishedChatPage() {
                 onKeyDown={engine.handleKeyDown}
                 placeholder={isRunning ? t('steering.placeholder') : t('placeholder')}
                 className="min-h-[80px] resize-none"
+                aria-label={t('placeholder')}
               />
             </div>
             <div className="flex justify-between items-center mt-2">

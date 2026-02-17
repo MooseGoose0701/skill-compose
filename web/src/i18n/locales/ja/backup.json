@@ -25,7 +25,12 @@
     "snapshot": "復元前のスナップショットを保存しました：",
     "dragDrop": "バックアップZIPファイルをここにドラッグ＆ドロップ",
     "orClickToBrowse": "またはクリックして参照",
-    "selectFile": ".zipファイルを選択"
+    "selectFile": ".zipファイルを選択",
+    "invalidFileType": "ファイルは .zip 形式である必要があります"
+  },
+  "errors": {
+    "loadFailed": "バックアップリストの読み込みに失敗しました",
+    "warnings": "{{count}} 件の警告"
   },
   "list": {
     "title": "利用可能なバックアップ",

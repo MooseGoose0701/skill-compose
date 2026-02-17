@@ -223,7 +223,19 @@
     "evolutionComplete": "Evolution complete! New version synced.",
     "viewSkill": "View Skill",
     "backToSelection": "Back to selection",
-    "agentNotFound": "skill-evolve-helper agent not found. Please restart the backend to seed it."
+    "agentNotFound": "skill-evolve-helper agent not found. Please restart the backend to seed it.",
+    "noUserSkills": "No user skills found.",
+    "createOneFirst": "Create one first",
+    "failedToRunAgent": "Failed to run agent",
+    "traceStatus": {
+      "success": "Success",
+      "failed": "Failed"
+    },
+    "traceInfo": {
+      "turns": "Turns: {{count}}",
+      "tokens": "Tokens: {{count}}",
+      "duration": "Duration: {{duration}}s"
+    }
   },
   "sync": {
     "title": "Filesystem Sync",
@@ -268,5 +280,31 @@
   "type": {
     "user": "User",
     "meta": "Meta"
+  },
+  "newVersion": {
+    "backTo": "Back to {{name}}",
+    "title": "Create New Version",
+    "subtitle": "Add a new version for",
+    "currentVersion": "(current: v{{version}})",
+    "loadingSkill": "Loading skill...",
+    "versionInfo": "Version Information",
+    "versionLabel": "Version",
+    "versionPlaceholder": "1.0.0",
+    "versionHelp": "SemVer format (e.g., 1.0.0, 2.1.0-beta.1)",
+    "commitMessage": "Commit Message",
+    "commitPlaceholder": "Initial version",
+    "commitHelp": "Optional description of changes",
+    "packageContent": "Package Content",
+    "skillMdDescription": "The main skill documentation in Markdown format with YAML frontmatter.",
+    "schemaDescription": "JSON Schema for input/output validation. Optional.",
+    "manifestDescription": "Package metadata including dependencies and triggers. Optional.",
+    "createButton": "Create Version",
+    "creating": "Creating...",
+    "validation": {
+      "versionRequired": "Version is required",
+      "versionInvalid": "Version must be a valid SemVer (e.g., 1.0.0, 1.0.0-beta.1)",
+      "invalidJson": "Invalid JSON in {{name}}",
+      "skillMdRequired": "SKILL.md content is required"
+    }
   }
 }

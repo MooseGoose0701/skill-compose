@@ -223,7 +223,19 @@
     "evolutionComplete": "¡Evolución completa! Nueva versión sincronizada.",
     "viewSkill": "Ver Habilidad",
     "backToSelection": "Volver a selección",
-    "agentNotFound": "Agente skill-evolve-helper no encontrado. Reinicia el backend para inicializarlo."
+    "agentNotFound": "Agente skill-evolve-helper no encontrado. Reinicia el backend para inicializarlo.",
+    "noUserSkills": "No se encontraron skills de usuario.",
+    "createOneFirst": "Crea uno primero",
+    "failedToRunAgent": "Error al ejecutar el agente",
+    "traceStatus": {
+      "success": "Exitoso",
+      "failed": "Fallido"
+    },
+    "traceInfo": {
+      "turns": "Turnos: {{count}}",
+      "tokens": "Tokens: {{count}}",
+      "duration": "Duración: {{duration}}s"
+    }
   },
   "sync": {
     "title": "Sincronización del Sistema de Archivos",
@@ -268,5 +280,31 @@
   "type": {
     "user": "Usuario",
     "meta": "Meta"
+  },
+  "newVersion": {
+    "backTo": "Volver a {{name}}",
+    "title": "Crear nueva versión",
+    "subtitle": "Agregar una nueva versión para",
+    "currentVersion": "(actual: v{{version}})",
+    "loadingSkill": "Cargando skill...",
+    "versionInfo": "Información de versión",
+    "versionLabel": "Versión",
+    "versionPlaceholder": "1.0.0",
+    "versionHelp": "Formato SemVer (ej. 1.0.0, 2.1.0-beta.1)",
+    "commitMessage": "Mensaje de commit",
+    "commitPlaceholder": "Versión inicial",
+    "commitHelp": "Descripción opcional de los cambios",
+    "packageContent": "Contenido del paquete",
+    "skillMdDescription": "Documentación principal del skill en formato Markdown con frontmatter YAML.",
+    "schemaDescription": "JSON Schema para validación de entrada/salida. Opcional.",
+    "manifestDescription": "Metadatos del paquete incluyendo dependencias y triggers. Opcional.",
+    "createButton": "Crear versión",
+    "creating": "Creando...",
+    "validation": {
+      "versionRequired": "La versión es obligatoria",
+      "versionInvalid": "La versión debe ser un SemVer válido (ej. 1.0.0, 1.0.0-beta.1)",
+      "invalidJson": "JSON inválido en {{name}}",
+      "skillMdRequired": "El contenido de SKILL.md es obligatorio"
+    }
   }
 }

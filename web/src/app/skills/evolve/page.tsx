@@ -368,9 +368,9 @@ export default function SkillEvolvePage() {
         return;
       }
       updateMessage(loadingMessageId, {
-        content: "Failed to run agent",
+        content: t("evolve.failedToRunAgent"),
         isLoading: false,
-        error: err instanceof Error ? err.message : "Unknown error",
+        error: err instanceof Error ? err.message : tc("errors.generic"),
       });
     } finally {
       setIsRunning(false);
@@ -446,9 +446,9 @@ export default function SkillEvolvePage() {
             </div>
           ) : userSkills.length === 0 ? (
             <p className="text-sm text-muted-foreground">
-              No user skills found.{" "}
+              {t("evolve.noUserSkills")}{" "}
               <Link href="/skills/new" className="text-primary underline">
-                Create one first
+                {t("evolve.createOneFirst")}
               </Link>
               .
             </p>
@@ -541,7 +541,7 @@ export default function SkillEvolvePage() {
                           <Badge
                             variant={trace.success ? "success" : "error"}
                           >
-                            {trace.success ? "Success" : "Failed"}
+                            {trace.success ? t("evolve.traceStatus.success") : t("evolve.traceStatus.failed")}
                           </Badge>
                           <span className="text-xs text-muted-foreground">
                             {new Date(trace.created_at).toLocaleString()}
@@ -554,16 +554,13 @@ export default function SkillEvolvePage() {
                           {trace.request}
                         </p>
                         <div className="flex gap-4 mt-1 text-xs text-muted-foreground">
-                          <span>Turns: {trace.total_turns}</span>
+                          <span>{t("evolve.traceInfo.turns", { count: trace.total_turns })}</span>
                           <span>
-                            Tokens:{" "}
-                            {trace.total_input_tokens +
-                              trace.total_output_tokens}
+                            {t("evolve.traceInfo.tokens", { count: trace.total_input_tokens + trace.total_output_tokens })}
                           </span>
                           {trace.duration_ms && (
                             <span>
-                              Duration:{" "}
-                              {(trace.duration_ms / 1000).toFixed(1)}s
+                              {t("evolve.traceInfo.duration", { duration: (trace.duration_ms / 1000).toFixed(1) })}
                             </span>
                           )}
                         </div>

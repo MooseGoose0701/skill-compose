@@ -72,7 +72,7 @@ export default function BackupPage() {
 
   const handleFileSelect = (file: File) => {
     if (!file.name.endsWith('.zip')) {
-      toast.error('File must be a .zip archive');
+      toast.error(t('restore.invalidFileType'));
       return;
     }
     setSelectedFile(file);
@@ -284,7 +284,7 @@ export default function BackupPage() {
               {restoreResult.errors.length > 0 && (
                 <div className="mt-2">
                   <ErrorBanner
-                    title={`${restoreResult.errors.length} warning(s)`}
+                    title={t('errors.warnings', { count: restoreResult.errors.length })}
                     message={restoreResult.errors.join('\n')}
                   />
                 </div>
@@ -303,7 +303,7 @@ export default function BackupPage() {
           </div>
 
           {listError && (
-            <ErrorBanner message={listError instanceof Error ? listError.message : 'Failed to load backups'} />
+            <ErrorBanner message={listError instanceof Error ? listError.message : t('errors.loadFailed')} />
           )}
 
           {listLoading && (

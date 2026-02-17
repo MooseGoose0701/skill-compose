@@ -305,7 +305,7 @@ export default function FullscreenChatPage() {
                         disabled={isRequired}
                         aria-pressed={isSelected}
                         className={`px-2 py-1 text-sm rounded-md border transition-colors ${isRequired ? 'bg-primary/20 border-primary/50 text-primary cursor-not-allowed' : isSelected ? 'bg-primary/10 border-primary text-primary hover:bg-primary/20' : 'bg-background border-border text-muted-foreground hover:bg-muted'}`}
-                        title={isRequired ? `${tool.name} (required)` : tool.description}
+                        title={isRequired ? `${tool.name} ${t('toolRequired')}` : tool.description}
                       >
                         {tool.name}
                         {isRequired && <span className="ml-1 text-xs">*</span>}
