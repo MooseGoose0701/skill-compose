@@ -1,13 +1,11 @@
 import type { Metadata } from 'next';
-import { Inter } from 'next/font/google';
+import { GeistSans } from 'geist/font/sans';
 import { cookies } from 'next/headers';
 import './globals.css';
 import { Providers } from './providers';
 import { Toaster } from 'sonner';
 import { ConditionalHeader } from '@/components/layout/conditional-header';
 import { cookieName, fallbackLng, languages, Language } from '@/i18n/settings';
-
-const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
   title: 'Skill Compose',
@@ -31,7 +29,7 @@ export default async function RootLayout({
 
   return (
     <html lang={lang} suppressHydrationWarning>
-      <body className={inter.className}>
+      <body className={GeistSans.className}>
         <Providers>
           <div className="min-h-screen bg-background">
             <ConditionalHeader />

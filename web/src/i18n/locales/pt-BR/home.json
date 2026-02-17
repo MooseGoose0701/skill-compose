@@ -61,6 +61,26 @@
   "stats": {
     "skills": "Habilidades",
     "agents": "Agentes",
+    "mcpServers": "Servidores MCP",
+    "executors": "Executores",
     "executions": "Execuções"
+  },
+  "quickActions": {
+    "browseSkills": {
+      "title": "Explorar Habilidades",
+      "description": "Gerencie sua biblioteca de habilidades"
+    },
+    "createSkill": {
+      "title": "Criar Habilidade",
+      "description": "Construa uma nova habilidade com IA"
+    },
+    "importSkill": {
+      "title": "Importar Habilidade",
+      "description": "De arquivo ou GitHub"
+    },
+    "evolveSkills": {
+      "title": "Evoluir Habilidades",
+      "description": "Melhorar a partir de rastreamentos de execução"
+    }
   }
 }

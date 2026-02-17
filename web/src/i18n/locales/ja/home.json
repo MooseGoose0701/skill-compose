@@ -61,6 +61,26 @@
   "stats": {
     "skills": "スキル",
     "agents": "エージェント",
+    "mcpServers": "MCPサーバー",
+    "executors": "エグゼキューター",
     "executions": "実行回数"
+  },
+  "quickActions": {
+    "browseSkills": {
+      "title": "スキルを閲覧",
+      "description": "スキルライブラリを管理"
+    },
+    "createSkill": {
+      "title": "スキルを作成",
+      "description": "AIで新しいスキルを構築"
+    },
+    "importSkill": {
+      "title": "スキルをインポート",
+      "description": "ファイルまたはGitHubから"
+    },
+    "evolveSkills": {
+      "title": "スキルを進化",
+      "description": "実行トレースから改善"
+    }
   }
 }
