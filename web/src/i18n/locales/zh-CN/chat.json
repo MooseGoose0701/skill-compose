@@ -107,6 +107,8 @@
   },
   "published": {
     "typeToBegin": "在下方输入消息开始。",
-    "notAvailable": "此 Agent 不可用。"
+    "notAvailable": "此 Agent 不可用。",
+    "sessionId": "会话",
+    "sessionIdCopied": "会话 ID 已复制"
   }
 }

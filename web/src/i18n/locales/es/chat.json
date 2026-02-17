@@ -107,6 +107,8 @@
   },
   "published": {
     "typeToBegin": "Escribe un mensaje abajo para comenzar.",
-    "notAvailable": "Este agente no está disponible."
+    "notAvailable": "Este agente no está disponible.",
+    "sessionId": "Sesión",
+    "sessionIdCopied": "ID de sesión copiado"
   }
 }

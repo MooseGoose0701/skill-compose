@@ -107,6 +107,8 @@
   },
   "published": {
     "typeToBegin": "下にメッセージを入力して開始してください。",
-    "notAvailable": "このエージェントは利用できません。"
+    "notAvailable": "このエージェントは利用できません。",
+    "sessionId": "セッション",
+    "sessionIdCopied": "セッションIDをコピーしました"
   }
 }
