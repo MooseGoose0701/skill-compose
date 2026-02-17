@@ -107,6 +107,23 @@
   },
   "published": {
     "typeToBegin": "下にメッセージを入力して開始してください。",
-    "notAvailable": "このエージェントは利用できません。"
+    "notAvailable": "このエージェントは利用できません。",
+    "sessionId": "セッション",
+    "sessionIdCopied": "セッションIDをコピーしました",
+    "sidebar": {
+      "title": "履歴",
+      "noSessions": "会話がありません",
+      "today": "今日",
+      "yesterday": "昨日",
+      "previous7Days": "過去7日間",
+      "older": "それ以前",
+      "deleteConfirm": "この会話を削除しますか？",
+      "deleteDescription": "この操作は元に戻せません。",
+      "deleted": "会話を削除しました",
+      "deleteError": "削除に失敗しました",
+      "emptyMessage": "空の会話",
+      "messagesCount": "{{count}} 件",
+      "messagesCount_other": "{{count}} 件"
+    }
   }
 }

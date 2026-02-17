@@ -107,6 +107,23 @@
   },
   "published": {
     "typeToBegin": "Escribe un mensaje abajo para comenzar.",
-    "notAvailable": "Este agente no está disponible."
+    "notAvailable": "Este agente no está disponible.",
+    "sessionId": "Sesión",
+    "sessionIdCopied": "ID de sesión copiado",
+    "sidebar": {
+      "title": "Historial",
+      "noSessions": "Sin conversaciones",
+      "today": "Hoy",
+      "yesterday": "Ayer",
+      "previous7Days": "Últimos 7 días",
+      "older": "Anteriores",
+      "deleteConfirm": "¿Eliminar esta conversación?",
+      "deleteDescription": "Esta acción no se puede deshacer.",
+      "deleted": "Conversación eliminada",
+      "deleteError": "Error al eliminar",
+      "emptyMessage": "Conversación vacía",
+      "messagesCount": "{{count}} msg",
+      "messagesCount_other": "{{count}} msgs"
+    }
   }
 }
