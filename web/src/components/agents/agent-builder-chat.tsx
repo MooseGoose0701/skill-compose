@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
 import { agentApi, agentPresetsApi, modelsApi, type StreamEvent, type OutputFileInfo } from '@/lib/api';
 import { ChatMessageItem } from '@/components/chat/chat-message';
+import { ModelSelect } from '@/components/chat/selects';
 import type { ChatMessage } from '@/stores/chat-store';
 import type { StreamEventRecord } from '@/types/stream-events';
 import { handleStreamEvent, serializeEventsToText } from '@/lib/stream-utils';
@@ -294,33 +295,15 @@ export function AgentBuilderChat() {
             {/* Model Selection */}
             <div className="space-y-1">
               <Label htmlFor="model" className="text-xs">Model</Label>
-              <select
-                id="model"
-                value={selectedModelProvider && selectedModelName ? `${selectedModelProvider}/${selectedModelName}` : ''}
-                onChange={(e) => {
-                  const value = e.target.value;
-                  if (!value) {
-                    setSelectedModelProvider(null);
-                    setSelectedModelName(null);
-                  } else {
-                    const [provider, ...modelParts] = value.split('/');
-                    setSelectedModelProvider(provider);
-                    setSelectedModelName(modelParts.join('/'));
-                  }
-                }}
-                className="w-full h-9 px-3 rounded-md border bg-background text-sm"
-              >
-                <option value="">Default (Kimi 2.5)</option>
-                {modelProviders.map((provider) => (
-                  <optgroup key={provider.name} label={provider.name.charAt(0).toUpperCase() + provider.name.slice(1)}>
-                    {provider.models.map((model) => (
-                      <option key={model.key} value={model.key}>
-                        {model.display_name}
-                      </option>
-                    ))}
-                  </optgroup>
-                ))}
-              </select>
+              <ModelSelect
+                value={null}
+                modelProvider={selectedModelProvider}
+                modelName={selectedModelName}
+                onChange={(p, m) => { setSelectedModelProvider(p); setSelectedModelName(m); }}
+                providers={modelProviders}
+                placeholder="Default (Kimi 2.5)"
+                aria-label="Model"
+              />
             </div>
 
             {/* Max Turns */}

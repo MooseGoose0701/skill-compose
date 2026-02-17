@@ -24,6 +24,10 @@
     "unpublished": "未发布"
   },
   "detail": {
+    "tabs": {
+      "overview": "概览",
+      "configuration": "配置"
+    },
     "overview": "概览",
     "configuration": "配置",
     "systemPrompt": "系统提示词",

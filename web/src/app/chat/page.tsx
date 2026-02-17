@@ -21,6 +21,7 @@ import { useChatStore, REQUIRED_TOOLS } from "@/stores/chat-store";
 import { useChatSessionRestore } from "@/hooks/use-chat-session";
 import { useChatEngine } from "@/hooks/use-chat-engine";
 import { ChatMessageItem } from "@/components/chat/chat-message";
+import { ModelSelect, AgentPresetSelect, ExecutorSelect } from "@/components/chat/selects";
 import { useTranslation } from "@/i18n/client";
 
 export default function FullscreenChatPage() {
@@ -178,58 +179,46 @@ export default function FullscreenChatPage() {
         {/* Inline Agent + Model Selectors */}
         <div className="flex items-center gap-2 flex-1 min-w-0 text-sm">
           <Bot className="h-4 w-4 text-muted-foreground shrink-0" />
-          <select
-            value={selectedAgentPreset || ""}
-            onChange={(e) => { if (!e.target.value) { setSelectedAgentPreset(null); setSystemPrompt(null); } else applyPreset(e.target.value); }}
-            className="h-8 text-sm px-2 rounded border bg-background max-w-[160px] truncate"
+          <AgentPresetSelect
+            value={selectedAgentPreset}
+            onChange={(presetId) => { if (!presetId) { setSelectedAgentPreset(null); setSystemPrompt(null); } else applyPreset(presetId); }}
+            presets={agentPresets}
+            size="sm"
+            className="max-w-[160px]"
             disabled={isLoadingAgents}
-          >
-            {isLoadingAgents ? <option value="">{tc('actions.loading')}...</option> : (
-              <>
-                <option value="">{t('configuration.customConfig')}</option>
-                {agentPresets.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-              </>
-            )}
-          </select>
+            placeholder={isLoadingAgents ? `${tc('actions.loading')}...` : t('configuration.customConfig')}
+            aria-label={t('configuration.agent')}
+          />
 
           <span className="text-muted-foreground/40 select-none">|</span>
 
           <Cpu className="h-4 w-4 text-muted-foreground shrink-0" />
-          <select
-            value={selectedModelProvider && selectedModelName ? `${selectedModelProvider}/${selectedModelName}` : ""}
-            onChange={(e) => {
-              const v = e.target.value;
-              if (!v) setSelectedModel(null, null);
-              else { const [p, ...m] = v.split('/'); setSelectedModel(p, m.join('/')); }
-              setSelectedAgentPreset(null);
-            }}
-            className="h-8 text-sm px-2 rounded border bg-background max-w-[200px] truncate"
+          <ModelSelect
+            value={null}
+            modelProvider={selectedModelProvider}
+            modelName={selectedModelName}
+            onChange={(p, m) => { setSelectedModel(p, m); setSelectedAgentPreset(null); }}
+            providers={modelProviders}
+            size="sm"
+            className="max-w-[200px]"
             disabled={isLoadingModels}
-          >
-            {isLoadingModels ? <option value="">{tc('actions.loading')}...</option> : (
-              <>
-                <option value="">{t('defaultModel')}</option>
-                {modelProviders.map((provider) => (
-                  <optgroup key={provider.name} label={provider.name.charAt(0).toUpperCase() + provider.name.slice(1)}>
-                    {provider.models.map((model) => <option key={model.key} value={model.key}>{model.display_name}</option>)}
-                  </optgroup>
-                ))}
-              </>
-            )}
-          </select>
+            placeholder={isLoadingModels ? `${tc('actions.loading')}...` : t('defaultModel')}
+            aria-label={t('configuration.model')}
+          />
 
           {onlineExecutors.length > 0 && (
             <>
               <span className="text-muted-foreground/40 select-none">|</span>
               <Server className="h-4 w-4 text-muted-foreground shrink-0" />
-              <select
-                value={selectedExecutorId || ""}
-                onChange={(e) => { setSelectedExecutorId(e.target.value || null); setSelectedAgentPreset(null); }}
-                className="h-8 text-sm px-2 rounded border bg-background max-w-[120px] truncate"
-              >
-                <option value="">{t('configuration.executorLocal')}</option>
-                {onlineExecutors.map((ex) => <option key={ex.id} value={ex.id}>{ex.name}</option>)}
-              </select>
+              <ExecutorSelect
+                value={selectedExecutorId}
+                onChange={(id) => { setSelectedExecutorId(id); setSelectedAgentPreset(null); }}
+                executors={onlineExecutors}
+                size="sm"
+                className="max-w-[120px]"
+                placeholder={t('configuration.executorLocal')}
+                aria-label={t('configuration.executor')}
+              />
             </>
           )}
 

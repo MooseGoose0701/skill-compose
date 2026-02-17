@@ -24,6 +24,10 @@
     "unpublished": "Not published"
   },
   "detail": {
+    "tabs": {
+      "overview": "Overview",
+      "configuration": "Configuration"
+    },
     "overview": "Overview",
     "configuration": "Configuration",
     "systemPrompt": "System Prompt",
