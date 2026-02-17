@@ -107,6 +107,23 @@
   },
   "published": {
     "typeToBegin": "在下方输入消息开始。",
-    "notAvailable": "此 Agent 不可用。"
+    "notAvailable": "此 Agent 不可用。",
+    "sessionId": "会话",
+    "sessionIdCopied": "会话 ID 已复制",
+    "sidebar": {
+      "title": "历史记录",
+      "noSessions": "暂无对话",
+      "today": "今天",
+      "yesterday": "昨天",
+      "previous7Days": "过去 7 天",
+      "older": "更早",
+      "deleteConfirm": "确认删除此对话？",
+      "deleteDescription": "此操作无法撤销。",
+      "deleted": "对话已删除",
+      "deleteError": "删除失败",
+      "emptyMessage": "空对话",
+      "messagesCount": "{{count}} 条消息",
+      "messagesCount_other": "{{count}} 条消息"
+    }
   }
 }
