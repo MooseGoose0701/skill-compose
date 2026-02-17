@@ -171,105 +171,113 @@ export default function FullscreenChatPage() {
 
   return (
     <div className="flex flex-col h-screen">
-      {/* Header */}
-      <div className="border-b px-6 py-4 flex items-center gap-3 shrink-0">
-        <MessageSquare className="h-6 w-6 text-primary" />
-        <div className="flex-1">
-          <h1 className="font-semibold text-lg">{t('title')}</h1>
-          <p className="text-sm text-muted-foreground">
-            {currentAgentName}
-            {selectedModelName && ` \u2022 ${selectedModelName}`}
-          </p>
+      {/* Header with Inline Config */}
+      <div className="border-b px-6 py-3 flex items-center gap-3 shrink-0">
+        <MessageSquare className="h-5 w-5 text-primary shrink-0" />
+
+        {/* Inline Agent + Model Selectors */}
+        <div className="flex items-center gap-2 flex-1 min-w-0 text-sm">
+          <Bot className="h-4 w-4 text-muted-foreground shrink-0" />
+          <select
+            value={selectedAgentPreset || ""}
+            onChange={(e) => { if (!e.target.value) { setSelectedAgentPreset(null); setSystemPrompt(null); } else applyPreset(e.target.value); }}
+            className="h-8 text-sm px-2 rounded border bg-background max-w-[160px] truncate"
+            disabled={isLoadingAgents}
+          >
+            {isLoadingAgents ? <option value="">{tc('actions.loading')}...</option> : (
+              <>
+                <option value="">{t('configuration.customConfig')}</option>
+                {agentPresets.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+              </>
+            )}
+          </select>
+
+          <span className="text-muted-foreground/40 select-none">|</span>
+
+          <Cpu className="h-4 w-4 text-muted-foreground shrink-0" />
+          <select
+            value={selectedModelProvider && selectedModelName ? `${selectedModelProvider}/${selectedModelName}` : ""}
+            onChange={(e) => {
+              const v = e.target.value;
+              if (!v) setSelectedModel(null, null);
+              else { const [p, ...m] = v.split('/'); setSelectedModel(p, m.join('/')); }
+              setSelectedAgentPreset(null);
+            }}
+            className="h-8 text-sm px-2 rounded border bg-background max-w-[200px] truncate"
+            disabled={isLoadingModels}
+          >
+            {isLoadingModels ? <option value="">{tc('actions.loading')}...</option> : (
+              <>
+                <option value="">{t('defaultModel')}</option>
+                {modelProviders.map((provider) => (
+                  <optgroup key={provider.name} label={provider.name.charAt(0).toUpperCase() + provider.name.slice(1)}>
+                    {provider.models.map((model) => <option key={model.key} value={model.key}>{model.display_name}</option>)}
+                  </optgroup>
+                ))}
+              </>
+            )}
+          </select>
+
+          {onlineExecutors.length > 0 && (
+            <>
+              <span className="text-muted-foreground/40 select-none">|</span>
+              <Server className="h-4 w-4 text-muted-foreground shrink-0" />
+              <select
+                value={selectedExecutorId || ""}
+                onChange={(e) => { setSelectedExecutorId(e.target.value || null); setSelectedAgentPreset(null); }}
+                className="h-8 text-sm px-2 rounded border bg-background max-w-[120px] truncate"
+              >
+                <option value="">{t('configuration.executorLocal')}</option>
+                {onlineExecutors.map((ex) => <option key={ex.id} value={ex.id}>{ex.name}</option>)}
+              </select>
+            </>
+          )}
+
+          {/* Config summary badges */}
+          <span className="text-xs text-muted-foreground ml-1 hidden lg:inline">
+            {t('configuration.turns')}: {maxTurns}
+            {selectedSkills.length > 0 && ` \u2022 ${selectedSkills.length} skills`}
+            {` \u2022 ${(selectedTools || []).length}/${tools.length} tools`}
+          </span>
         </div>
-        <Button variant="outline" size="sm" onClick={() => setShowConfig(!showConfig)} title={t('config')}>
-          <Settings className="h-4 w-4 mr-1" />
-          {t('config')}
-          {showConfig ? <ChevronUp className="h-4 w-4 ml-1" /> : <ChevronDown className="h-4 w-4 ml-1" />}
-        </Button>
-        <Button variant="outline" size="sm" onClick={() => newSession()} disabled={messages.length === 0 || isRunning} title={t('newChat')}>
-          <Plus className="h-4 w-4 mr-1" />
-          {t('newChat')}
-        </Button>
-        <Button variant="outline" size="sm" onClick={() => !isRunning && setShowResetDialog(true)} disabled={isRunning} title={t('resetEverything')}>
-          <RotateCcw className="h-4 w-4 mr-1" />
-          {t('resetAll')}
-        </Button>
-        <Link href="/">
-          <Button variant="outline" size="sm" title={t('home')}>
-            <Home className="h-4 w-4 mr-1" />
-            {t('home')}
+
+        {/* Action Buttons */}
+        <div className="flex items-center gap-1.5 shrink-0">
+          <Button
+            variant={showConfig ? "default" : "outline"}
+            size="sm"
+            onClick={() => setShowConfig(!showConfig)}
+            title={t('config')}
+          >
+            <Settings className="h-4 w-4 mr-1" />
+            {t('config')}
           </Button>
-        </Link>
+          <Button variant="outline" size="sm" onClick={() => newSession()} disabled={messages.length === 0 || isRunning} title={t('newChat')}>
+            <Plus className="h-4 w-4 mr-1" />
+            {t('newChat')}
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => !isRunning && setShowResetDialog(true)} disabled={isRunning} title={t('resetEverything')}>
+            <RotateCcw className="h-4 w-4" />
+          </Button>
+          <Link href="/">
+            <Button variant="outline" size="sm" title={t('home')}>
+              <Home className="h-4 w-4" />
+            </Button>
+          </Link>
+        </div>
       </div>
 
-      {/* Configuration Panel (collapsible) */}
+      {/* Expanded Config Panel */}
       {showConfig && (
-        <div className="border-b bg-muted/30 px-6 py-4 space-y-4 shrink-0">
-          <div className="flex flex-wrap items-center gap-4">
-            {/* Agent Selector */}
-            <div className="flex items-center gap-2">
-              <Bot className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm text-muted-foreground">{t('configuration.agent')}:</span>
-              <select
-                value={selectedAgentPreset || ""}
-                onChange={(e) => { if (!e.target.value) { setSelectedAgentPreset(null); setSystemPrompt(null); } else applyPreset(e.target.value); }}
-                className="h-8 text-sm px-2 rounded border bg-background"
-                disabled={isLoadingAgents}
-              >
-                {isLoadingAgents ? <option value="">{tc('actions.loading')}...</option> : (
-                  <>
-                    <option value="">{t('configuration.customConfig')}</option>
-                    {agentPresets.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-                  </>
-                )}
-              </select>
+        <div className="border-b bg-muted/20 px-6 py-4 space-y-4 shrink-0">
+          {selectedAgentPreset && (
+            <div className="text-xs text-muted-foreground">
+              {t('configManagedByPreset')}
             </div>
-            {/* Model Selector */}
-            <div className="flex items-center gap-2">
-              <Cpu className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm text-muted-foreground">{t('configuration.model')}:</span>
-              <select
-                value={selectedModelProvider && selectedModelName ? `${selectedModelProvider}/${selectedModelName}` : ""}
-                onChange={(e) => {
-                  const v = e.target.value;
-                  if (!v) setSelectedModel(null, null);
-                  else { const [p, ...m] = v.split('/'); setSelectedModel(p, m.join('/')); }
-                  setSelectedAgentPreset(null);
-                }}
-                className="h-8 text-sm px-2 rounded border bg-background"
-                disabled={isLoadingModels}
-              >
-                {isLoadingModels ? <option value="">{tc('actions.loading')}...</option> : (
-                  <>
-                    <option value="">{t('defaultModel')}</option>
-                    {modelProviders.map((provider) => (
-                      <optgroup key={provider.name} label={provider.name.charAt(0).toUpperCase() + provider.name.slice(1)}>
-                        {provider.models.map((model) => <option key={model.key} value={model.key}>{model.display_name}</option>)}
-                      </optgroup>
-                    ))}
-                  </>
-                )}
-              </select>
-            </div>
-            {/* Executor */}
-            {onlineExecutors.length > 0 && (
-              <div className="flex items-center gap-2">
-                <Server className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm text-muted-foreground">{t('configuration.executor')}:</span>
-                <select
-                  value={selectedExecutorId || ""}
-                  onChange={(e) => { setSelectedExecutorId(e.target.value || null); setSelectedAgentPreset(null); }}
-                  className="h-8 text-sm px-2 rounded border bg-background"
-                >
-                  <option value="">{t('configuration.executorLocal')}</option>
-                  {onlineExecutors.map((ex) => <option key={ex.id} value={ex.id}>{ex.name}</option>)}
-                </select>
-              </div>
-            )}
-          </div>
+          )}
 
           {/* Skills and Turns */}
-          <div className={`flex flex-wrap items-center gap-4 ${selectedAgentPreset ? 'opacity-50' : ''}`}>
+          <div className={`flex flex-wrap items-center gap-4 ${selectedAgentPreset ? 'opacity-50 pointer-events-none' : ''}`}>
             <div className="flex items-center gap-2">
               <span className="text-sm text-muted-foreground">{t('configuration.turns')}:</span>
               <Input type="number" min={1} max={60000} value={maxTurns}
@@ -297,7 +305,7 @@ export default function FullscreenChatPage() {
 
           {/* Tools/MCP Panel */}
           {showToolsPanel && (
-            <div className={`pt-3 border-t ${selectedAgentPreset ? 'opacity-50' : ''}`}>
+            <div className={`pt-3 border-t ${selectedAgentPreset ? 'opacity-50 pointer-events-none' : ''}`}>
               <div className="mb-3">
                 <div className="flex items-center gap-2 mb-2">
                   <Wrench className="h-4 w-4 text-muted-foreground" />

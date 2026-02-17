@@ -12,7 +12,9 @@
     "backup": "バックアップ",
     "terminal": "ターミナル",
     "sessions": "セッション",
-    "more": "その他"
+    "more": "その他",
+    "groupMonitor": "モニター",
+    "groupSystem": "システム"
   },
   "actions": {
     "add": "追加",

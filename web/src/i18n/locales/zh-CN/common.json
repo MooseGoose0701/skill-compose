@@ -12,7 +12,9 @@
     "backup": "备份",
     "terminal": "终端",
     "sessions": "会话",
-    "more": "更多"
+    "more": "更多",
+    "groupMonitor": "监控",
+    "groupSystem": "系统"
   },
   "actions": {
     "add": "添加",

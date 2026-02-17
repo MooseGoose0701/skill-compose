@@ -12,7 +12,9 @@
     "backup": "Backup",
     "terminal": "Terminal",
     "sessions": "Sessions",
-    "more": "More"
+    "more": "More",
+    "groupMonitor": "Monitor",
+    "groupSystem": "System"
   },
   "actions": {
     "add": "Add",
