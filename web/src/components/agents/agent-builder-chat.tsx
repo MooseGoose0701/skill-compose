@@ -36,6 +36,9 @@ export function AgentBuilderChat() {
   const [selectedModelProvider, setSelectedModelProvider] = useState<string | null>('kimi');
   const [selectedModelName, setSelectedModelName] = useState<string | null>('kimi-k2.5');
 
+  // Session ID for server-side session management
+  const [sessionId] = useState(() => crypto.randomUUID());
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -70,16 +73,6 @@ export function AgentBuilderChat() {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, streamingContent]);
-
-  // Get conversation history for API
-  const getConversationHistory = useCallback(() => {
-    return messages
-      .filter(m => !m.isLoading)
-      .map(m => ({
-        role: m.role,
-        content: m.content,
-      }));
-  }, [messages]);
 
   // Helper to remove messages by IDs
   const removeMessages = useCallback((ids: string[]) => {
@@ -121,7 +114,6 @@ export function AgentBuilderChat() {
     setStreamingMessageId(assistantMessageId);
     setCurrentOutputFiles([]);
 
-    const conversationHistory = getConversationHistory();
     const events: StreamEventRecord[] = [];
     let traceId: string | undefined;
 
@@ -129,8 +121,8 @@ export function AgentBuilderChat() {
       await agentApi.runStream(
         {
           request: userMessage.content,
+          session_id: sessionId,
           agent_id: agentBuilderId,
-          conversation_history: conversationHistory.length > 0 ? conversationHistory : undefined,
           max_turns: maxTurns,
           model_provider: selectedModelProvider || undefined,
           model_name: selectedModelName || undefined,

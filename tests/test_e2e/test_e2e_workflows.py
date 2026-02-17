@@ -532,7 +532,7 @@ class TestAgentPresetLifecycleE2E:
         MockAgent.return_value = _make_mock_agent()
         resp = await e2e_client.post(
             "/api/v1/agent/run",
-            json={"request": "E2E test request"},
+            json={"request": "E2E test request", "session_id": "test-session-id"},
         )
         assert resp.status_code == 200
         body = resp.json()
@@ -635,7 +635,7 @@ class TestAgentRunAndTraceE2E:
         MockAgent.return_value = _make_mock_agent()
         resp = await e2e_client.post(
             "/api/v1/agent/run",
-            json={"request": "E2E simple run"},
+            json={"request": "E2E simple run", "session_id": "test-session-id"},
         )
         assert resp.status_code == 200
         body = resp.json()
@@ -667,20 +667,16 @@ class TestAgentRunAndTraceE2E:
             assert t["success"] is True
 
     @patch("app.api.v1.agent.SkillsAgent")
-    async def test_05_run_with_skills_and_history(
+    async def test_05_run_with_skills_and_session(
         self, MockAgent, e2e_client: AsyncClient
     ):
         MockAgent.return_value = _make_mock_agent()
-        history = [
-            {"role": "user", "content": "Hi"},
-            {"role": "assistant", "content": "Hello!"},
-        ]
         resp = await e2e_client.post(
             "/api/v1/agent/run",
             json={
                 "request": "Continue our conversation",
                 "skills": ["test-skill"],
-                "conversation_history": history,
+                "session_id": "test-session-id",
             },
         )
         assert resp.status_code == 200
@@ -698,7 +694,7 @@ class TestAgentRunAndTraceE2E:
 
         resp = await e2e_client.post(
             "/api/v1/agent/run/stream",
-            json={"request": "E2E stream test"},
+            json={"request": "E2E stream test", "session_id": "test-session-id"},
         )
         assert resp.status_code == 200
         assert "text/event-stream" in resp.headers.get("content-type", "")
@@ -770,7 +766,7 @@ class TestFileUploadE2E:
         ]
         resp = await e2e_client.post(
             "/api/v1/agent/run",
-            json={"request": "Process this file", "uploaded_files": files},
+            json={"request": "Process this file", "uploaded_files": files, "session_id": "test-session-id"},
         )
         assert resp.status_code == 200
         assert resp.json()["success"] is True
@@ -2326,7 +2322,7 @@ class TestAutoDetectOutputFilesE2E:
 
         resp = await e2e_client.post(
             "/api/v1/agent/run",
-            json={"request": "Generate a chart"},
+            json={"request": "Generate a chart", "session_id": "test-session-id"},
         )
         assert resp.status_code == 200
         body = resp.json()
@@ -2346,7 +2342,7 @@ class TestAutoDetectOutputFilesE2E:
 
         resp = await e2e_client.post(
             "/api/v1/agent/run",
-            json={"request": "Just talk, no files"},
+            json={"request": "Just talk, no files", "session_id": "test-session-id"},
         )
         assert resp.status_code == 200
         body = resp.json()
@@ -2409,7 +2405,7 @@ class TestAutoDetectOutputFilesE2E:
 
         resp = await e2e_client.post(
             "/api/v1/agent/run/stream",
-            json={"request": "Create CSV data"},
+            json={"request": "Create CSV data", "session_id": "test-session-id"},
         )
         assert resp.status_code == 200
 
@@ -2438,7 +2434,7 @@ class TestAutoDetectOutputFilesE2E:
 
         resp = await e2e_client.post(
             "/api/v1/agent/run/stream",
-            json={"request": "No files needed"},
+            json={"request": "No files needed", "session_id": "test-session-id"},
         )
         assert resp.status_code == 200
 

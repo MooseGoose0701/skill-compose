@@ -198,7 +198,8 @@ class TestRealCompressionE2E:
 
     async def test_01_stream_with_compression_event(self, e2e_client: AsyncClient):
         """Stream agent with long history + tool use → compression fires on Turn 2."""
-        # Build text-only history (ConversationMessage requires string content)
+        # Pre-create a session with long history in the DB
+        session_id = str(uuid.uuid4())
         history = []
         for i in range(6):
             history.append({
@@ -210,12 +211,23 @@ class TestRealCompressionE2E:
                 "content": f"Planet {i+1}: " + ("This planet has many moons and interesting features. " * 50),
             })
 
+        from app.db.database import AsyncSessionLocal
+        from app.db.models import PublishedSessionDB
+        from app.api.v1.sessions import CHAT_SENTINEL_AGENT_ID
+        async with AsyncSessionLocal() as db:
+            db.add(PublishedSessionDB(
+                id=session_id,
+                agent_id=CHAT_SENTINEL_AGENT_ID,
+                messages=history,
+            ))
+            await db.commit()
+
         with _patch_kimi_key(), _patch_low_threshold():
             resp = await e2e_client.post(
                 "/api/v1/agent/run/stream",
                 json={
                     "request": "Use execute_code to compute 6 * 7, then tell me the result.",
-                    "conversation_history": history,
+                    "session_id": session_id,
                     "max_turns": 5,
                     "model_provider": "kimi",
                     "model_name": "kimi-k2.5",

@@ -4,7 +4,7 @@ import React from "react";
 import { flushSync } from "react-dom";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
-import { RotateCcw, Paperclip, X, Wrench, Plug, ChevronDown, ChevronUp, Square, Bot, Cpu, Maximize2, Server, Navigation } from "lucide-react";
+import { RotateCcw, Paperclip, X, Wrench, Plug, ChevronDown, ChevronUp, Square, Bot, Cpu, Maximize2, Server, Navigation, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
@@ -21,7 +21,8 @@ import {
 import { MultiSelect } from "@/components/ui/multi-select";
 import { skillsApi, agentApi, filesApi, mcpApi, toolsApi, agentPresetsApi, modelsApi, executorsApi } from "@/lib/api";
 import type { StreamEvent, OutputFileInfo } from "@/lib/api";
-import { useChatStore, getConversationHistory, REQUIRED_TOOLS, type ChatMessage } from "@/stores/chat-store";
+import { useChatStore, REQUIRED_TOOLS, type ChatMessage } from "@/stores/chat-store";
+import { useChatSessionRestore } from "@/hooks/use-chat-session";
 import { ChatMessageItem } from "./chat-message";
 import type { StreamEventRecord } from "@/types/stream-events";
 import { handleStreamEvent, serializeEventsToText } from "@/lib/stream-utils";
@@ -44,6 +45,7 @@ export function ChatPanel({ isOpen, onClose, defaultSkills = [] }: ChatPanelProp
   // Use zustand store for persistence
   const {
     messages,
+    sessionId,
     selectedSkills,
     selectedTools,
     selectedMcpServers,
@@ -56,7 +58,9 @@ export function ChatPanel({ isOpen, onClose, defaultSkills = [] }: ChatPanelProp
     updateMessage,
     removeMessages,
     clearMessages,
+    newSession,
     resetAll,
+    setSessionId,
     setSelectedSkills,
     setSelectedTools,
     setSelectedMcpServers,
@@ -73,6 +77,9 @@ export function ChatPanel({ isOpen, onClose, defaultSkills = [] }: ChatPanelProp
     selectedExecutorId,
     setSelectedExecutorId,
   } = useChatStore();
+
+  // Restore session messages from server on mount
+  useChatSessionRestore();
 
   const [showToolsPanel, setShowToolsPanel] = React.useState(false);
   const [showResetDialog, setShowResetDialog] = React.useState(false);
@@ -255,9 +262,12 @@ export function ChatPanel({ isOpen, onClose, defaultSkills = [] }: ChatPanelProp
       const currentSkills = useChatStore.getState().selectedSkills;
       const skillsList = currentSkills.length > 0 ? currentSkills : undefined;
 
-      // Build conversation history from previous messages (excluding the loading message)
-      const previousMessages = [...messages, userMessage];
-      const conversationHistory = getConversationHistory(previousMessages);
+      // Generate session_id if none exists (deferred creation)
+      let currentSessionId = useChatStore.getState().sessionId;
+      if (!currentSessionId) {
+        currentSessionId = crypto.randomUUID();
+        setSessionId(currentSessionId);
+      }
 
       // Accumulate streaming events using ref to avoid closure issues
       const events: StreamEventRecord[] = [];
@@ -287,8 +297,8 @@ export function ChatPanel({ isOpen, onClose, defaultSkills = [] }: ChatPanelProp
         // But if user manually selected a model, override preset's model
         agentRequest = {
           request: userMessage.content,
+          session_id: currentSessionId,
           agent_id: currentAgentPreset,
-          conversation_history: conversationHistory.length > 1 ? conversationHistory.slice(0, -1) : undefined,
           uploaded_files: agentFiles,
           model_provider: currentModelProvider || undefined,
           model_name: currentModelName || undefined,
@@ -308,10 +318,10 @@ export function ChatPanel({ isOpen, onClose, defaultSkills = [] }: ChatPanelProp
 
         agentRequest = {
           request: userMessage.content,
+          session_id: currentSessionId,
           skills: skillsList,
           allowed_tools: toolsList,
           max_turns: maxTurns,
-          conversation_history: conversationHistory.length > 1 ? conversationHistory.slice(0, -1) : undefined,
           uploaded_files: agentFiles,
           equipped_mcp_servers: mcpServersList,
           system_prompt: currentSystemPrompt || undefined,
@@ -330,9 +340,12 @@ export function ChatPanel({ isOpen, onClose, defaultSkills = [] }: ChatPanelProp
           // Handle special cases
           switch (event.event_type) {
             case "run_started":
-              // Capture trace_id immediately when run starts
+              // Capture trace_id and session_id immediately when run starts
               traceId = event.trace_id;
               currentTraceIdRef.current = traceId || null;
+              if (event.session_id) {
+                setSessionId(event.session_id);
+              }
               // Update message with trace_id right away
               flushSync(() => {
                 updateMessage(loadingMessageId, { traceId: traceId });
@@ -505,9 +518,18 @@ export function ChatPanel({ isOpen, onClose, defaultSkills = [] }: ChatPanelProp
           <Button
             variant="ghost"
             size="sm"
-            onClick={handleReset}
+            onClick={() => newSession()}
             disabled={messages.length === 0 || isRunning}
-            title="Reset conversation"
+            title="New Chat"
+          >
+            <Plus className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleReset}
+            disabled={isRunning}
+            title="Reset everything"
           >
             <RotateCcw className="h-4 w-4" />
           </Button>

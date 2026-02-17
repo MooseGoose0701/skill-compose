@@ -57,6 +57,8 @@ export default function SessionsPage() {
     },
   });
 
+  const CHAT_SENTINEL = '__chat__';
+
   const deleteMutation = useDeletePublishedSession();
   const totalPages = data ? Math.ceil(data.total / PAGE_SIZE) : 0;
 
@@ -98,6 +100,7 @@ export default function SessionsPage() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">{t('filters.allAgents')}</SelectItem>
+              <SelectItem value={CHAT_SENTINEL}>{t('filters.chatSessions')}</SelectItem>
               {agentsData?.map((agent) => (
                 <SelectItem key={agent.id} value={agent.id}>
                   {agent.name}
@@ -138,9 +141,11 @@ export default function SessionsPage() {
                             </span>
                           </div>
                           <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
-                            {session.agent_name && (
+                            {session.agent_id === CHAT_SENTINEL ? (
+                              <Badge variant="secondary">{t('filters.chatBadge')}</Badge>
+                            ) : session.agent_name ? (
                               <Badge variant="outline">{session.agent_name}</Badge>
-                            )}
+                            ) : null}
                             <span>{t('card.messageCount', { count: session.message_count })}</span>
                             <span className="flex items-center gap-1">
                               <Clock className="h-3 w-3" />

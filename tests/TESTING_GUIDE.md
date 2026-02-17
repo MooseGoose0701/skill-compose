@@ -321,7 +321,7 @@ async def test_something(MockAgent, client):
     mock_instance.model = "claude-sonnet-4-5-20250929"
     MockAgent.return_value = mock_instance
 
-    response = await client.post("/api/v1/agent/run", json={"request": "hello"})
+    response = await client.post("/api/v1/agent/run", json={"request": "hello", "session_id": "test-session-id"})
     assert response.status_code == 200
 ```
 

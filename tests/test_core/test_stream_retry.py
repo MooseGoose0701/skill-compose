@@ -549,7 +549,7 @@ class TestStreamRetrySSE:
 
         resp = await client.post(
             "/api/v1/agent/run/stream",
-            json={"request": "test stream with deltas"},
+            json={"request": "test stream with deltas", "session_id": "test-session-id"},
         )
         assert resp.status_code == 200
 
@@ -588,7 +588,7 @@ class TestStreamRetrySSE:
 
         resp = await client.post(
             "/api/v1/agent/run/stream",
-            json={"request": "test stream failure"},
+            json={"request": "test stream failure", "session_id": "test-session-id"},
         )
         assert resp.status_code == 200
 
@@ -641,7 +641,7 @@ class TestStreamRetrySSE:
 
         resp = await client.post(
             "/api/v1/agent/run/stream",
-            json={"request": "test delta buffer"},
+            json={"request": "test delta buffer", "session_id": "test-session-id"},
         )
         assert resp.status_code == 200
 

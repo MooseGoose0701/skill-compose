@@ -5,7 +5,9 @@
   "emptyDescription": "Chatea con un agente publicado para crear sesiones",
   "filters": {
     "allAgents": "Todos los agentes",
-    "byAgent": "Filtrar por agente"
+    "byAgent": "Filtrar por agente",
+    "chatSessions": "Chat",
+    "chatBadge": "Chat"
   },
   "card": {
     "messageCount": "{{count}} mensajes",
@@ -30,7 +32,8 @@
     "title": "Detalle de la sesión",
     "user": "Usuario",
     "assistant": "Asistente",
-    "noMessages": "No hay mensajes en esta sesión"
+    "noMessages": "No hay mensajes en esta sesión",
+    "chatBadge": "Chat"
   },
   "pagination": {
     "showing": "Mostrando {{from}}–{{to}} de {{total}} sesiones",
