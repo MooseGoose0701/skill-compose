@@ -45,7 +45,7 @@ export function ChatMessageItem({
   if (message.role === "user") {
     return (
       <div className="flex justify-end">
-        <Card className="max-w-[85%] p-3 bg-primary text-primary-foreground">
+        <Card className="max-w-[85%] p-3 px-4 bg-primary text-primary-foreground">
           <p className="text-sm whitespace-pre-wrap">{message.content}</p>
           {message.attachedFiles && message.attachedFiles.length > 0 && (
             <div className="flex flex-wrap gap-1.5 mt-2 pt-2 border-t border-primary-foreground/20">
@@ -67,7 +67,7 @@ export function ChatMessageItem({
 
   return (
     <div className="flex justify-start">
-      <Card className="max-w-[85%] p-3 w-full">
+      <Card className="p-4 w-full">
         {message.isLoading && !displayContent ? (
           <div className="flex items-center gap-2">
             <Spinner size="md" />
