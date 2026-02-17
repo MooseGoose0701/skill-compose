@@ -27,6 +27,7 @@ export interface ChatMessage {
 
 interface ChatState {
   messages: ChatMessage[];
+  sessionId: string | null;  // Server-side session ID
   selectedSkills: string[];
   selectedTools: string[] | null;  // null = not initialized, will auto-select all tools
   selectedMcpServers: string[] | null;  // null = not initialized, will auto-select default_enabled
@@ -44,6 +45,8 @@ interface ChatState {
   updateMessage: (id: string, updates: Partial<ChatMessage>) => void;
   removeMessages: (ids: string[]) => void;
   clearMessages: () => void;
+  setSessionId: (id: string | null) => void;
+  newSession: () => void;  // Clear messages + sessionId + files, keep config
   setSelectedSkills: (skills: string[]) => void;
   toggleSkill: (skillName: string) => void;
   setSelectedTools: (tools: string[]) => void;
@@ -69,6 +72,7 @@ export const useChatStore = create<ChatState>()(
   persist(
     (set) => ({
       messages: [],
+      sessionId: null,
       selectedSkills: [],
       selectedTools: null,  // null = not initialized, will auto-select all tools
       selectedMcpServers: null,  // null = not initialized, will auto-select default_enabled
@@ -99,6 +103,10 @@ export const useChatStore = create<ChatState>()(
         })),
 
       clearMessages: () => set({ messages: [] }),
+
+      setSessionId: (id) => set({ sessionId: id }),
+
+      newSession: () => set({ messages: [], sessionId: null, uploadedFiles: [] }),
 
       setSelectedSkills: (skills) => set({ selectedSkills: skills }),
 
@@ -159,6 +167,7 @@ export const useChatStore = create<ChatState>()(
 
       resetAll: () => set({
         messages: [],
+        sessionId: null,
         selectedSkills: [],
         selectedTools: null,  // Will trigger auto-select all tools
         selectedMcpServers: null,  // Will trigger auto-select default_enabled
@@ -185,10 +194,10 @@ export const useChatStore = create<ChatState>()(
     }),
     {
       name: 'chat-storage',
-      version: 9, // Increment this when making breaking changes
+      version: 10, // Increment this when making breaking changes
       partialize: (state) => ({
-        // Don't persist loading messages
-        messages: state.messages.filter((m) => !m.isLoading),
+        // Messages are NOT persisted — server session is source of truth
+        sessionId: state.sessionId,
         selectedSkills: state.selectedSkills,
         selectedTools: state.selectedTools,
         selectedMcpServers: state.selectedMcpServers,
@@ -237,19 +246,15 @@ export const useChatStore = create<ChatState>()(
           state.selectedExecutorId = null;
         }
 
+        // v9 -> v10: Add sessionId, messages no longer persisted (server is source of truth)
+        if (version < 10) {
+          (state as Record<string, unknown>).sessionId = null;
+          state.messages = [];
+        }
+
         return state as ChatState;
       },
     }
   )
 );
 
-// Helper to get conversation history for API
-// For assistant messages, prefer rawAnswer (clean final answer) over content (stream-formatted display text)
-export function getConversationHistory(messages: ChatMessage[]) {
-  return messages
-    .filter((m) => !m.isLoading && !m.error)
-    .map((m) => ({
-      role: m.role as 'user' | 'assistant',
-      content: (m.role === 'assistant' && m.rawAnswer) ? m.rawAnswer : m.content,
-    }));
-}

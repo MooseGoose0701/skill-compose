@@ -132,7 +132,7 @@ async def test_stream_returns_event_stream(MockAgent, client):
 
     response = await client.post(
         "/api/v1/agent/run/stream",
-        json={"request": "hello"},
+        json={"request": "hello", "session_id": "test-session-id"},
     )
     assert response.status_code == 200
     assert "text/event-stream" in response.headers.get("content-type", "")
@@ -147,7 +147,7 @@ async def test_stream_sends_run_started(MockAgent, MockSessionLocal, client, db_
 
     response = await client.post(
         "/api/v1/agent/run/stream",
-        json={"request": "hello"},
+        json={"request": "hello", "session_id": "test-session-id"},
     )
     assert response.status_code == 200
     text = response.text
@@ -168,7 +168,7 @@ async def test_stream_sends_trace_saved(MockAgent, MockSessionLocal, client, db_
 
     response = await client.post(
         "/api/v1/agent/run/stream",
-        json={"request": "hello"},
+        json={"request": "hello", "session_id": "test-session-id"},
     )
     text = response.text
     lines = [l for l in text.strip().split("\n") if l.startswith("data: ")]
@@ -186,7 +186,7 @@ async def test_stream_with_skills(MockAgent, MockSessionLocal, client, db_sessio
 
     response = await client.post(
         "/api/v1/agent/run/stream",
-        json={"request": "hello", "skills": ["test-skill"]},
+        json={"request": "hello", "skills": ["test-skill"], "session_id": "test-session-id"},
     )
     assert response.status_code == 200
     MockAgent.assert_called_once()
@@ -203,7 +203,7 @@ async def test_stream_with_mcp_servers(MockAgent, MockSessionLocal, client, db_s
 
     response = await client.post(
         "/api/v1/agent/run/stream",
-        json={"request": "hello", "equipped_mcp_servers": ["fetch"]},
+        json={"request": "hello", "equipped_mcp_servers": ["fetch"], "session_id": "test-session-id"},
     )
     assert response.status_code == 200
     MockAgent.assert_called_once()
@@ -241,7 +241,7 @@ async def test_stream_error_handling(MockAgent, MockSessionLocal, client, db_ses
 
     response = await client.post(
         "/api/v1/agent/run/stream",
-        json={"request": "hello"},
+        json={"request": "hello", "session_id": "test-session-id"},
     )
     assert response.status_code == 200
     text = response.text

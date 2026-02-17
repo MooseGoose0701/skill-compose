@@ -19,6 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agent import SkillsAgent, EventStream, write_steering_message, poll_steering_messages, cleanup_steering_dir
 from app.api.v1.agent import _finalize_trace
+from app.api.v1.sessions import load_or_create_session, save_session_messages
 from app.config import get_settings
 from app.db.database import AsyncSessionLocal, get_db
 from app.db.models import AgentPresetDB, AgentTraceDB, PublishedSessionDB, ExecutorDB
@@ -325,80 +326,6 @@ async def steer_published_agent(
     return {"status": "injected", "trace_id": trace_id}
 
 
-async def _load_or_create_session(session_id: Optional[str], agent_id: str):
-    """Load existing session or create a new one. Returns (session_id, history)."""
-    history = None
-
-    if session_id:
-        async with AsyncSessionLocal() as db:
-            result = await db.execute(
-                select(PublishedSessionDB).where(
-                    PublishedSessionDB.id == session_id,
-                    PublishedSessionDB.agent_id == agent_id,
-                )
-            )
-            session_record = result.scalar_one_or_none()
-            if session_record:
-                history = session_record.messages or []
-            else:
-                new_session = PublishedSessionDB(
-                    id=session_id,
-                    agent_id=agent_id,
-                    messages=[],
-                )
-                db.add(new_session)
-                await db.commit()
-    else:
-        async with AsyncSessionLocal() as db:
-            new_session = PublishedSessionDB(
-                agent_id=agent_id,
-                messages=[],
-            )
-            db.add(new_session)
-            await db.commit()
-            session_id = new_session.id
-
-    return session_id, history
-
-
-async def _save_session_messages(session_id: str, final_answer: str, request_text: str, final_messages=None):
-    """Save full conversation messages to session."""
-    try:
-        async with AsyncSessionLocal() as session_db:
-            result = await session_db.execute(
-                select(PublishedSessionDB).where(
-                    PublishedSessionDB.id == session_id,
-                )
-            )
-            session_record = result.scalar_one_or_none()
-            if session_record:
-                if final_messages:
-                    await session_db.execute(
-                        update(PublishedSessionDB)
-                        .where(PublishedSessionDB.id == session_id)
-                        .values(
-                            messages=final_messages,
-                            updated_at=datetime.utcnow(),
-                        )
-                    )
-                else:
-                    current_messages = session_record.messages or []
-                    current_messages.append({"role": "user", "content": request_text})
-                    if final_answer:
-                        current_messages.append({"role": "assistant", "content": final_answer})
-                    await session_db.execute(
-                        update(PublishedSessionDB)
-                        .where(PublishedSessionDB.id == session_id)
-                        .values(
-                            messages=current_messages,
-                            updated_at=datetime.utcnow(),
-                        )
-                    )
-                await session_db.commit()
-    except Exception:
-        pass  # Don't fail the response if session save fails
-
-
 async def _resolve_published_config(preset):
     """Resolve config from a published preset, including executor name."""
     executor_name = None
@@ -447,8 +374,14 @@ async def published_chat(agent_id: str, request: PublishedChatRequest):
 
         config = await _resolve_published_config(preset)
 
-    # Session management
-    session_id, history = await _load_or_create_session(request.session_id, agent_id)
+    # Session management — published agents may omit session_id for auto-creation
+    if request.session_id:
+        session_id, history = await load_or_create_session(request.session_id, agent_id)
+    else:
+        # Auto-generate a session for published agents
+        from app.db.models import generate_uuid
+        auto_sid = generate_uuid()
+        session_id, history = await load_or_create_session(auto_sid, agent_id)
 
     # Build actual request with file info and image blocks
     from app.api.v1.agent import _build_request_with_files
@@ -622,7 +555,7 @@ async def published_chat(agent_id: str, request: PublishedChatRequest):
 
             # Save full conversation messages to session
             if not was_cancelled and session_id and last_complete_event:
-                await _save_session_messages(
+                await save_session_messages(
                     session_id,
                     final_answer,
                     request.request,
@@ -667,8 +600,13 @@ async def published_chat_sync(agent_id: str, request: PublishedChatRequest):
 
         config = await _resolve_published_config(preset)
 
-    # Session management
-    session_id, history = await _load_or_create_session(request.session_id, agent_id)
+    # Session management — published agents may omit session_id for auto-creation
+    if request.session_id:
+        session_id, history = await load_or_create_session(request.session_id, agent_id)
+    else:
+        from app.db.models import generate_uuid
+        auto_sid = generate_uuid()
+        session_id, history = await load_or_create_session(auto_sid, agent_id)
 
     # Build actual request with file info and image blocks
     from app.api.v1.agent import _build_request_with_files
@@ -776,7 +714,7 @@ async def published_chat_sync(agent_id: str, request: PublishedChatRequest):
 
     # Save full conversation messages to session
     if session_id and result_data.get("success"):
-        await _save_session_messages(
+        await save_session_messages(
             session_id,
             result_data.get("answer", ""),
             request.request,

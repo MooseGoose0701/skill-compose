@@ -5,7 +5,9 @@
   "emptyDescription": "与已发布的代理聊天以创建会话",
   "filters": {
     "allAgents": "所有代理",
-    "byAgent": "按代理筛选"
+    "byAgent": "按代理筛选",
+    "chatSessions": "聊天",
+    "chatBadge": "聊天"
   },
   "card": {
     "messageCount": "{{count}} 条消息",
@@ -30,7 +32,8 @@
     "title": "会话详情",
     "user": "用户",
     "assistant": "助手",
-    "noMessages": "此会话暂无消息"
+    "noMessages": "此会话暂无消息",
+    "chatBadge": "聊天"
   },
   "pagination": {
     "showing": "显示第 {{from}}–{{to}} 条，共 {{total}} 条会话",
