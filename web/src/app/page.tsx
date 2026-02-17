@@ -1,55 +1,61 @@
 'use client';
 
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import {
   ArrowRight,
-  Plus,
-  Wrench,
-  Plug,
   Bot,
-  History,
   Sparkles,
   GitBranch,
   Zap,
-  Folder,
-  Terminal,
-  Container,
-  Archive,
-  TerminalSquare,
-  ChevronDown,
   Download,
-  MessageSquare,
+  Plus,
+  Archive,
 } from 'lucide-react';
 import { useTranslation } from '@/i18n/client';
-import {
-  DropdownMenu,
-  DropdownMenuTrigger,
-  DropdownMenuContent,
-  DropdownMenuItem,
-} from '@/components/ui/dropdown-menu';
+import { useSkills } from '@/hooks/use-skills';
+import { useAgentPresets } from '@/hooks/use-agents';
+import { useMCPServers } from '@/hooks/use-mcp';
+import { useExecutors } from '@/hooks/use-executors';
+
+function StatCard({ value, label, isLoading }: { value: number; label: string; isLoading: boolean }) {
+  return (
+    <div className="rounded-lg border bg-card p-4 text-card-foreground">
+      {isLoading ? (
+        <div className="h-8 w-12 animate-pulse rounded bg-muted" />
+      ) : (
+        <div className="text-2xl font-bold tabular-nums">{value}</div>
+      )}
+      <div className="mt-1 text-sm text-muted-foreground">{label}</div>
+    </div>
+  );
+}
+
 export default function Home() {
   const { t } = useTranslation('home');
   const { t: tc } = useTranslation('common');
-  const router = useRouter();
+
+  const { data: skillsData, isLoading: skillsLoading } = useSkills();
+  const { data: agentsData, isLoading: agentsLoading } = useAgentPresets();
+  const { data: mcpData, isLoading: mcpLoading } = useMCPServers();
+  const { data: executorsData, isLoading: executorsLoading } = useExecutors();
 
   return (
     <div className="flex flex-col min-h-screen">
-      {/* Hero */}
       <main className="flex-1">
-        <section className="container px-4 py-12 md:py-16">
+        {/* Hero */}
+        <section className="container px-4 pt-12 pb-8 md:pt-16 md:pb-10">
           <div className="mx-auto max-w-3xl">
-            <h1 className="text-3xl font-bold tracking-tight sm:text-4xl md:text-5xl leading-[1.15]">
+            <h1 className="text-3xl font-bold tracking-tight sm:text-4xl md:text-5xl leading-[1.15] [text-wrap:balance]">
               {t('title_line1')}<br />
               {t('title_line2')}
             </h1>
             <p className="mt-4 text-lg tracking-wide text-muted-foreground italic sm:text-xl">
               {t('tagline')}
             </p>
-            <div className="mt-10 mb-12 inline-flex flex-col items-center gap-1">
+            <div className="mt-8 inline-flex flex-col items-center gap-1">
               <Link
                 href="/agents/new"
-                className="inline-flex items-center justify-center rounded-lg bg-gradient-to-r from-blue-500 to-blue-300 px-10 py-4 text-lg font-semibold text-white shadow-lg transition-all hover:shadow-xl hover:scale-[1.02]"
+                className="inline-flex items-center justify-center rounded-lg bg-primary px-8 py-3.5 text-base font-semibold text-primary-foreground shadow-sm transition-[transform,box-shadow] hover:shadow-md hover:scale-[1.02] motion-reduce:transform-none"
               >
                 {t('cta.main')} <ArrowRight className="ml-2 h-5 w-5" />
               </Link>
@@ -57,121 +63,65 @@ export default function Home() {
                 {t('cta.subtext')}
               </span>
             </div>
-            <div className="flex flex-col items-stretch gap-4 text-center w-full">
-              {/* Primary Actions - 4 equal width buttons */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
-                <Link
-                  href="/agents"
-                  className="inline-flex items-center justify-center rounded-md bg-primary px-6 py-3 text-sm font-medium text-primary-foreground shadow transition-colors hover:bg-primary/90"
-                >
-                  <Bot className="mr-2 h-4 w-4" />
-                  {tc('actions.view')} {tc('nav.agents')}
-                </Link>
-                <Link
-                  href="/skills"
-                  className="inline-flex items-center justify-center rounded-md bg-primary px-6 py-3 text-sm font-medium text-primary-foreground shadow transition-colors hover:bg-primary/90"
-                >
-                  <ArrowRight className="mr-2 h-4 w-4" />
-                  {tc('actions.view')} {tc('nav.skills')}
-                </Link>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <button
-                      className="inline-flex items-center justify-center rounded-md bg-primary px-6 py-3 text-sm font-medium text-primary-foreground shadow transition-colors hover:bg-primary/90"
-                    >
-                      <Plus className="mr-2 h-4 w-4" />
-                      {tc('actions.add')} {tc('nav.skills')}
-                      <ChevronDown className="ml-2 h-3 w-3 opacity-70" />
-                    </button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="center">
-                    <DropdownMenuItem onSelect={() => router.push('/skills/new')}>
-                      <Sparkles className="mr-2 h-4 w-4" />
-                      {tc('actions.create')}
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onSelect={() => router.push('/import')}>
-                      <Download className="mr-2 h-4 w-4" />
-                      {tc('actions.import')}
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-                <Link
-                  href="/skills/evolve"
-                  className="inline-flex items-center justify-center rounded-md bg-primary px-6 py-3 text-sm font-medium text-primary-foreground shadow transition-colors hover:bg-primary/90"
-                >
-                  <Zap className="mr-2 h-4 w-4" />
-                  {t('cta.evolve')}
-                </Link>
-              </div>
-              {/* Secondary Navigation - Executors, Tools, MCP, Traces, Sessions */}
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
-                <Link
-                  href="/executors"
-                  className="inline-flex items-center justify-center rounded-md border border-input bg-background px-6 py-2.5 text-sm font-medium shadow-sm transition-colors hover:bg-accent hover:text-accent-foreground"
-                >
-                  <Container className="mr-2 h-4 w-4" />
-                  {tc('nav.executors')}
-                </Link>
-                <Link
-                  href="/tools"
-                  className="inline-flex items-center justify-center rounded-md border border-input bg-background px-6 py-2.5 text-sm font-medium shadow-sm transition-colors hover:bg-accent hover:text-accent-foreground"
-                >
-                  <Wrench className="mr-2 h-4 w-4" />
-                  {tc('nav.tools')}
-                </Link>
-                <Link
-                  href="/mcp"
-                  className="inline-flex items-center justify-center rounded-md border border-input bg-background px-6 py-2.5 text-sm font-medium shadow-sm transition-colors hover:bg-accent hover:text-accent-foreground"
-                >
-                  <Plug className="mr-2 h-4 w-4" />
-                  {tc('nav.mcp')}
-                </Link>
-                <Link
-                  href="/traces"
-                  className="inline-flex items-center justify-center rounded-md border border-input bg-background px-6 py-2.5 text-sm font-medium shadow-sm transition-colors hover:bg-accent hover:text-accent-foreground"
-                >
-                  <History className="mr-2 h-4 w-4" />
-                  {tc('nav.traces')}
-                </Link>
-                <Link
-                  href="/sessions"
-                  className="inline-flex items-center justify-center rounded-md border border-input bg-background px-6 py-2.5 text-sm font-medium shadow-sm transition-colors hover:bg-accent hover:text-accent-foreground"
-                >
-                  <MessageSquare className="mr-2 h-4 w-4" />
-                  {tc('nav.sessions')}
-                </Link>
-              </div>
-              {/* Tertiary Navigation - Files, Terminal, Settings, Backup */}
-              <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-3">
-                <Link
-                  href="/files"
-                  className="inline-flex items-center justify-center rounded-md border border-input bg-background px-6 py-2.5 text-sm font-medium shadow-sm transition-colors hover:bg-accent hover:text-accent-foreground"
-                >
-                  <Folder className="mr-2 h-4 w-4" />
-                  {tc('nav.files')}
-                </Link>
-                <Link
-                  href="/terminal"
-                  className="inline-flex items-center justify-center rounded-md border border-input bg-background px-6 py-2.5 text-sm font-medium shadow-sm transition-colors hover:bg-accent hover:text-accent-foreground"
-                >
-                  <TerminalSquare className="mr-2 h-4 w-4" />
-                  {tc('nav.terminal')}
-                </Link>
-                <Link
-                  href="/environment"
-                  className="inline-flex items-center justify-center rounded-md border border-input bg-background px-6 py-2.5 text-sm font-medium shadow-sm transition-colors hover:bg-accent hover:text-accent-foreground"
-                >
-                  <Terminal className="mr-2 h-4 w-4" />
-                  {tc('nav.environment')}
-                </Link>
-                <Link
-                  href="/backup"
-                  className="inline-flex items-center justify-center rounded-md border border-input bg-background px-6 py-2.5 text-sm font-medium shadow-sm transition-colors hover:bg-accent hover:text-accent-foreground"
-                >
-                  <Archive className="mr-2 h-4 w-4" />
-                  {tc('nav.backup')}
-                </Link>
-              </div>
+          </div>
+        </section>
+
+        {/* Stats */}
+        <section className="container px-4 pb-8">
+          <div className="mx-auto max-w-3xl">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <StatCard value={skillsData?.total ?? 0} label={t('stats.skills')} isLoading={skillsLoading} />
+              <StatCard value={agentsData?.total ?? 0} label={t('stats.agents')} isLoading={agentsLoading} />
+              <StatCard value={mcpData?.count ?? 0} label={t('stats.mcpServers')} isLoading={mcpLoading} />
+              <StatCard value={executorsData?.total ?? 0} label={t('stats.executors')} isLoading={executorsLoading} />
+            </div>
+          </div>
+        </section>
+
+        {/* Quick Actions */}
+        <section className="container px-4 pb-10">
+          <div className="mx-auto max-w-3xl">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <Link
+                href="/skills"
+                className="group flex items-start gap-3 rounded-lg border p-4 transition-colors hover:bg-accent"
+              >
+                <Sparkles className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground group-hover:text-foreground transition-colors" />
+                <div>
+                  <div className="font-medium">{t('quickActions.browseSkills.title')}</div>
+                  <div className="text-sm text-muted-foreground">{t('quickActions.browseSkills.description')}</div>
+                </div>
+              </Link>
+              <Link
+                href="/skills/new"
+                className="group flex items-start gap-3 rounded-lg border p-4 transition-colors hover:bg-accent"
+              >
+                <Plus className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground group-hover:text-foreground transition-colors" />
+                <div>
+                  <div className="font-medium">{t('quickActions.createSkill.title')}</div>
+                  <div className="text-sm text-muted-foreground">{t('quickActions.createSkill.description')}</div>
+                </div>
+              </Link>
+              <Link
+                href="/import"
+                className="group flex items-start gap-3 rounded-lg border p-4 transition-colors hover:bg-accent"
+              >
+                <Download className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground group-hover:text-foreground transition-colors" />
+                <div>
+                  <div className="font-medium">{t('quickActions.importSkill.title')}</div>
+                  <div className="text-sm text-muted-foreground">{t('quickActions.importSkill.description')}</div>
+                </div>
+              </Link>
+              <Link
+                href="/skills/evolve"
+                className="group flex items-start gap-3 rounded-lg border p-4 transition-colors hover:bg-accent"
+              >
+                <Zap className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground group-hover:text-foreground transition-colors" />
+                <div>
+                  <div className="font-medium">{t('quickActions.evolveSkills.title')}</div>
+                  <div className="text-sm text-muted-foreground">{t('quickActions.evolveSkills.description')}</div>
+                </div>
+              </Link>
             </div>
           </div>
         </section>
@@ -218,7 +168,6 @@ export default function Home() {
           </div>
         </section>
       </main>
-
     </div>
   );
 }
