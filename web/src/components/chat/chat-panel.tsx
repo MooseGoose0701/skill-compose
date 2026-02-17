@@ -24,6 +24,7 @@ import { useChatStore, REQUIRED_TOOLS } from "@/stores/chat-store";
 import { useChatSessionRestore } from "@/hooks/use-chat-session";
 import { useChatEngine } from "@/hooks/use-chat-engine";
 import { ChatMessageItem } from "./chat-message";
+import { ModelSelect, AgentPresetSelect, ExecutorSelect } from "./selects";
 import { useTranslation } from "@/i18n/client";
 
 interface ChatPanelProps {
@@ -256,46 +257,34 @@ export function ChatPanel({ isOpen, onClose, defaultSkills = [] }: ChatPanelProp
       <div className="px-4 py-2 border-b bg-muted/30 flex items-center gap-2 text-xs min-w-0">
         {/* Agent Selector */}
         <Bot className="h-3.5 w-3.5 text-primary shrink-0" />
-        <select
-          value={selectedAgentPreset || ""}
-          onChange={(e) => {
-            const presetId = e.target.value;
+        <AgentPresetSelect
+          value={selectedAgentPreset}
+          onChange={(presetId) => {
             if (!presetId) { setSelectedAgentPreset(null); setSystemPrompt(null); }
             else applyPreset(presetId);
           }}
-          className="h-6 text-xs px-1.5 rounded border bg-background min-w-0 max-w-[130px] truncate"
-          title={t('configuration.agent')}
-        >
-          <option value="">{t('configuration.customConfig')}</option>
-          {agentPresets.map((preset) => (
-            <option key={preset.id} value={preset.id}>{preset.name}</option>
-          ))}
-        </select>
+          presets={agentPresets}
+          size="xs"
+          className="min-w-0 max-w-[130px]"
+          placeholder={t('configuration.customConfig')}
+          aria-label={t('configuration.agent')}
+        />
 
         <span className="text-muted-foreground/40 select-none">|</span>
 
         {/* Model Selector */}
         <Cpu className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-        <select
-          value={selectedModelProvider && selectedModelName ? `${selectedModelProvider}/${selectedModelName}` : ""}
-          onChange={(e) => {
-            const value = e.target.value;
-            if (!value) { setSelectedModel(null, null); }
-            else { const [provider, ...p] = value.split('/'); setSelectedModel(provider, p.join('/')); }
-            setSelectedAgentPreset(null);
-          }}
-          className="h-6 text-xs px-1.5 rounded border bg-background min-w-0 flex-1 truncate"
-          title={t('configuration.model')}
-        >
-          <option value="">{t('defaultModel')}</option>
-          {modelProviders.map((provider) => (
-            <optgroup key={provider.name} label={provider.name.charAt(0).toUpperCase() + provider.name.slice(1)}>
-              {provider.models.map((model) => (
-                <option key={model.key} value={model.key}>{model.display_name}</option>
-              ))}
-            </optgroup>
-          ))}
-        </select>
+        <ModelSelect
+          value={null}
+          modelProvider={selectedModelProvider}
+          modelName={selectedModelName}
+          onChange={(p, m) => { setSelectedModel(p, m); setSelectedAgentPreset(null); }}
+          providers={modelProviders}
+          size="xs"
+          className="min-w-0 flex-1"
+          placeholder={t('defaultModel')}
+          aria-label={t('configuration.model')}
+        />
 
         {/* Config Toggle */}
         <Button
@@ -324,16 +313,15 @@ export function ChatPanel({ isOpen, onClose, defaultSkills = [] }: ChatPanelProp
             <div className="flex items-center gap-2">
               <Server className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
               <span className="text-muted-foreground shrink-0">{t('configuration.executor')}:</span>
-              <select
-                value={selectedExecutorId || ""}
-                onChange={(e) => { setSelectedExecutorId(e.target.value || null); setSelectedAgentPreset(null); }}
-                className="h-6 text-xs px-1.5 rounded border bg-background flex-1"
-              >
-                <option value="">{t('configuration.executorLocal')}</option>
-                {onlineExecutors.map((executor) => (
-                  <option key={executor.id} value={executor.id}>{executor.name}</option>
-                ))}
-              </select>
+              <ExecutorSelect
+                value={selectedExecutorId}
+                onChange={(id) => { setSelectedExecutorId(id); setSelectedAgentPreset(null); }}
+                executors={onlineExecutors}
+                size="xs"
+                className="flex-1"
+                placeholder={t('configuration.executorLocal')}
+                aria-label={t('configuration.executor')}
+              />
             </div>
           )}
 
