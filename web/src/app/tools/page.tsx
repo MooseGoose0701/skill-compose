@@ -47,15 +47,18 @@ export default function ToolsPage() {
   const { data: toolsData, isLoading } = useTools();
 
   // Group tools by category
-  const toolsByCategory: Record<string, Tool[]> = {};
-  if (toolsData) {
-    for (const tool of toolsData.tools) {
-      if (!toolsByCategory[tool.category]) {
-        toolsByCategory[tool.category] = [];
+  const toolsByCategory = React.useMemo(() => {
+    const grouped: Record<string, Tool[]> = {};
+    if (toolsData) {
+      for (const tool of toolsData.tools) {
+        if (!grouped[tool.category]) {
+          grouped[tool.category] = [];
+        }
+        grouped[tool.category].push(tool);
       }
-      toolsByCategory[tool.category].push(tool);
     }
-  }
+    return grouped;
+  }, [toolsData]);
 
   return (
     <div className="container max-w-6xl py-8">

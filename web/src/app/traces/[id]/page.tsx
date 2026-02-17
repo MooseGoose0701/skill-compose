@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useParams } from 'next/navigation';
 import {
   CheckCircle,
   XCircle,
@@ -19,6 +19,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
 import { ErrorBanner } from '@/components/ui/error-banner';
+import { LoadingSkeleton } from '@/components/ui/loading-skeleton';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -66,9 +67,11 @@ function StepCard({ step, index, t }: { step: StepInfo; index: number; t: (key: 
 
   return (
     <Card className="p-3">
-      <div
-        className="flex items-center gap-2 cursor-pointer"
+      <button
+        type="button"
+        className="flex items-center gap-2 cursor-pointer w-full text-left"
         onClick={() => setExpanded(!expanded)}
+        aria-expanded={expanded}
       >
         {expanded ? (
           <ChevronDown className="h-4 w-4 text-muted-foreground" />
@@ -84,7 +87,7 @@ function StepCard({ step, index, t }: { step: StepInfo; index: number; t: (key: 
         <span className="truncate flex-1 text-sm font-mono">
           {getSummary()}
         </span>
-      </div>
+      </button>
       {expanded && (
         <div className="mt-3 space-y-2 pl-6">
           {step.tool_input && Object.keys(step.tool_input).length > 0 && (
@@ -115,12 +118,9 @@ function StepCard({ step, index, t }: { step: StepInfo; index: number; t: (key: 
   );
 }
 
-export default function TraceDetailPage({
-  params,
-}: {
-  params: { id: string };
-}) {
-  const { id } = params;
+export default function TraceDetailPage() {
+  const params = useParams();
+  const id = params.id as string;
   const { t } = useTranslation('traces');
   const { t: tc } = useTranslation('common');
   const router = useRouter();
@@ -153,12 +153,7 @@ export default function TraceDetailPage({
         )}
 
         {/* Loading State */}
-        {isLoading && (
-          <div className="space-y-4">
-            <div className="h-8 bg-muted rounded w-1/3 animate-pulse" />
-            <div className="h-24 bg-muted rounded animate-pulse" />
-          </div>
-        )}
+        {isLoading && <LoadingSkeleton variant="detail" />}
 
         {/* Trace Detail */}
         {trace && (
