@@ -84,13 +84,13 @@ export default function SkillEvolvePage() {
     new_version?: string;
   } | null>(null);
 
-  // Session
-  const [sessionId, setEvolveSessionId] = useState(() => crypto.randomUUID());
-
   // Refs
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const initialMessageSentRef = useRef(false);
+
+  // Session ID for server-side session management (new per evolve chat)
+  const [sessionId, setEvolveSessionId] = useState(() => crypto.randomUUID());
 
   const hasTraces = selectedTraceIds.size > 0;
   const hasFeedback = feedback.trim().length > 0;
@@ -281,8 +281,8 @@ export default function SkillEvolvePage() {
       await agentApi.runStream(
         {
           request: messageText,
-          agent_id: agentPreset.id,
           session_id: sessionId,
+          agent_id: agentPreset.id,
         },
         (event: StreamEvent) => {
           handleStreamEvent(event, events);

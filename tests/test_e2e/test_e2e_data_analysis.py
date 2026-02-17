@@ -574,6 +574,7 @@ class TestDataAnalysisLightE2E:
                     "max_turns": 10,
                     "model_provider": "kimi",
                     "model_name": "kimi-k2.5",
+                    "session_id": "e2e-data-analysis-sync-session",
                 },
                 timeout=120,
             )

@@ -36,6 +36,7 @@ export function AgentBuilderChat() {
   const [selectedModelProvider, setSelectedModelProvider] = useState<string | null>('kimi');
   const [selectedModelName, setSelectedModelName] = useState<string | null>('kimi-k2.5');
 
+  // Session ID for server-side session management
   const [sessionId] = useState(() => crypto.randomUUID());
 
   const messagesEndRef = useRef<HTMLDivElement>(null);

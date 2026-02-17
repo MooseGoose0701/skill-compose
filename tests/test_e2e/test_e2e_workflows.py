@@ -2323,7 +2323,7 @@ class TestAutoDetectOutputFilesE2E:
 
         resp = await e2e_client.post(
             "/api/v1/agent/run",
-            json={"request": "Generate a chart"},
+            json={"request": "Generate a chart", "session_id": "test-session-id"},
         )
         assert resp.status_code == 200
         body = resp.json()
@@ -2343,7 +2343,7 @@ class TestAutoDetectOutputFilesE2E:
 
         resp = await e2e_client.post(
             "/api/v1/agent/run",
-            json={"request": "Just talk, no files"},
+            json={"request": "Just talk, no files", "session_id": "test-session-id"},
         )
         assert resp.status_code == 200
         body = resp.json()
@@ -2410,7 +2410,7 @@ class TestAutoDetectOutputFilesE2E:
 
         resp = await e2e_client.post(
             "/api/v1/agent/run/stream",
-            json={"request": "Create CSV data"},
+            json={"request": "Create CSV data", "session_id": "test-session-id"},
         )
         assert resp.status_code == 200
 
@@ -2443,7 +2443,7 @@ class TestAutoDetectOutputFilesE2E:
 
         resp = await e2e_client.post(
             "/api/v1/agent/run/stream",
-            json={"request": "No files needed"},
+            json={"request": "No files needed", "session_id": "test-session-id"},
         )
         assert resp.status_code == 200
 
