@@ -680,7 +680,7 @@ export default function SkillEvolvePage() {
           </div>
         ) : (
           messages.map((message) => (
-            <div key={message.id} className="max-w-3xl mx-auto">
+            <div key={message.id} className="max-w-4xl mx-auto">
               <ChatMessageItem
                 message={message}
                 streamingContent={
@@ -707,7 +707,7 @@ export default function SkillEvolvePage() {
 
       {/* Input */}
       <div className="border-t px-6 py-4 shrink-0">
-        <div className="max-w-3xl mx-auto">
+        <div className="max-w-4xl mx-auto">
           <div className="flex gap-2">
             <Textarea
               value={input}

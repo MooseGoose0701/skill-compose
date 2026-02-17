@@ -795,7 +795,7 @@ export default function FullscreenChatPage() {
           </div>
         ) : (
           messages.map((message) => (
-            <div key={message.id} className="max-w-3xl mx-auto">
+            <div key={message.id} className="max-w-4xl mx-auto">
               <ChatMessageItem
                 message={message}
                 streamingContent={message.id === streamingMessageId ? streamingContent : null}
@@ -810,7 +810,7 @@ export default function FullscreenChatPage() {
 
       {/* Input */}
       <div className="border-t px-6 py-4 shrink-0">
-        <div className="max-w-3xl mx-auto">
+        <div className="max-w-4xl mx-auto">
           {/* Uploaded Files Display */}
           {uploadedFiles.length > 0 && (
             <div className="mb-3 flex flex-wrap gap-2">
