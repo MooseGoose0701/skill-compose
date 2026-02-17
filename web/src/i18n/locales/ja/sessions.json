@@ -5,7 +5,9 @@
   "emptyDescription": "公開エージェントとチャットしてセッションを作成してください",
   "filters": {
     "allAgents": "すべてのエージェント",
-    "byAgent": "エージェントでフィルター"
+    "byAgent": "エージェントでフィルター",
+    "chatSessions": "チャット",
+    "chatBadge": "チャット"
   },
   "card": {
     "messageCount": "{{count}} メッセージ",
@@ -30,7 +32,8 @@
     "title": "セッション詳細",
     "user": "ユーザー",
     "assistant": "アシスタント",
-    "noMessages": "このセッションにはメッセージがありません"
+    "noMessages": "このセッションにはメッセージがありません",
+    "chatBadge": "チャット"
   },
   "pagination": {
     "showing": "{{total}} 件中 {{from}}–{{to}} を表示",

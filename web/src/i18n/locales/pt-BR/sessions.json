@@ -5,7 +5,9 @@
   "emptyDescription": "Converse com um agente publicado para criar sessões",
   "filters": {
     "allAgents": "Todos os agentes",
-    "byAgent": "Filtrar por agente"
+    "byAgent": "Filtrar por agente",
+    "chatSessions": "Chat",
+    "chatBadge": "Chat"
   },
   "card": {
     "messageCount": "{{count}} mensagens",
@@ -30,7 +32,8 @@
     "title": "Detalhe da sessão",
     "user": "Usuário",
     "assistant": "Assistente",
-    "noMessages": "Nenhuma mensagem nesta sessão"
+    "noMessages": "Nenhuma mensagem nesta sessão",
+    "chatBadge": "Chat"
   },
   "pagination": {
     "showing": "Mostrando {{from}}–{{to}} de {{total}} sessões",
