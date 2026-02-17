@@ -69,11 +69,21 @@ const config: Config = {
           '0%': { transform: 'translateX(-100%)' },
           '100%': { transform: 'translateX(100%)' },
         },
+        'fade-in-up': {
+          from: { opacity: '0', transform: 'translateY(16px)' },
+          to: { opacity: '1', transform: 'translateY(0)' },
+        },
+        'gradient-shift': {
+          '0%, 100%': { transform: 'translateX(0)' },
+          '50%': { transform: 'translateX(-33.3%)' },
+        },
       },
       animation: {
         'accordion-down': 'accordion-down 0.2s ease-out',
         'accordion-up': 'accordion-up 0.2s ease-out',
         shimmer: 'shimmer 2.5s infinite',
+        'fade-in-up': 'fade-in-up 0.5s ease-out both',
+        'gradient-shift': 'gradient-shift 8s ease infinite',
       },
     },
   },
