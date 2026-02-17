@@ -129,7 +129,7 @@ export default function SessionsPage() {
               />
             ) : (
               data.sessions.map((session) => (
-                <div key={session.id} className="group relative">
+                <div key={session.id} className="group relative" style={{ contentVisibility: 'auto', containIntrinsicSize: 'auto 80px' }}>
                   <Link href={`/sessions/${session.id}`}>
                     <Card className="p-4 hover:bg-muted/50 transition-colors cursor-pointer">
                       <div className="flex items-start justify-between gap-4">
@@ -160,7 +160,7 @@ export default function SessionsPage() {
                     </Card>
                   </Link>
                   {/* Delete button overlay */}
-                  <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity">
                     <AlertDialog>
                       <AlertDialogTrigger asChild>
                         <Button
@@ -168,6 +168,7 @@ export default function SessionsPage() {
                           size="icon"
                           className="h-8 w-8"
                           onClick={(e) => e.preventDefault()}
+                          aria-label={t('delete.title')}
                         >
                           <Trash2 className="h-4 w-4 text-muted-foreground hover:text-destructive" />
                         </Button>

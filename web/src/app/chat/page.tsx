@@ -105,14 +105,14 @@ export default function FullscreenChatPage() {
     onSessionId: (id) => setSessionId(id),
   });
 
-  // Fetch data
-  const { data: skillsData } = useQuery({ queryKey: ["registry-skills-list"], queryFn: () => skillsApi.list() });
+  // Fetch data — defer skills/tools/MCP until config panel is open
+  const { data: skillsData } = useQuery({ queryKey: ["registry-skills-list"], queryFn: () => skillsApi.list(), enabled: showConfig });
   const skills = (skillsData?.skills || []).filter(s => s.skill_type === 'user');
 
   const { data: toolsData } = useQuery({ queryKey: ["tools-list"], queryFn: () => toolsApi.list() });
   const tools = toolsData?.tools || [];
 
-  const { data: mcpData } = useQuery({ queryKey: ["mcp-servers"], queryFn: () => mcpApi.listServers() });
+  const { data: mcpData } = useQuery({ queryKey: ["mcp-servers"], queryFn: () => mcpApi.listServers(), enabled: showConfig });
   const mcpServers = mcpData?.servers || [];
 
   const { data: agentPresetsData, isLoading: isLoadingAgents } = useQuery({ queryKey: ["agent-presets-user"], queryFn: () => agentPresetsApi.list({ is_system: false }) });
@@ -303,6 +303,7 @@ export default function FullscreenChatPage() {
                       <button key={tool.id}
                         onClick={() => { if (isRequired) return; const cur = selectedTools || []; setSelectedTools(isSelected ? cur.filter((t) => t !== tool.name) : [...cur, tool.name]); setSelectedAgentPreset(null); }}
                         disabled={isRequired}
+                        aria-pressed={isSelected}
                         className={`px-2 py-1 text-sm rounded-md border transition-colors ${isRequired ? 'bg-primary/20 border-primary/50 text-primary cursor-not-allowed' : isSelected ? 'bg-primary/10 border-primary text-primary hover:bg-primary/20' : 'bg-background border-border text-muted-foreground hover:bg-muted'}`}
                         title={isRequired ? `${tool.name} (required)` : tool.description}
                       >
@@ -326,6 +327,7 @@ export default function FullscreenChatPage() {
                       return (
                         <button key={server.name}
                           onClick={() => { const cur = selectedMcpServers || []; setSelectedMcpServers(isSelected ? cur.filter((s) => s !== server.name) : [...cur, server.name]); setSelectedAgentPreset(null); }}
+                          aria-pressed={isSelected}
                           className={`px-2 py-1 text-sm rounded-md border transition-colors ${isSelected ? 'bg-purple-500/10 border-purple-500 text-purple-600 hover:bg-purple-500/20' : 'bg-background border-border text-muted-foreground hover:bg-muted'}`}
                           title={server.description}
                         >
@@ -388,6 +390,7 @@ export default function FullscreenChatPage() {
               onKeyDown={engine.handleKeyDown}
               placeholder={isRunning ? t('steering.placeholder') : t('placeholder')}
               className="min-h-[80px] resize-none"
+              aria-label={t('placeholder')}
             />
           </div>
           <div className="flex justify-between items-center mt-2">

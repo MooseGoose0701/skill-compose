@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import Link from 'next/link';
 import { Search, Bot, Settings, Trash2, Globe, ExternalLink } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -40,15 +40,16 @@ export default function AgentsPage() {
   const { data, isLoading, error } = useAgentPresets();
   const deletePreset = useDeleteAgentPreset();
 
-  const filteredPresets = data?.presets.filter(
-    (preset) =>
-      preset.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      preset.description?.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredPresets = useMemo(() =>
+    data?.presets.filter(
+      (preset) =>
+        preset.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        preset.description?.toLowerCase().includes(searchQuery.toLowerCase())
+    ), [data?.presets, searchQuery]);
 
   // Separate user agents and meta agents
-  const userAgents = filteredPresets?.filter((preset) => !preset.is_system) || [];
-  const metaAgents = filteredPresets?.filter((preset) => preset.is_system) || [];
+  const userAgents = useMemo(() => filteredPresets?.filter((preset) => !preset.is_system) || [], [filteredPresets]);
+  const metaAgents = useMemo(() => filteredPresets?.filter((preset) => preset.is_system) || [], [filteredPresets]);
 
   const handleDelete = async (presetId: string) => {
     try {
@@ -126,41 +127,43 @@ export default function AgentsPage() {
           />
         )}
 
-        {/* User Agents */}
-        {!isLoading && userAgents.length > 0 && (
-          <div className="mb-8">
-            <h2 className="text-lg font-semibold mb-4">{t('list.user')}</h2>
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {userAgents.map((preset) => (
-                <AgentPresetCard
-                  key={preset.id}
-                  preset={preset}
-                  onDelete={() => handleDelete(preset.id)}
-                  t={t}
-                  tc={tc}
-                />
-              ))}
+        <TooltipProvider>
+          {/* User Agents */}
+          {!isLoading && userAgents.length > 0 && (
+            <div className="mb-8">
+              <h2 className="text-lg font-semibold mb-4">{t('list.user')}</h2>
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                {userAgents.map((preset) => (
+                  <AgentPresetCard
+                    key={preset.id}
+                    preset={preset}
+                    onDelete={() => handleDelete(preset.id)}
+                    t={t}
+                    tc={tc}
+                  />
+                ))}
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {/* Meta Agents */}
-        {!isLoading && metaAgents.length > 0 && (
-          <div className="mb-8">
-            <h2 className="text-lg font-semibold mb-4 text-muted-foreground">{t('list.meta')}</h2>
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {metaAgents.map((preset) => (
-                <AgentPresetCard
-                  key={preset.id}
-                  preset={preset}
-                  onDelete={() => handleDelete(preset.id)}
-                  t={t}
-                  tc={tc}
-                />
-              ))}
+          {/* Meta Agents */}
+          {!isLoading && metaAgents.length > 0 && (
+            <div className="mb-8">
+              <h2 className="text-lg font-semibold mb-4 text-muted-foreground">{t('list.meta')}</h2>
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                {metaAgents.map((preset) => (
+                  <AgentPresetCard
+                    key={preset.id}
+                    preset={preset}
+                    onDelete={() => handleDelete(preset.id)}
+                    t={t}
+                    tc={tc}
+                  />
+                ))}
+              </div>
             </div>
-          </div>
-        )}
+          )}
+        </TooltipProvider>
 
         {/* Stats */}
         {data && (
@@ -221,16 +224,14 @@ function AgentPresetCard({
                 <Badge key={skill} variant="outline" className="text-xs">{skill}</Badge>
               ))}
               {preset.skill_ids.length > 3 && (
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Badge variant="outline" className="text-xs cursor-default">+{preset.skill_ids.length - 3}</Badge>
-                    </TooltipTrigger>
-                    <TooltipContent side="top" className="max-w-xs">
-                      <p className="text-xs">{preset.skill_ids.slice(3).join(', ')}</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Badge variant="outline" className="text-xs cursor-default">+{preset.skill_ids.length - 3}</Badge>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="max-w-xs">
+                    <p className="text-xs">{preset.skill_ids.slice(3).join(', ')}</p>
+                  </TooltipContent>
+                </Tooltip>
               )}
             </div>
           )}
@@ -241,16 +242,14 @@ function AgentPresetCard({
                 <Badge key={server} variant="outline" className="text-xs bg-purple-50 dark:bg-purple-950">{server}</Badge>
               ))}
               {preset.mcp_servers.length > 2 && (
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Badge variant="outline" className="text-xs cursor-default">+{preset.mcp_servers.length - 2}</Badge>
-                    </TooltipTrigger>
-                    <TooltipContent side="top" className="max-w-xs">
-                      <p className="text-xs">{preset.mcp_servers.slice(2).join(', ')}</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Badge variant="outline" className="text-xs cursor-default">+{preset.mcp_servers.length - 2}</Badge>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="max-w-xs">
+                    <p className="text-xs">{preset.mcp_servers.slice(2).join(', ')}</p>
+                  </TooltipContent>
+                </Tooltip>
               )}
             </div>
           )}
@@ -264,7 +263,7 @@ function AgentPresetCard({
           </Link>
           {preset.is_published && (
             <a href={`/published/${preset.id}`} target="_blank" rel="noopener noreferrer">
-              <Button variant="outline" size="sm">
+              <Button variant="outline" size="sm" aria-label={tc('status.published')}>
                 <ExternalLink className="h-4 w-4" />
               </Button>
             </a>
@@ -276,6 +275,7 @@ function AgentPresetCard({
                   variant="ghost"
                   size="sm"
                   className="text-destructive hover:text-destructive"
+                  aria-label={tc('actions.delete')}
                 >
                   <Trash2 className="h-4 w-4" />
                 </Button>

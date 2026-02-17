@@ -104,7 +104,7 @@ function ExecutorCard({
       <CardHeader className="pb-3">
         <div className="flex items-start justify-between">
           <div className="flex items-center gap-2">
-            <span className={`w-3 h-3 rounded-full ${config.color}`} />
+            <span className={`w-3 h-3 rounded-full ${config.color}`} aria-hidden="true" />
             <CardTitle className="text-lg">{executor.name}</CardTitle>
           </div>
           <Badge variant={config.variant}>{t(config.labelKey)}</Badge>
