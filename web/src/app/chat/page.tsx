@@ -222,12 +222,6 @@ export default function FullscreenChatPage() {
             </>
           )}
 
-          {/* Config summary badges */}
-          <span className="text-xs text-muted-foreground ml-1 hidden lg:inline">
-            {t('configuration.turns')}: {maxTurns}
-            {selectedSkills.length > 0 && ` \u2022 ${selectedSkills.length} skills`}
-            {` \u2022 ${(selectedTools || []).length}/${tools.length} tools`}
-          </span>
         </div>
 
         {/* Action Buttons */}
