@@ -89,6 +89,9 @@ export default function SkillEvolvePage() {
   const abortControllerRef = useRef<AbortController | null>(null);
   const initialMessageSentRef = useRef(false);
 
+  // Session ID for server-side session management (new per evolve chat)
+  const [sessionId, setEvolveSessionId] = useState(() => crypto.randomUUID());
+
   const hasTraces = selectedTraceIds.size > 0;
   const hasFeedback = feedback.trim().length > 0;
   const canStartChat = (hasTraces || hasFeedback) && selectedSkill;
@@ -183,17 +186,6 @@ export default function SkillEvolvePage() {
     []
   );
 
-  // Build conversation history for multi-turn
-  const getConversationHistory = useCallback(() => {
-    return messages
-      .filter((m) => !m.isLoading && !m.error)
-      .map((m) => ({
-        role: m.role as "user" | "assistant",
-        content:
-          m.role === "assistant" && m.rawAnswer ? m.rawAnswer : m.content,
-      }));
-  }, [messages]);
-
   const handleStartChat = async () => {
     setAgentLoadError(null);
     try {
@@ -213,6 +205,7 @@ export default function SkillEvolvePage() {
     setSyncResult(null);
     initialMessageSentRef.current = false;
     setAgentPreset(null);
+    setEvolveSessionId(crypto.randomUUID());
   };
 
   const buildInitialMessageText = (): string => {
@@ -267,9 +260,6 @@ export default function SkillEvolvePage() {
       isLoading: true,
     };
 
-    // Build conversation history BEFORE adding new messages to state
-    const history = isInitial ? [] : getConversationHistory();
-
     addMessage(userMessage);
     addMessage(loadingMessage);
     setIsRunning(true);
@@ -291,8 +281,8 @@ export default function SkillEvolvePage() {
       await agentApi.runStream(
         {
           request: messageText,
+          session_id: sessionId,
           agent_id: agentPreset.id,
-          conversation_history: history.length > 0 ? history : undefined,
         },
         (event: StreamEvent) => {
           handleStreamEvent(event, events);

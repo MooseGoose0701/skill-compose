@@ -349,6 +349,7 @@ class FullDataAnalysisTestBase:
                     "model_provider": config["model_provider"],
                     "model_name": config["model_name"],
                     "max_turns": 30,
+                    "session_id": "e2e-data-analysis-stream-session",
                 },
                 timeout=300,  # 5 min timeout for multi-turn analysis
             )
@@ -573,6 +574,7 @@ class TestDataAnalysisLightE2E:
                     "max_turns": 10,
                     "model_provider": "kimi",
                     "model_name": "kimi-k2.5",
+                    "session_id": "e2e-data-analysis-sync-session",
                 },
                 timeout=120,
             )

@@ -63,6 +63,8 @@ class TestRealAgentE2E:
 
     async def test_02_first_message(self, e2e_client: AsyncClient):
         """Send a simple message and validate response structure."""
+        session_id = "e2e-real-session-001"
+        type(self)._state["session_id"] = session_id
         with _patch_api_key():
             resp = await e2e_client.post(
                 "/api/v1/agent/run",
@@ -71,6 +73,7 @@ class TestRealAgentE2E:
                     "max_turns": 3,
                     "model_provider": "kimi",
                     "model_name": "kimi-k2.5",
+                    "session_id": session_id,
                 },
             )
         assert resp.status_code == 200
@@ -83,18 +86,14 @@ class TestRealAgentE2E:
         type(self)._state["first_answer"] = body["answer"]
 
     async def test_03_follow_up(self, e2e_client: AsyncClient):
-        """Send a follow-up message with conversation history."""
-        first_answer = type(self)._state.get("first_answer", "")
-        history = [
-            {"role": "user", "content": "Hello, please respond with exactly one sentence."},
-            {"role": "assistant", "content": first_answer},
-        ]
+        """Send a follow-up message using the same session (history loaded from DB)."""
+        session_id = type(self)._state["session_id"]
         with _patch_api_key():
             resp = await e2e_client.post(
                 "/api/v1/agent/run",
                 json={
                     "request": "Summarize what you just said in one word.",
-                    "conversation_history": history,
+                    "session_id": session_id,
                     "max_turns": 3,
                     "model_provider": "kimi",
                     "model_name": "kimi-k2.5",
@@ -136,6 +135,7 @@ class TestRealAgentE2E:
                     "max_turns": 3,
                     "model_provider": "kimi",
                     "model_name": "kimi-k2.5",
+                    "session_id": "e2e-real-stream-session",
                 },
             )
         assert resp.status_code == 200
@@ -268,6 +268,7 @@ class TestRealEvolveE2E:
                     "max_turns": 5,
                     "model_provider": "kimi",
                     "model_name": "kimi-k2.5",
+                    "session_id": "e2e-evolve-session",
                 },
                 timeout=120,
             )
@@ -438,6 +439,7 @@ class TestRealImportLifecycleE2E:
                     "max_turns": 5,
                     "model_provider": "kimi",
                     "model_name": "kimi-k2.5",
+                    "session_id": "e2e-import-session",
                 },
                 timeout=120,
             )
