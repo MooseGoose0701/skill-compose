@@ -223,7 +223,19 @@
     "evolutionComplete": "进化完成！新版本已同步。",
     "viewSkill": "查看技能",
     "backToSelection": "返回选择",
-    "agentNotFound": "未找到 skill-evolve-helper 代理。请重启后端以进行初始化。"
+    "agentNotFound": "未找到 skill-evolve-helper 代理。请重启后端以进行初始化。",
+    "noUserSkills": "未找到用户技能。",
+    "createOneFirst": "先创建一个",
+    "failedToRunAgent": "运行 Agent 失败",
+    "traceStatus": {
+      "success": "成功",
+      "failed": "失败"
+    },
+    "traceInfo": {
+      "turns": "轮次：{{count}}",
+      "tokens": "Token：{{count}}",
+      "duration": "耗时：{{duration}}秒"
+    }
   },
   "sync": {
     "title": "文件系统同步",
@@ -268,5 +280,31 @@
   "type": {
     "user": "用户",
     "meta": "元"
+  },
+  "newVersion": {
+    "backTo": "返回 {{name}}",
+    "title": "创建新版本",
+    "subtitle": "为以下技能添加新版本",
+    "currentVersion": "（当前：v{{version}}）",
+    "loadingSkill": "正在加载技能...",
+    "versionInfo": "版本信息",
+    "versionLabel": "版本号",
+    "versionPlaceholder": "1.0.0",
+    "versionHelp": "语义化版本格式（例如 1.0.0、2.1.0-beta.1）",
+    "commitMessage": "提交说明",
+    "commitPlaceholder": "初始版本",
+    "commitHelp": "可选的变更描述",
+    "packageContent": "包内容",
+    "skillMdDescription": "Markdown 格式的技能文档，包含 YAML 前置信息。",
+    "schemaDescription": "输入/输出验证的 JSON Schema。可选。",
+    "manifestDescription": "包含依赖和触发器的包元数据。可选。",
+    "createButton": "创建版本",
+    "creating": "正在创建...",
+    "validation": {
+      "versionRequired": "版本号不能为空",
+      "versionInvalid": "版本号格式无效（例如 1.0.0、1.0.0-beta.1）",
+      "invalidJson": "{{name}} 中的 JSON 无效",
+      "skillMdRequired": "SKILL.md 内容不能为空"
+    }
   }
 }

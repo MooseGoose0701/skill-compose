@@ -25,7 +25,12 @@
     "snapshot": "恢复前快照已保存为：",
     "dragDrop": "拖放备份 ZIP 文件到此处",
     "orClickToBrowse": "或点击任意位置浏览",
-    "selectFile": "选择 .zip 文件"
+    "selectFile": "选择 .zip 文件",
+    "invalidFileType": "文件必须是 .zip 格式"
+  },
+  "errors": {
+    "loadFailed": "加载备份列表失败",
+    "warnings": "{{count}} 个警告"
   },
   "list": {
     "title": "可用备份",

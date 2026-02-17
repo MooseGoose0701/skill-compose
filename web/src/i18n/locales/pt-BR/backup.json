@@ -25,7 +25,8 @@
     "snapshot": "Snapshot pré-restauração salvo como:",
     "dragDrop": "Arraste e solte um arquivo ZIP de backup aqui",
     "orClickToBrowse": "ou clique em qualquer lugar para navegar",
-    "selectFile": "Escolher arquivo .zip"
+    "selectFile": "Escolher arquivo .zip",
+    "invalidFileType": "O arquivo deve ser um arquivo .zip"
   },
   "list": {
     "title": "Backups Disponíveis",
@@ -36,6 +37,10 @@
     "createdAt": "Criado em",
     "restoreFrom": "Restaurar",
     "download": "Baixar"
+  },
+  "errors": {
+    "loadFailed": "Falha ao carregar lista de backups",
+    "warnings": "{{count}} aviso(s)"
   },
   "stats": {
     "skills": "Habilidades",

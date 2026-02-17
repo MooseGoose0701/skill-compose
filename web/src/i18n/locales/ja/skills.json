@@ -223,7 +223,19 @@
     "evolutionComplete": "進化完了！新バージョンが同期されました。",
     "viewSkill": "スキルを表示",
     "backToSelection": "選択に戻る",
-    "agentNotFound": "skill-evolve-helper エージェントが見つかりません。バックエンドを再起動してください。"
+    "agentNotFound": "skill-evolve-helper エージェントが見つかりません。バックエンドを再起動してください。",
+    "noUserSkills": "ユーザースキルが見つかりません。",
+    "createOneFirst": "最初に作成してください",
+    "failedToRunAgent": "エージェントの実行に失敗しました",
+    "traceStatus": {
+      "success": "成功",
+      "failed": "失敗"
+    },
+    "traceInfo": {
+      "turns": "ターン数: {{count}}",
+      "tokens": "トークン数: {{count}}",
+      "duration": "所要時間: {{duration}}秒"
+    }
   },
   "sync": {
     "title": "ファイルシステム同期",
@@ -268,5 +280,31 @@
   "type": {
     "user": "ユーザー",
     "meta": "メタ"
+  },
+  "newVersion": {
+    "backTo": "{{name}} に戻る",
+    "title": "新しいバージョンを作成",
+    "subtitle": "新しいバージョンを追加",
+    "currentVersion": "（現在: v{{version}}）",
+    "loadingSkill": "スキルを読み込み中...",
+    "versionInfo": "バージョン情報",
+    "versionLabel": "バージョン",
+    "versionPlaceholder": "1.0.0",
+    "versionHelp": "セマンティックバージョニング形式（例: 1.0.0、2.1.0-beta.1）",
+    "commitMessage": "コミットメッセージ",
+    "commitPlaceholder": "初期バージョン",
+    "commitHelp": "変更内容の説明（任意）",
+    "packageContent": "パッケージ内容",
+    "skillMdDescription": "YAMLフロントマター付きのMarkdown形式のスキルドキュメント。",
+    "schemaDescription": "入出力バリデーション用のJSONスキーマ。任意。",
+    "manifestDescription": "依存関係とトリガーを含むパッケージメタデータ。任意。",
+    "createButton": "バージョンを作成",
+    "creating": "作成中...",
+    "validation": {
+      "versionRequired": "バージョンは必須です",
+      "versionInvalid": "有効なセマンティックバージョンを入力してください（例: 1.0.0、1.0.0-beta.1）",
+      "invalidJson": "{{name}} のJSONが無効です",
+      "skillMdRequired": "SKILL.mdの内容は必須です"
+    }
   }
 }

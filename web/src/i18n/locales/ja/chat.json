@@ -33,6 +33,7 @@
   "agentNotAvailable": "エージェントは利用できません",
   "builtinTools": "内蔵ツール",
   "selected": "選択済み",
+  "toolRequired": "（必須）",
   "configuration": {
     "title": "設定",
     "agent": "エージェント",

@@ -25,7 +25,8 @@
     "snapshot": "Pre-restore snapshot saved as:",
     "dragDrop": "Drag and drop a backup ZIP file here",
     "orClickToBrowse": "or click anywhere to browse",
-    "selectFile": "Choose .zip file"
+    "selectFile": "Choose .zip file",
+    "invalidFileType": "File must be a .zip archive"
   },
   "list": {
     "title": "Available Backups",
@@ -36,6 +37,10 @@
     "createdAt": "Created",
     "restoreFrom": "Restore",
     "download": "Download"
+  },
+  "errors": {
+    "loadFailed": "Failed to load backups",
+    "warnings": "{{count}} warning(s)"
   },
   "stats": {
     "skills": "Skills",

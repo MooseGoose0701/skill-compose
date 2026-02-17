@@ -33,6 +33,7 @@
   "agentNotAvailable": "Agent Not Available",
   "builtinTools": "Built-in Tools",
   "selected": "selected",
+  "toolRequired": "(required)",
   "configuration": {
     "title": "Configuration",
     "agent": "Agent",

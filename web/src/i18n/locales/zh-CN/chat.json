@@ -33,6 +33,7 @@
   "agentNotAvailable": "Agent 不可用",
   "builtinTools": "内置工具",
   "selected": "已选",
+  "toolRequired": "（必需）",
   "configuration": {
     "title": "配置",
     "agent": "代理",
