@@ -8,13 +8,12 @@ import {
   Moon,
   BookOpen,
   MoreHorizontal,
-  Wrench,
-  Plug,
   Container,
   Folder,
   Terminal,
   Archive,
   MessageSquare,
+  Activity,
 } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { Button } from '@/components/ui/button';
@@ -28,17 +27,21 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { LanguageSwitcher } from './language-switcher';
 import { NavLink } from './nav-link';
 import { useTranslation } from '@/i18n/client';
 
-const MORE_ITEMS = [
-  { href: '/executors', icon: Container, labelKey: 'nav.executors' },
-  { href: '/tools', icon: Wrench, labelKey: 'nav.tools' },
-  { href: '/mcp', icon: Plug, labelKey: 'nav.mcp' },
+const MORE_MONITOR_ITEMS = [
+  { href: '/traces', icon: Activity, labelKey: 'nav.traces' },
   { href: '/sessions', icon: MessageSquare, labelKey: 'nav.sessions' },
+];
+
+const MORE_SYSTEM_ITEMS = [
+  { href: '/executors', icon: Container, labelKey: 'nav.executors' },
   { href: '/files', icon: Folder, labelKey: 'nav.files' },
   { href: '/environment', icon: Terminal, labelKey: 'nav.environment' },
   { href: '/backup', icon: Archive, labelKey: 'nav.backup' },
@@ -62,7 +65,8 @@ export function AppHeader() {
           <nav className="flex items-center gap-4">
             <NavLink href="/skills">{t('nav.skills')}</NavLink>
             <NavLink href="/agents">{t('nav.agents')}</NavLink>
-            <NavLink href="/traces">{t('nav.traces')}</NavLink>
+            <NavLink href="/tools">{t('nav.tools')}</NavLink>
+            <NavLink href="/mcp">{t('nav.mcp')}</NavLink>
           </nav>
         </div>
 
@@ -76,7 +80,23 @@ export function AppHeader() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                {MORE_ITEMS.map((item) => (
+                <DropdownMenuLabel className="text-xs text-muted-foreground font-normal uppercase tracking-wider">
+                  {t('nav.groupMonitor')}
+                </DropdownMenuLabel>
+                {MORE_MONITOR_ITEMS.map((item) => (
+                  <DropdownMenuItem
+                    key={item.href}
+                    onClick={() => router.push(item.href)}
+                  >
+                    <item.icon className="mr-2 h-4 w-4" />
+                    {t(item.labelKey)}
+                  </DropdownMenuItem>
+                ))}
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel className="text-xs text-muted-foreground font-normal uppercase tracking-wider">
+                  {t('nav.groupSystem')}
+                </DropdownMenuLabel>
+                {MORE_SYSTEM_ITEMS.map((item) => (
                   <DropdownMenuItem
                     key={item.href}
                     onClick={() => router.push(item.href)}

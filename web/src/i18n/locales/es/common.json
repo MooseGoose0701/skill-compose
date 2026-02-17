@@ -12,7 +12,9 @@
     "backup": "Copia de seguridad",
     "terminal": "Terminal",
     "sessions": "Sesiones",
-    "more": "Más"
+    "more": "Más",
+    "groupMonitor": "Monitor",
+    "groupSystem": "Sistema"
   },
   "actions": {
     "add": "Añadir",

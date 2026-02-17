@@ -221,7 +221,7 @@ yarn-error.log*
 out/
 
 # Project specific
-.claude/*                    # Claude configuration
+*/.claude/*                    # Claude configuration
 config/mcp-secrets.json     # MCP API keys (sensitive)
 config/skill-secrets.json   # Skill API keys (sensitive)
 logs/*                       # Agent execution logs

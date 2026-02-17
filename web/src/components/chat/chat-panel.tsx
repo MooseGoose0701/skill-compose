@@ -3,7 +3,7 @@
 import React from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
-import { RotateCcw, Paperclip, X, Wrench, Plug, ChevronDown, ChevronUp, Square, Bot, Cpu, Maximize2, Server, Navigation, Plus } from "lucide-react";
+import { RotateCcw, Paperclip, X, Wrench, Plug, ChevronDown, ChevronUp, Square, Bot, Cpu, Maximize2, Server, Navigation, Plus, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
@@ -74,6 +74,7 @@ export function ChatPanel({ isOpen, onClose, defaultSkills = [] }: ChatPanelProp
   // Restore session messages from server on mount
   useChatSessionRestore();
 
+  const [showConfigPanel, setShowConfigPanel] = React.useState(false);
   const [showToolsPanel, setShowToolsPanel] = React.useState(false);
   const [showResetDialog, setShowResetDialog] = React.useState(false);
 
@@ -251,179 +252,194 @@ export function ChatPanel({ isOpen, onClose, defaultSkills = [] }: ChatPanelProp
         </div>
       </div>
 
-      {/* Agent Selector */}
-      {agentPresets.length > 0 && (
-        <div className="px-4 py-2 border-b bg-primary/5 flex items-center gap-2 text-xs">
-          <Bot className="h-3.5 w-3.5 text-primary" />
-          <span className="text-muted-foreground">{t('configuration.agent')}:</span>
-          <select
-            value={selectedAgentPreset || ""}
-            onChange={(e) => {
-              const presetId = e.target.value;
-              if (!presetId) { setSelectedAgentPreset(null); setSystemPrompt(null); }
-              else applyPreset(presetId);
-            }}
-            className="h-6 text-xs px-2 rounded border bg-background flex-1 max-w-[160px]"
-          >
-            <option value="">{t('configuration.customConfig')}</option>
-            {agentPresets.map((preset) => (
-              <option key={preset.id} value={preset.id}>{preset.name}</option>
-            ))}
-          </select>
-          <Link href="/agents" className="text-primary hover:underline text-xs">{t('manage')}</Link>
-        </div>
-      )}
+      {/* Compact Config Bar */}
+      <div className="px-4 py-2 border-b bg-muted/30 flex items-center gap-2 text-xs min-w-0">
+        {/* Agent Selector */}
+        <Bot className="h-3.5 w-3.5 text-primary shrink-0" />
+        <select
+          value={selectedAgentPreset || ""}
+          onChange={(e) => {
+            const presetId = e.target.value;
+            if (!presetId) { setSelectedAgentPreset(null); setSystemPrompt(null); }
+            else applyPreset(presetId);
+          }}
+          className="h-6 text-xs px-1.5 rounded border bg-background min-w-0 max-w-[130px] truncate"
+          title={t('configuration.agent')}
+        >
+          <option value="">{t('configuration.customConfig')}</option>
+          {agentPresets.map((preset) => (
+            <option key={preset.id} value={preset.id}>{preset.name}</option>
+          ))}
+        </select>
 
-      {/* Model Selector */}
-      {modelProviders.length > 0 && (
-        <div className="px-4 py-2 border-b bg-muted/30 flex items-center gap-2 text-xs">
-          <Cpu className="h-3.5 w-3.5 text-muted-foreground" />
-          <span className="text-muted-foreground">{t('configuration.model')}:</span>
-          <select
-            value={selectedModelProvider && selectedModelName ? `${selectedModelProvider}/${selectedModelName}` : ""}
-            onChange={(e) => {
-              const value = e.target.value;
-              if (!value) { setSelectedModel(null, null); }
-              else { const [provider, ...p] = value.split('/'); setSelectedModel(provider, p.join('/')); }
-              setSelectedAgentPreset(null);
-            }}
-            className="h-6 text-xs px-2 rounded border bg-background flex-1"
-          >
-            <option value="">{t('defaultModel')}</option>
-            {modelProviders.map((provider) => (
-              <optgroup key={provider.name} label={provider.name.charAt(0).toUpperCase() + provider.name.slice(1)}>
-                {provider.models.map((model) => (
-                  <option key={model.key} value={model.key}>{model.display_name}</option>
-                ))}
-              </optgroup>
-            ))}
-          </select>
-        </div>
-      )}
+        <span className="text-muted-foreground/40 select-none">|</span>
 
-      {/* Executor Selector */}
-      {onlineExecutors.length > 0 && (
-        <div className="px-4 py-2 border-b bg-muted/30 flex items-center gap-2 text-xs">
-          <Server className="h-3.5 w-3.5 text-muted-foreground" />
-          <span className="text-muted-foreground">{t('configuration.executor')}:</span>
-          <select
-            value={selectedExecutorId || ""}
-            onChange={(e) => { setSelectedExecutorId(e.target.value || null); setSelectedAgentPreset(null); }}
-            className="h-6 text-xs px-2 rounded border bg-background flex-1"
-          >
-            <option value="">{t('configuration.executorLocal')}</option>
-            {onlineExecutors.map((executor) => (
-              <option key={executor.id} value={executor.id}>{executor.name}</option>
-            ))}
-          </select>
-        </div>
-      )}
+        {/* Model Selector */}
+        <Cpu className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+        <select
+          value={selectedModelProvider && selectedModelName ? `${selectedModelProvider}/${selectedModelName}` : ""}
+          onChange={(e) => {
+            const value = e.target.value;
+            if (!value) { setSelectedModel(null, null); }
+            else { const [provider, ...p] = value.split('/'); setSelectedModel(provider, p.join('/')); }
+            setSelectedAgentPreset(null);
+          }}
+          className="h-6 text-xs px-1.5 rounded border bg-background min-w-0 flex-1 truncate"
+          title={t('configuration.model')}
+        >
+          <option value="">{t('defaultModel')}</option>
+          {modelProviders.map((provider) => (
+            <optgroup key={provider.name} label={provider.name.charAt(0).toUpperCase() + provider.name.slice(1)}>
+              {provider.models.map((model) => (
+                <option key={model.key} value={model.key}>{model.display_name}</option>
+              ))}
+            </optgroup>
+          ))}
+        </select>
 
-      {/* Settings */}
-      <div className={`px-4 py-2 border-b bg-muted/50 text-xs ${selectedAgentPreset ? 'relative' : ''}`}>
-        {selectedAgentPreset && (
-          <div className="flex items-center justify-between mb-1.5">
-            <span className="text-muted-foreground text-[10px]">{t('configManagedByPreset')}</span>
-          </div>
-        )}
-        <div className={`flex items-center gap-4 ${selectedAgentPreset ? 'opacity-50' : ''}`}>
-          <div className="flex items-center gap-1.5">
-            <span className="text-muted-foreground">{t('configuration.turns')}</span>
-            <Input
-              type="number" min={1} max={60000} value={maxTurns}
-              onChange={(e) => { setMaxTurns(parseInt(e.target.value) || 60); setSelectedAgentPreset(null); }}
-              className="w-14 h-6 text-xs px-2"
-            />
-          </div>
-          <div className="flex items-center gap-1.5 flex-1">
-            <span className="text-muted-foreground">{t('configuration.skills')}</span>
-            <MultiSelect
-              options={skills.map((skill) => ({ value: skill.name, label: skill.name, description: skill.description?.slice(0, 50) }))}
-              selected={selectedSkills}
-              onChange={(s) => { setSelectedSkills(s); setSelectedAgentPreset(null); }}
-              placeholder={t('configuration.selectSkills')}
-              emptyText="None"
-              className="flex-1 max-w-[120px]"
-              size="sm"
-            />
-          </div>
-          <Button variant="ghost" size="sm" onClick={() => setShowToolsPanel(!showToolsPanel)} className="h-6 px-2 text-xs gap-1">
-            <Wrench className="h-3 w-3" />
-            {t('configuration.tools')} ({(selectedTools || []).length}/{tools.length})
-            {mcpServers.length > 0 && (
-              <span className="text-muted-foreground">+ MCP ({(selectedMcpServers || []).length})</span>
-            )}
-            {showToolsPanel ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-          </Button>
-        </div>
+        {/* Config Toggle */}
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => setShowConfigPanel(!showConfigPanel)}
+          className={`h-6 w-6 p-0 shrink-0 ${showConfigPanel ? 'text-primary' : ''}`}
+          title={t('config')}
+        >
+          <Settings className="h-3.5 w-3.5" />
+        </Button>
       </div>
 
-      {/* Tools/MCP Panel */}
-      {showToolsPanel && (
-        <div className={`px-4 py-3 border-b bg-muted/30 max-h-[300px] overflow-y-auto ${selectedAgentPreset ? 'opacity-50' : ''}`}>
-          <div className="mb-3">
-            <div className="flex items-center gap-2 mb-2">
-              <Wrench className="h-3.5 w-3.5 text-muted-foreground" />
-              <span className="text-xs font-medium">{t('builtinTools')}</span>
-              <span className="text-xs text-muted-foreground">({(selectedTools || []).length}/{tools.length} {t('selected')})</span>
-            </div>
-            <div className="flex flex-wrap gap-1.5">
-              {tools.map((tool) => {
-                const isRequired = REQUIRED_TOOLS.includes(tool.name);
-                const isSelected = (selectedTools || []).includes(tool.name);
-                return (
-                  <button
-                    key={tool.id}
-                    onClick={() => {
-                      if (isRequired) return;
-                      const cur = selectedTools || [];
-                      setSelectedTools(isSelected ? cur.filter((t) => t !== tool.name) : [...cur, tool.name]);
-                      setSelectedAgentPreset(null);
-                    }}
-                    disabled={isRequired}
-                    className={`px-2 py-1 text-xs rounded-md border transition-colors ${isRequired ? 'bg-primary/20 border-primary/50 text-primary cursor-not-allowed' : isSelected ? 'bg-primary/10 border-primary text-primary hover:bg-primary/20' : 'bg-background border-border text-muted-foreground hover:bg-muted'}`}
-                    title={isRequired ? `${tool.name} (required)` : tool.description}
-                  >
-                    {tool.name}
-                    {isRequired && <span className="ml-1 text-[10px]">*</span>}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {mcpServers.length > 0 && (
-            <div>
-              <div className="flex items-center gap-2 mb-2">
-                <Plug className="h-3.5 w-3.5 text-muted-foreground" />
-                <span className="text-xs font-medium">{t('configuration.mcpServers')}</span>
-                <span className="text-xs text-muted-foreground">({(selectedMcpServers || []).length}/{mcpServers.length} {t('selected')})</span>
-              </div>
-              <div className="flex flex-wrap gap-1.5">
-                {mcpServers.map((server) => {
-                  const isSelected = (selectedMcpServers || []).includes(server.name);
-                  return (
-                    <button
-                      key={server.name}
-                      onClick={() => {
-                        const cur = selectedMcpServers || [];
-                        setSelectedMcpServers(isSelected ? cur.filter((s) => s !== server.name) : [...cur, server.name]);
-                        setSelectedAgentPreset(null);
-                      }}
-                      className={`px-2 py-1 text-xs rounded-md border transition-colors ${isSelected ? 'bg-purple-500/10 border-purple-500 text-purple-600 hover:bg-purple-500/20' : 'bg-background border-border text-muted-foreground hover:bg-muted'}`}
-                      title={server.description}
-                    >
-                      {server.display_name}
-                    </button>
-                  );
-                })}
-              </div>
+      {/* Expanded Config Panel */}
+      {showConfigPanel && (
+        <div className="px-4 py-3 border-b bg-muted/20 space-y-3 text-xs max-h-[40vh] overflow-y-auto">
+          {selectedAgentPreset && (
+            <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+              <span>{t('configManagedByPreset')}</span>
+              <Link href="/agents" className="text-primary hover:underline">{t('manage')}</Link>
             </div>
           )}
 
-          <p className="text-[10px] text-muted-foreground mt-3">
-            {t('requiredToolsNote')} {t('mcpDefaultNote')}
-          </p>
+          {/* Executor */}
+          {onlineExecutors.length > 0 && (
+            <div className="flex items-center gap-2">
+              <Server className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+              <span className="text-muted-foreground shrink-0">{t('configuration.executor')}:</span>
+              <select
+                value={selectedExecutorId || ""}
+                onChange={(e) => { setSelectedExecutorId(e.target.value || null); setSelectedAgentPreset(null); }}
+                className="h-6 text-xs px-1.5 rounded border bg-background flex-1"
+              >
+                <option value="">{t('configuration.executorLocal')}</option>
+                {onlineExecutors.map((executor) => (
+                  <option key={executor.id} value={executor.id}>{executor.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {/* Turns + Skills */}
+          <div className={`flex items-center gap-3 ${selectedAgentPreset ? 'opacity-50 pointer-events-none' : ''}`}>
+            <div className="flex items-center gap-1.5">
+              <span className="text-muted-foreground">{t('configuration.turns')}</span>
+              <Input
+                type="number" min={1} max={60000} value={maxTurns}
+                onChange={(e) => { setMaxTurns(parseInt(e.target.value) || 60); setSelectedAgentPreset(null); }}
+                className="w-14 h-6 text-xs px-2"
+              />
+            </div>
+            <div className="flex items-center gap-1.5 flex-1 min-w-0">
+              <span className="text-muted-foreground shrink-0">{t('configuration.skills')}</span>
+              <MultiSelect
+                options={skills.map((skill) => ({ value: skill.name, label: skill.name, description: skill.description?.slice(0, 50) }))}
+                selected={selectedSkills}
+                onChange={(s) => { setSelectedSkills(s); setSelectedAgentPreset(null); }}
+                placeholder={t('configuration.selectSkills')}
+                emptyText="None"
+                className="flex-1 min-w-0"
+                size="sm"
+              />
+            </div>
+          </div>
+
+          {/* Tools/MCP Toggle */}
+          <div className={selectedAgentPreset ? 'opacity-50 pointer-events-none' : ''}>
+            <Button variant="ghost" size="sm" onClick={() => setShowToolsPanel(!showToolsPanel)} className="h-6 px-2 text-xs gap-1">
+              <Wrench className="h-3 w-3" />
+              {t('configuration.tools')} ({(selectedTools || []).length}/{tools.length})
+              {mcpServers.length > 0 && (
+                <span className="text-muted-foreground">+ MCP ({(selectedMcpServers || []).length})</span>
+              )}
+              {showToolsPanel ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+            </Button>
+
+            {/* Tools/MCP Chips */}
+            {showToolsPanel && (
+              <div className="mt-2 space-y-3">
+                <div>
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <Wrench className="h-3 w-3 text-muted-foreground" />
+                    <span className="text-xs font-medium">{t('builtinTools')}</span>
+                    <span className="text-xs text-muted-foreground">({(selectedTools || []).length}/{tools.length})</span>
+                  </div>
+                  <div className="flex flex-wrap gap-1">
+                    {tools.map((tool) => {
+                      const isRequired = REQUIRED_TOOLS.includes(tool.name);
+                      const isSelected = (selectedTools || []).includes(tool.name);
+                      return (
+                        <button
+                          key={tool.id}
+                          onClick={() => {
+                            if (isRequired) return;
+                            const cur = selectedTools || [];
+                            setSelectedTools(isSelected ? cur.filter((t) => t !== tool.name) : [...cur, tool.name]);
+                            setSelectedAgentPreset(null);
+                          }}
+                          disabled={isRequired}
+                          className={`px-1.5 py-0.5 text-[11px] rounded border transition-colors ${isRequired ? 'bg-primary/20 border-primary/50 text-primary cursor-not-allowed' : isSelected ? 'bg-primary/10 border-primary text-primary hover:bg-primary/20' : 'bg-background border-border text-muted-foreground hover:bg-muted'}`}
+                          title={isRequired ? `${tool.name} (required)` : tool.description}
+                        >
+                          {tool.name}{isRequired && '*'}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {mcpServers.length > 0 && (
+                  <div>
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <Plug className="h-3 w-3 text-muted-foreground" />
+                      <span className="text-xs font-medium">{t('configuration.mcpServers')}</span>
+                      <span className="text-xs text-muted-foreground">({(selectedMcpServers || []).length}/{mcpServers.length})</span>
+                    </div>
+                    <div className="flex flex-wrap gap-1">
+                      {mcpServers.map((server) => {
+                        const isSelected = (selectedMcpServers || []).includes(server.name);
+                        return (
+                          <button
+                            key={server.name}
+                            onClick={() => {
+                              const cur = selectedMcpServers || [];
+                              setSelectedMcpServers(isSelected ? cur.filter((s) => s !== server.name) : [...cur, server.name]);
+                              setSelectedAgentPreset(null);
+                            }}
+                            className={`px-1.5 py-0.5 text-[11px] rounded border transition-colors ${isSelected ? 'bg-purple-500/10 border-purple-500 text-purple-600 hover:bg-purple-500/20' : 'bg-background border-border text-muted-foreground hover:bg-muted'}`}
+                            title={server.description}
+                          >
+                            {server.display_name}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                <p className="text-[10px] text-muted-foreground">
+                  {t('requiredToolsNote')} {t('mcpDefaultNote')}
+                </p>
+              </div>
+            )}
+          </div>
         </div>
       )}
 
