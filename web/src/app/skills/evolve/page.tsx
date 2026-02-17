@@ -84,6 +84,9 @@ export default function SkillEvolvePage() {
     new_version?: string;
   } | null>(null);
 
+  // Session
+  const [sessionId, setEvolveSessionId] = useState(() => crypto.randomUUID());
+
   // Refs
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -183,17 +186,6 @@ export default function SkillEvolvePage() {
     []
   );
 
-  // Build conversation history for multi-turn
-  const getConversationHistory = useCallback(() => {
-    return messages
-      .filter((m) => !m.isLoading && !m.error)
-      .map((m) => ({
-        role: m.role as "user" | "assistant",
-        content:
-          m.role === "assistant" && m.rawAnswer ? m.rawAnswer : m.content,
-      }));
-  }, [messages]);
-
   const handleStartChat = async () => {
     setAgentLoadError(null);
     try {
@@ -213,6 +205,7 @@ export default function SkillEvolvePage() {
     setSyncResult(null);
     initialMessageSentRef.current = false;
     setAgentPreset(null);
+    setEvolveSessionId(crypto.randomUUID());
   };
 
   const buildInitialMessageText = (): string => {
@@ -267,9 +260,6 @@ export default function SkillEvolvePage() {
       isLoading: true,
     };
 
-    // Build conversation history BEFORE adding new messages to state
-    const history = isInitial ? [] : getConversationHistory();
-
     addMessage(userMessage);
     addMessage(loadingMessage);
     setIsRunning(true);
@@ -292,7 +282,7 @@ export default function SkillEvolvePage() {
         {
           request: messageText,
           agent_id: agentPreset.id,
-          conversation_history: history.length > 0 ? history : undefined,
+          session_id: sessionId,
         },
         (event: StreamEvent) => {
           handleStreamEvent(event, events);

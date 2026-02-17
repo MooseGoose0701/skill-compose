@@ -2,15 +2,17 @@
 
 Tests cover:
 1. _is_retryable_error() classification of transient vs permanent errors
-2. run_stream() retry with non-streaming fallback when stream fails
+2. run() streaming retry with non-streaming fallback when stream fails
 3. Proper error propagation when both stream and retry fail
 4. Non-retryable errors skip retry
 5. SSE endpoint properly relays stream error/retry events
 """
 
+import asyncio
 import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch, MagicMock, AsyncMock
 from app.agent.agent import SkillsAgent, StreamEvent
+from app.agent.event_stream import EventStream
 from app.llm.provider import LLMResponse, LLMTextBlock, LLMToolCall, LLMUsage
 
 
@@ -56,14 +58,18 @@ def _make_delta(text):
     )
 
 
-def _collect_events(gen):
-    """Collect all StreamEvents from a run_stream() generator."""
+async def _collect_stream_events(agent, request, **kwargs):
+    """Run agent.run() with an EventStream and collect all events."""
+    event_stream = EventStream()
     events = []
-    try:
-        for event in gen:
+
+    async def collector():
+        async for event in event_stream:
             events.append(event)
-    except StopIteration:
-        pass
+
+    collector_task = asyncio.create_task(collector())
+    await agent.run(request, event_stream=event_stream, **kwargs)
+    await collector_task
     return events
 
 
@@ -143,21 +149,23 @@ class TestIsRetryableError:
 # Class 2: Stream success (no retry needed)
 # ===================================================================
 
+@pytest.mark.asyncio
 class TestStreamSuccessNoRetry:
     """Verify normal streaming works without triggering retry."""
 
-    @patch("time.sleep")  # Don't actually sleep in tests
-    def test_normal_stream_yields_deltas_and_complete(self, mock_sleep):
+    async def test_normal_stream_yields_deltas_and_complete(self):
         """Normal stream: text_delta events emitted, complete event at end."""
         mock_client = MagicMock()
-        mock_client.create_stream.return_value = iter([
-            _make_delta("Hello "),
-            _make_delta("world"),
-            _make_final_response("Hello world"),
-        ])
+
+        async def mock_stream(*args, **kwargs):
+            yield _make_delta("Hello ")
+            yield _make_delta("world")
+            yield _make_final_response("Hello world")
+
+        mock_client.acreate_stream = MagicMock(return_value=mock_stream())
 
         agent = _make_test_agent(mock_client)
-        events = _collect_events(agent.run_stream("test request"))
+        events = await _collect_stream_events(agent, "test request")
 
         # Verify text_delta events
         text_deltas = [e for e in events if e.event_type == "text_delta"]
@@ -171,11 +179,10 @@ class TestStreamSuccessNoRetry:
         assert complete_events[0].data["success"] is True
         assert complete_events[0].data["answer"] == "Hello world"
 
-        # Non-streaming create() should NOT have been called
-        mock_client.create.assert_not_called()
+        # Non-streaming acreate() should NOT have been called
+        mock_client.acreate.assert_not_called()
 
-    @patch("time.sleep")
-    def test_stream_with_tool_calls(self, mock_sleep):
+    async def test_stream_with_tool_calls(self):
         """Stream with tool calls: deltas + tool_call events, no retry."""
         mock_client = MagicMock()
 
@@ -189,24 +196,27 @@ class TestStreamSuccessNoRetry:
             usage=LLMUsage(input_tokens=100, output_tokens=50),
             model="test-model",
         )
-        mock_client.create_stream.side_effect = [
-            iter([
-                _make_delta("Let me check that."),
-                first_response,
-            ]),
-            iter([
-                _make_delta("Here's what I found."),
-                _make_final_response("Here's what I found."),
-            ]),
-        ]
 
-        # Mock tool execution
+        call_count = {"n": 0}
+
+        async def mock_stream(*args, **kwargs):
+            if call_count["n"] == 0:
+                call_count["n"] += 1
+                yield _make_delta("Let me check that.")
+                yield first_response
+            else:
+                yield _make_delta("Here's what I found.")
+                yield _make_final_response("Here's what I found.")
+
+        mock_client.acreate_stream = MagicMock(side_effect=lambda *a, **kw: mock_stream())
+
         agent = _make_test_agent(mock_client)
         agent.tool_functions = {
             "web_search": lambda **kwargs: '{"results": []}',
         }
 
-        events = _collect_events(agent.run_stream("search for test"))
+        with patch("app.agent.agent.acall_tool", new_callable=AsyncMock, return_value='{"results": []}'):
+            events = await _collect_stream_events(agent, "search for test")
 
         # Verify events sequence
         event_types = [e.event_type for e in events]
@@ -216,37 +226,37 @@ class TestStreamSuccessNoRetry:
         assert "tool_result" in event_types
         assert "complete" in event_types
 
-        # create() should NOT have been called
-        mock_client.create.assert_not_called()
+        # acreate() should NOT have been called
+        mock_client.acreate.assert_not_called()
 
 
 # ===================================================================
 # Class 3: Stream failure with successful retry
 # ===================================================================
 
+@pytest.mark.asyncio
 class TestStreamFailRetrySuccess:
-    """Stream fails with retryable error, non-streaming create() fallback succeeds."""
+    """Stream fails with retryable error, non-streaming acreate() fallback succeeds."""
 
-    @patch("time.sleep")
-    def test_partial_deltas_then_retry(self, mock_sleep):
-        """Stream yields partial deltas, then fails. Retry with create() succeeds."""
+    async def test_partial_deltas_then_retry(self):
+        """Stream yields partial deltas, then fails. Retry with acreate() succeeds."""
         mock_client = MagicMock()
 
-        # create_stream yields some deltas then raises connection error
-        def failing_stream(*args, **kwargs):
+        # acreate_stream yields some deltas then raises connection error
+        async def failing_stream(*args, **kwargs):
             yield _make_delta("I'll analyze ")
             yield _make_delta("the data")
             raise Exception("peer closed connection without sending complete message body (incomplete chunked read)")
 
-        mock_client.create_stream.side_effect = failing_stream
+        mock_client.acreate_stream = MagicMock(return_value=failing_stream())
 
-        # Non-streaming create() fallback succeeds
-        mock_client.create.return_value = _make_final_response(
+        # Non-streaming acreate() fallback succeeds
+        mock_client.acreate = AsyncMock(return_value=_make_final_response(
             "I'll analyze the data and create a report."
-        )
+        ))
 
         agent = _make_test_agent(mock_client)
-        events = _collect_events(agent.run_stream("analyze data"))
+        events = await _collect_stream_events(agent, "analyze data")
 
         # Verify partial text_delta events were emitted before failure
         text_deltas = [e for e in events if e.event_type == "text_delta"]
@@ -254,34 +264,29 @@ class TestStreamFailRetrySuccess:
         assert text_deltas[0].data["text"] == "I'll analyze "
         assert text_deltas[1].data["text"] == "the data"
 
-        # Verify retry was attempted (create() called once)
-        mock_client.create.assert_called_once()
+        # Verify retry was attempted (acreate() called once)
+        mock_client.acreate.assert_called_once()
 
         # Verify complete event from successful retry
         complete_events = [e for e in events if e.event_type == "complete"]
         assert len(complete_events) == 1
         assert complete_events[0].data["success"] is True
 
-        # Verify sleep was called for retry delay
-        mock_sleep.assert_called()
-
-    @patch("time.sleep")
-    def test_no_deltas_then_retry(self, mock_sleep):
+    async def test_no_deltas_then_retry(self):
         """Stream fails immediately (no deltas). Retry succeeds."""
         mock_client = MagicMock()
 
-        # create_stream fails immediately
-        def failing_stream(*args, **kwargs):
+        async def failing_stream(*args, **kwargs):
             raise Exception("Connection timeout")
-            yield  # make it a generator
+            yield  # make it an async generator
 
-        mock_client.create_stream.side_effect = failing_stream
+        mock_client.acreate_stream = MagicMock(return_value=failing_stream())
 
         # Retry succeeds
-        mock_client.create.return_value = _make_final_response("Response from retry")
+        mock_client.acreate = AsyncMock(return_value=_make_final_response("Response from retry"))
 
         agent = _make_test_agent(mock_client)
-        events = _collect_events(agent.run_stream("test"))
+        events = await _collect_stream_events(agent, "test")
 
         # No text_delta events (stream failed immediately)
         text_deltas = [e for e in events if e.event_type == "text_delta"]
@@ -293,22 +298,21 @@ class TestStreamFailRetrySuccess:
         assert complete_events[0].data["success"] is True
         assert complete_events[0].data["answer"] == "Response from retry"
 
-    @patch("time.sleep")
-    def test_retry_preserves_token_counts(self, mock_sleep):
+    async def test_retry_preserves_token_counts(self):
         """Verify token usage is correctly tracked from the retry response."""
         mock_client = MagicMock()
 
-        def failing_stream(*args, **kwargs):
+        async def failing_stream(*args, **kwargs):
             raise Exception("502 Bad Gateway")
             yield
 
-        mock_client.create_stream.side_effect = failing_stream
-        mock_client.create.return_value = _make_final_response(
+        mock_client.acreate_stream = MagicMock(return_value=failing_stream())
+        mock_client.acreate = AsyncMock(return_value=_make_final_response(
             "OK", input_tokens=200, output_tokens=80
-        )
+        ))
 
         agent = _make_test_agent(mock_client)
-        events = _collect_events(agent.run_stream("test"))
+        events = await _collect_stream_events(agent, "test")
 
         complete = [e for e in events if e.event_type == "complete"][0]
         assert complete.data["total_input_tokens"] == 200
@@ -319,23 +323,23 @@ class TestStreamFailRetrySuccess:
 # Class 4: Stream failure, retry also fails
 # ===================================================================
 
+@pytest.mark.asyncio
 class TestStreamFailRetryFail:
     """Both stream and retry fail — proper error propagation."""
 
-    @patch("time.sleep")
-    def test_both_fail_emits_error_complete(self, mock_sleep):
-        """Stream fails, retry fails → complete event with success=False."""
+    async def test_both_fail_emits_error_complete(self):
+        """Stream fails, retry fails -> complete event with success=False."""
         mock_client = MagicMock()
 
-        def failing_stream(*args, **kwargs):
+        async def failing_stream(*args, **kwargs):
             raise Exception("peer closed connection (incomplete chunked read)")
             yield
 
-        mock_client.create_stream.side_effect = failing_stream
-        mock_client.create.side_effect = Exception("Still failing: connection refused")
+        mock_client.acreate_stream = MagicMock(return_value=failing_stream())
+        mock_client.acreate = AsyncMock(side_effect=Exception("Still failing: connection refused"))
 
         agent = _make_test_agent(mock_client)
-        events = _collect_events(agent.run_stream("test"))
+        events = await _collect_stream_events(agent, "test")
 
         # Verify error complete event
         complete_events = [e for e in events if e.event_type == "complete"]
@@ -344,21 +348,20 @@ class TestStreamFailRetryFail:
         assert "failed" in complete_events[0].data["answer"].lower() or \
                "unsuccessful" in complete_events[0].data["answer"].lower()
 
-    @patch("time.sleep")
-    def test_both_fail_no_crash(self, mock_sleep):
-        """Even when both fail, run_stream() returns cleanly (no exception)."""
+    async def test_both_fail_no_crash(self):
+        """Even when both fail, run() returns cleanly (no exception)."""
         mock_client = MagicMock()
 
-        def failing_stream(*args, **kwargs):
+        async def failing_stream(*args, **kwargs):
             yield _make_delta("partial")
             raise Exception("503 Service Unavailable")
 
-        mock_client.create_stream.side_effect = failing_stream
-        mock_client.create.side_effect = Exception("503 Service Unavailable")
+        mock_client.acreate_stream = MagicMock(return_value=failing_stream())
+        mock_client.acreate = AsyncMock(side_effect=Exception("503 Service Unavailable"))
 
         agent = _make_test_agent(mock_client)
         # Should not raise — errors are channeled through events
-        events = _collect_events(agent.run_stream("test"))
+        events = await _collect_stream_events(agent, "test")
 
         # Partial delta still present
         text_deltas = [e for e in events if e.event_type == "text_delta"]
@@ -370,22 +373,21 @@ class TestStreamFailRetryFail:
         assert len(complete_events) == 1
         assert complete_events[0].data["success"] is False
 
-    @patch("time.sleep")
-    def test_partial_deltas_preserved_on_total_failure(self, mock_sleep):
+    async def test_partial_deltas_preserved_on_total_failure(self):
         """Verify that text_delta events already sent are not lost when everything fails."""
         mock_client = MagicMock()
 
-        def failing_stream(*args, **kwargs):
+        async def failing_stream(*args, **kwargs):
             yield _make_delta("Step 1: ")
             yield _make_delta("Download the file. ")
             yield _make_delta("Step 2: ")
             raise Exception("Connection reset by peer")
 
-        mock_client.create_stream.side_effect = failing_stream
-        mock_client.create.side_effect = Exception("Connection reset by peer")
+        mock_client.acreate_stream = MagicMock(return_value=failing_stream())
+        mock_client.acreate = AsyncMock(side_effect=Exception("Connection reset by peer"))
 
         agent = _make_test_agent(mock_client)
-        events = _collect_events(agent.run_stream("test"))
+        events = await _collect_stream_events(agent, "test")
 
         # All 3 partial deltas should be present in the events
         text_deltas = [e for e in events if e.event_type == "text_delta"]
@@ -398,46 +400,45 @@ class TestStreamFailRetryFail:
 # Class 5: Non-retryable error (no retry attempted)
 # ===================================================================
 
+@pytest.mark.asyncio
 class TestNonRetryableErrorNoRetry:
     """Non-retryable errors should skip retry and return error immediately."""
 
-    @patch("time.sleep")
-    def test_auth_error_no_retry(self, mock_sleep):
+    async def test_auth_error_no_retry(self):
         """Authentication error: no retry, immediate error."""
         mock_client = MagicMock()
 
-        def failing_stream(*args, **kwargs):
+        async def failing_stream(*args, **kwargs):
             raise Exception("Invalid API key: authentication failed")
             yield
 
-        mock_client.create_stream.side_effect = failing_stream
+        mock_client.acreate_stream = MagicMock(return_value=failing_stream())
 
         agent = _make_test_agent(mock_client)
-        events = _collect_events(agent.run_stream("test"))
+        events = await _collect_stream_events(agent, "test")
 
-        # create() should NOT have been called (non-retryable)
-        mock_client.create.assert_not_called()
+        # acreate() should NOT have been called (non-retryable)
+        mock_client.acreate.assert_not_called()
 
         # Error complete event
         complete_events = [e for e in events if e.event_type == "complete"]
         assert len(complete_events) == 1
         assert complete_events[0].data["success"] is False
 
-    @patch("time.sleep")
-    def test_validation_error_no_retry(self, mock_sleep):
+    async def test_validation_error_no_retry(self):
         """Validation error: no retry."""
         mock_client = MagicMock()
 
-        def failing_stream(*args, **kwargs):
+        async def failing_stream(*args, **kwargs):
             raise Exception("Invalid request body: tool schema mismatch")
             yield
 
-        mock_client.create_stream.side_effect = failing_stream
+        mock_client.acreate_stream = MagicMock(return_value=failing_stream())
 
         agent = _make_test_agent(mock_client)
-        events = _collect_events(agent.run_stream("test"))
+        events = await _collect_stream_events(agent, "test")
 
-        mock_client.create.assert_not_called()
+        mock_client.acreate.assert_not_called()
 
         complete_events = [e for e in events if e.event_type == "complete"]
         assert len(complete_events) == 1
@@ -445,7 +446,7 @@ class TestNonRetryableErrorNoRetry:
 
 
 # ===================================================================
-# Class 6: SSE endpoint with stream error events
+# Class 6: SSE endpoint with stream events
 # ===================================================================
 
 def _parse_sse_events(text: str):
@@ -465,7 +466,6 @@ def _parse_sse_events(text: str):
 def _mock_async_session():
     """Return a callable that produces async-context-manager sessions (no-op DB)."""
     from contextlib import asynccontextmanager
-    from unittest.mock import AsyncMock
 
     @asynccontextmanager
     async def _ctx():
@@ -479,6 +479,46 @@ def _mock_async_session():
     return _ctx
 
 
+def _make_mock_agent_with_events(events_to_push):
+    """Create a mock SkillsAgent whose run() pushes events to event_stream.
+
+    events_to_push: list of StreamEvent objects to push into the event_stream.
+    """
+    from app.agent.agent import AgentResult
+
+    mock_instance = MagicMock()
+
+    # Extract result data from complete event
+    complete_event = next((e for e in events_to_push if e.event_type == "complete"), None)
+    if complete_event:
+        result = AgentResult(
+            success=complete_event.data.get("success", False),
+            answer=complete_event.data.get("answer", ""),
+            total_turns=complete_event.data.get("total_turns", 0),
+            total_input_tokens=complete_event.data.get("total_input_tokens", 0),
+            total_output_tokens=complete_event.data.get("total_output_tokens", 0),
+            skills_used=complete_event.data.get("skills_used", []),
+            output_files=complete_event.data.get("output_files", []),
+            final_messages=complete_event.data.get("final_messages", []),
+        )
+    else:
+        result = AgentResult(success=False, answer="No complete event")
+
+    async def mock_run(request, conversation_history=None, image_contents=None,
+                       event_stream=None, cancellation_event=None):
+        if event_stream:
+            for event in events_to_push:
+                await event_stream.push(event)
+            await event_stream.close()
+        return result
+
+    mock_instance.run = AsyncMock(side_effect=mock_run)
+    mock_instance.cleanup = MagicMock()
+    mock_instance.model = "test-model"
+    mock_instance.model_provider = "test"
+    return mock_instance
+
+
 @pytest.mark.asyncio
 class TestStreamRetrySSE:
     """Test that the SSE endpoint properly handles text_delta + error from stream retry scenarios."""
@@ -487,14 +527,11 @@ class TestStreamRetrySSE:
     @patch("app.api.v1.agent.SkillsAgent")
     async def test_sse_with_text_deltas(self, MockAgent, MockSessionLocal, client):
         """SSE stream carries text_delta events from normal streaming."""
-        from types import SimpleNamespace
-
-        mock_instance = MagicMock()
-        mock_instance.run_stream.return_value = iter([
-            SimpleNamespace(event_type="turn_start", turn=1, data={"max_turns": 60}),
-            SimpleNamespace(event_type="text_delta", turn=1, data={"text": "Hello "}),
-            SimpleNamespace(event_type="text_delta", turn=1, data={"text": "world!"}),
-            SimpleNamespace(
+        mock_instance = _make_mock_agent_with_events([
+            StreamEvent(event_type="turn_start", turn=1, data={"max_turns": 60}),
+            StreamEvent(event_type="text_delta", turn=1, data={"text": "Hello "}),
+            StreamEvent(event_type="text_delta", turn=1, data={"text": "world!"}),
+            StreamEvent(
                 event_type="complete", turn=1,
                 data={
                     "success": True,
@@ -507,14 +544,12 @@ class TestStreamRetrySSE:
                 },
             ),
         ])
-        mock_instance.model = "test-model"
-        mock_instance.model_provider = "test"
         MockAgent.return_value = mock_instance
         MockSessionLocal.side_effect = lambda: _mock_async_session()()
 
         resp = await client.post(
             "/api/v1/agent/run/stream",
-            json={"request": "test stream with deltas"},
+            json={"request": "test stream with deltas", "session_id": "test-session-id"},
         )
         assert resp.status_code == 200
 
@@ -532,13 +567,10 @@ class TestStreamRetrySSE:
     @patch("app.api.v1.agent.SkillsAgent")
     async def test_sse_with_error_after_deltas(self, MockAgent, MockSessionLocal, client):
         """SSE stream: text_deltas followed by error complete (simulates failed retry)."""
-        from types import SimpleNamespace
-
-        mock_instance = MagicMock()
-        mock_instance.run_stream.return_value = iter([
-            SimpleNamespace(event_type="turn_start", turn=1, data={"max_turns": 60}),
-            SimpleNamespace(event_type="text_delta", turn=1, data={"text": "partial output "}),
-            SimpleNamespace(
+        mock_instance = _make_mock_agent_with_events([
+            StreamEvent(event_type="turn_start", turn=1, data={"max_turns": 60}),
+            StreamEvent(event_type="text_delta", turn=1, data={"text": "partial output "}),
+            StreamEvent(
                 event_type="complete", turn=1,
                 data={
                     "success": False,
@@ -551,14 +583,12 @@ class TestStreamRetrySSE:
                 },
             ),
         ])
-        mock_instance.model = "test-model"
-        mock_instance.model_provider = "test"
         MockAgent.return_value = mock_instance
         MockSessionLocal.side_effect = lambda: _mock_async_session()()
 
         resp = await client.post(
             "/api/v1/agent/run/stream",
-            json={"request": "test stream failure"},
+            json={"request": "test stream failure", "session_id": "test-session-id"},
         )
         assert resp.status_code == 200
 
@@ -580,23 +610,20 @@ class TestStreamRetrySSE:
         self, MockAgent, MockSessionLocal, client
     ):
         """Verify text_delta events are relayed and ordered correctly in SSE output."""
-        from types import SimpleNamespace
-
-        mock_instance = MagicMock()
-        mock_instance.run_stream.return_value = iter([
-            SimpleNamespace(event_type="turn_start", turn=1, data={"max_turns": 60}),
-            SimpleNamespace(event_type="text_delta", turn=1, data={"text": "Part 1. "}),
-            SimpleNamespace(event_type="text_delta", turn=1, data={"text": "Part 2. "}),
-            SimpleNamespace(
+        mock_instance = _make_mock_agent_with_events([
+            StreamEvent(event_type="turn_start", turn=1, data={"max_turns": 60}),
+            StreamEvent(event_type="text_delta", turn=1, data={"text": "Part 1. "}),
+            StreamEvent(event_type="text_delta", turn=1, data={"text": "Part 2. "}),
+            StreamEvent(
                 event_type="tool_call", turn=1,
                 data={"tool_name": "execute_code", "tool_input": {"code": "print(1)"}},
             ),
-            SimpleNamespace(
+            StreamEvent(
                 event_type="tool_result", turn=1,
                 data={"tool_name": "execute_code", "tool_result": "1", "tool_input": {"code": "print(1)"}},
             ),
-            SimpleNamespace(event_type="text_delta", turn=1, data={"text": "Done."}),
-            SimpleNamespace(
+            StreamEvent(event_type="text_delta", turn=1, data={"text": "Done."}),
+            StreamEvent(
                 event_type="complete", turn=1,
                 data={
                     "success": True,
@@ -609,14 +636,12 @@ class TestStreamRetrySSE:
                 },
             ),
         ])
-        mock_instance.model = "test-model"
-        mock_instance.model_provider = "test"
         MockAgent.return_value = mock_instance
         MockSessionLocal.side_effect = lambda: _mock_async_session()()
 
         resp = await client.post(
             "/api/v1/agent/run/stream",
-            json={"request": "test delta buffer"},
+            json={"request": "test delta buffer", "session_id": "test-session-id"},
         )
         assert resp.status_code == 200
 

@@ -16,6 +16,7 @@ from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agent import SkillsAgent
+from app.api.v1.sessions import load_or_create_session, save_session_messages, CHAT_SENTINEL_AGENT_ID
 from app.db.database import get_db, AsyncSessionLocal, SyncSessionLocal
 from app.db.models import AgentTraceDB, AgentPresetDB
 
@@ -65,12 +66,6 @@ async def _finalize_trace(trace_id: str, values: dict):
             logger.error(f"Sync trace update also failed for {trace_id}: {e2}")
 
 
-class ConversationMessage(BaseModel):
-    """A message in the conversation history"""
-    role: str = Field(..., description="Message role: 'user' or 'assistant'")
-    content: str = Field(..., description="Message content")
-
-
 class UploadedFile(BaseModel):
     """Info about an uploaded file"""
     file_id: str
@@ -92,9 +87,8 @@ class AgentRequest(BaseModel):
     skills: Optional[List[str]] = Field(None, description="List of skill names to activate (None = all available)")
     allowed_tools: Optional[List[str]] = Field(None, description="List of tool names to enable (None = all available)")
     max_turns: int = Field(60, description="Maximum turns before stopping", ge=1, le=60000)
-    conversation_history: Optional[List[ConversationMessage]] = Field(
-        None, description="Previous conversation messages for multi-turn dialogue"
-    )
+    session_id: str = Field(..., description="Session ID for server-side session management. "
+                                             "History is loaded from DB automatically.")
     uploaded_files: Optional[List[UploadedFile]] = Field(
         None, description="List of uploaded files available to the agent"
     )
@@ -303,10 +297,9 @@ async def run_agent(request: AgentRequest, db: AsyncSession = Depends(get_db)):
     )
 
     try:
-        # Convert conversation history to dict format for agent
-        history = None
-        if request.conversation_history:
-            history = [{"role": msg.role, "content": msg.content} for msg in request.conversation_history]
+        # Load session history from DB
+        agent_id = request.agent_id or CHAT_SENTINEL_AGENT_ID
+        session_id, history = await load_or_create_session(request.session_id, agent_id)
 
         # Build the actual request with file info and image blocks
         actual_request, image_contents = _build_request_with_files(
@@ -339,6 +332,14 @@ async def run_agent(request: AgentRequest, db: AsyncSession = Depends(get_db)):
         )
         db.add(trace)
         await db.commit()
+
+        # Save session
+        await save_session_messages(
+            session_id,
+            result.answer or "",
+            request.request,
+            final_messages=result.final_messages if hasattr(result, 'final_messages') else None,
+        )
 
         return AgentResponse(
             success=result.success,
@@ -388,10 +389,9 @@ async def run_agent_stream(request: AgentRequest, db: AsyncSession = Depends(get
         model_name=config.get("model_name"),
     )
 
-    # Convert conversation history
-    history = None
-    if request.conversation_history:
-        history = [{"role": msg.role, "content": msg.content} for msg in request.conversation_history]
+    # Load session history from DB
+    agent_id = request.agent_id or CHAT_SENTINEL_AGENT_ID
+    session_id, history = await load_or_create_session(request.session_id, agent_id)
 
     # Create queue for thread communication
     import queue
@@ -459,8 +459,8 @@ async def run_agent_stream(request: AgentRequest, db: AsyncSession = Depends(get
             await trace_db.commit()
             trace_id = trace.id
 
-        # Send run_started event with trace_id immediately
-        yield f"data: {json.dumps({'event_type': 'run_started', 'turn': 0, 'trace_id': trace_id})}\n\n"
+        # Send run_started event with trace_id and session_id
+        yield f"data: {json.dumps({'event_type': 'run_started', 'turn': 0, 'trace_id': trace_id, 'session_id': session_id})}\n\n"
 
         # Start agent in thread
         future = loop.run_in_executor(_executor, run_agent_in_thread)
@@ -561,6 +561,15 @@ async def run_agent_stream(request: AgentRequest, db: AsyncSession = Depends(get
                 "steps": collected_steps,
                 "duration_ms": duration_ms,
             })
+
+            # Save session messages
+            final_messages = last_complete_event.get("final_messages") if last_complete_event else None
+            await save_session_messages(
+                session_id,
+                last_complete_event.get("answer", "") if last_complete_event else "",
+                request.request,
+                final_messages=final_messages,
+            )
 
         if not was_cancelled:
             yield f"data: {json.dumps({'event_type': 'trace_saved', 'turn': 0, 'trace_id': trace_id})}\n\n"

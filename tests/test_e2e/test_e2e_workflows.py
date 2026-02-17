@@ -17,6 +17,8 @@ from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
 from types import SimpleNamespace
+
+from app.agent.agent import StreamEvent
 from typing import Dict, List, Optional
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -80,13 +82,13 @@ def _make_mock_agent(result=None):
 
 def _make_stream_events(answer="E2E stream done"):
     return [
-        SimpleNamespace(event_type="turn_start", turn=1, data={"turn": 1}),
-        SimpleNamespace(
+        StreamEvent(event_type="turn_start", turn=1, data={"turn": 1}),
+        StreamEvent(
             event_type="assistant",
             turn=1,
             data={"content": answer, "turn": 1},
         ),
-        SimpleNamespace(
+        StreamEvent(
             event_type="complete",
             turn=1,
             data={
@@ -103,6 +105,40 @@ def _make_stream_events(answer="E2E stream done"):
             },
         ),
     ]
+
+
+def _make_streaming_mock_agent(events=None, answer="E2E stream done"):
+    """Create mock agent that pushes events to event_stream in async run()."""
+    if events is None:
+        events = _make_stream_events(answer)
+
+    complete_event = next((e for e in events if e.event_type == "complete"), None)
+    result = _MockAgentResult(
+        success=complete_event.data.get("success", True) if complete_event else True,
+        answer=complete_event.data.get("answer", answer) if complete_event else answer,
+        total_turns=complete_event.data.get("total_turns", 1) if complete_event else 1,
+        total_input_tokens=complete_event.data.get("total_input_tokens", 100) if complete_event else 100,
+        total_output_tokens=complete_event.data.get("total_output_tokens", 50) if complete_event else 50,
+        skills_used=complete_event.data.get("skills_used", []) if complete_event else [],
+        output_files=complete_event.data.get("output_files", []) if complete_event else [],
+        final_messages=complete_event.data.get("final_messages", []) if complete_event else [],
+    )
+
+    mock_instance = MagicMock()
+    mock_instance.model = "claude-sonnet-4-5-20250929"
+    mock_instance.model_provider = "anthropic"
+    mock_instance.cleanup = MagicMock()
+
+    async def mock_run(request, conversation_history=None, image_contents=None,
+                       event_stream=None, cancellation_event=None):
+        if event_stream:
+            for event in events:
+                await event_stream.push(event)
+            await event_stream.close()
+        return result
+
+    mock_instance.run = AsyncMock(side_effect=mock_run)
+    return mock_instance
 
 
 def _mock_session_local():
@@ -495,7 +531,7 @@ class TestAgentPresetLifecycleE2E:
         MockAgent.return_value = _make_mock_agent()
         resp = await e2e_client.post(
             "/api/v1/agent/run",
-            json={"request": "E2E test request"},
+            json={"request": "E2E test request", "session_id": "test-session-id"},
         )
         assert resp.status_code == 200
         body = resp.json()
@@ -598,7 +634,7 @@ class TestAgentRunAndTraceE2E:
         MockAgent.return_value = _make_mock_agent()
         resp = await e2e_client.post(
             "/api/v1/agent/run",
-            json={"request": "E2E simple run"},
+            json={"request": "E2E simple run", "session_id": "test-session-id"},
         )
         assert resp.status_code == 200
         body = resp.json()
@@ -630,20 +666,16 @@ class TestAgentRunAndTraceE2E:
             assert t["success"] is True
 
     @patch("app.api.v1.agent.SkillsAgent")
-    async def test_05_run_with_skills_and_history(
+    async def test_05_run_with_skills_and_session(
         self, MockAgent, e2e_client: AsyncClient
     ):
         MockAgent.return_value = _make_mock_agent()
-        history = [
-            {"role": "user", "content": "Hi"},
-            {"role": "assistant", "content": "Hello!"},
-        ]
         resp = await e2e_client.post(
             "/api/v1/agent/run",
             json={
                 "request": "Continue our conversation",
                 "skills": ["test-skill"],
-                "conversation_history": history,
+                "session_id": "test-session-id",
             },
         )
         assert resp.status_code == 200
@@ -656,15 +688,12 @@ class TestAgentRunAndTraceE2E:
     async def test_06_run_stream(
         self, MockAgent, MockSessionLocal, e2e_client: AsyncClient
     ):
-        mock_instance = MagicMock()
-        mock_instance.run_stream.return_value = iter(_make_stream_events())
-        mock_instance.model = "claude-sonnet-4-5-20250929"
-        MockAgent.return_value = mock_instance
+        MockAgent.return_value = _make_streaming_mock_agent()
         MockSessionLocal.side_effect = lambda: _mock_session_local()()
 
         resp = await e2e_client.post(
             "/api/v1/agent/run/stream",
-            json={"request": "E2E stream test"},
+            json={"request": "E2E stream test", "session_id": "test-session-id"},
         )
         assert resp.status_code == 200
         assert "text/event-stream" in resp.headers.get("content-type", "")
@@ -736,7 +765,7 @@ class TestFileUploadE2E:
         ]
         resp = await e2e_client.post(
             "/api/v1/agent/run",
-            json={"request": "Process this file", "uploaded_files": files},
+            json={"request": "Process this file", "uploaded_files": files, "session_id": "test-session-id"},
         )
         assert resp.status_code == 200
         assert resp.json()["success"] is True

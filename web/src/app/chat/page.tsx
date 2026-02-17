@@ -19,6 +19,8 @@ import {
   MessageSquare,
   Home,
   Settings,
+  Navigation,
+  Plus,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -36,7 +38,8 @@ import {
 import { MultiSelect } from "@/components/ui/multi-select";
 import { skillsApi, agentApi, filesApi, mcpApi, toolsApi, agentPresetsApi, modelsApi, executorsApi } from "@/lib/api";
 import type { StreamEvent, OutputFileInfo } from "@/lib/api";
-import { useChatStore, getConversationHistory, REQUIRED_TOOLS, type ChatMessage } from "@/stores/chat-store";
+import { useChatStore, REQUIRED_TOOLS, type ChatMessage } from "@/stores/chat-store";
+import { useChatSessionRestore } from "@/hooks/use-chat-session";
 import { ChatMessageItem } from "@/components/chat/chat-message";
 import type { StreamEventRecord } from "@/types/stream-events";
 import { handleStreamEvent, serializeEventsToText } from "@/lib/stream-utils";
@@ -54,6 +57,7 @@ export default function FullscreenChatPage() {
   // Use zustand store for persistence (shared with chat panel via localStorage)
   const {
     messages,
+    sessionId,
     selectedSkills,
     selectedTools,
     selectedMcpServers,
@@ -66,7 +70,9 @@ export default function FullscreenChatPage() {
     updateMessage,
     removeMessages,
     clearMessages,
+    newSession,
     resetAll,
+    setSessionId,
     setSelectedSkills,
     setSelectedTools,
     setSelectedMcpServers,
@@ -83,6 +89,9 @@ export default function FullscreenChatPage() {
     selectedExecutorId,
     setSelectedExecutorId,
   } = useChatStore();
+
+  // Restore session messages from server on mount
+  useChatSessionRestore();
 
   const [showToolsPanel, setShowToolsPanel] = React.useState(false);
   const [showResetDialog, setShowResetDialog] = React.useState(false);
@@ -179,8 +188,27 @@ export default function FullscreenChatPage() {
     }
   }, [agentPresets, selectedAgentPreset, systemPrompt, setSystemPrompt]);
 
+  const handleSteer = async (message: string) => {
+    const traceId = currentTraceIdRef.current;
+    if (!traceId) return;
+    try {
+      await agentApi.steerAgent(traceId, message);
+      setInput("");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to send steering message");
+    }
+  };
+
   const handleSubmit = async () => {
-    if (!input.trim() || useChatStore.getState().isRunning) return;
+    if (!input.trim()) return;
+
+    // Steering mode
+    if (useChatStore.getState().isRunning && currentTraceIdRef.current) {
+      await handleSteer(input.trim());
+      return;
+    }
+
+    if (useChatStore.getState().isRunning) return;
 
     const abortController = new AbortController();
     abortControllerRef.current = abortController;
@@ -230,8 +258,12 @@ export default function FullscreenChatPage() {
       const currentSkills = useChatStore.getState().selectedSkills;
       const skillsList = currentSkills.length > 0 ? currentSkills : undefined;
 
-      const previousMessages = [...messages, userMessage];
-      const conversationHistory = getConversationHistory(previousMessages);
+      // Generate session_id if none exists (deferred creation)
+      let currentSessionId = useChatStore.getState().sessionId;
+      if (!currentSessionId) {
+        currentSessionId = crypto.randomUUID();
+        setSessionId(currentSessionId);
+      }
 
       const events: StreamEventRecord[] = [];
       let finalAnswer = "";
@@ -255,8 +287,8 @@ export default function FullscreenChatPage() {
       if (currentAgentPreset) {
         agentRequest = {
           request: userMessage.content,
+          session_id: currentSessionId,
           agent_id: currentAgentPreset,
-          conversation_history: conversationHistory.length > 1 ? conversationHistory.slice(0, -1) : undefined,
           uploaded_files: agentFiles,
           model_provider: currentModelProvider || undefined,
           model_name: currentModelName || undefined,
@@ -270,10 +302,10 @@ export default function FullscreenChatPage() {
 
         agentRequest = {
           request: userMessage.content,
+          session_id: currentSessionId,
           skills: skillsList,
           allowed_tools: toolsList,
           max_turns: maxTurns,
-          conversation_history: conversationHistory.length > 1 ? conversationHistory.slice(0, -1) : undefined,
           uploaded_files: agentFiles,
           equipped_mcp_servers: mcpServersList,
           system_prompt: currentSystemPrompt || undefined,
@@ -294,6 +326,9 @@ export default function FullscreenChatPage() {
             case "run_started":
               traceId = event.trace_id;
               currentTraceIdRef.current = traceId || null;
+              if (event.session_id) {
+                setSessionId(event.session_id);
+              }
               flushSync(() => {
                 updateMessage(loadingMessageId, { traceId: traceId });
               });
@@ -459,12 +494,22 @@ export default function FullscreenChatPage() {
         <Button
           variant="outline"
           size="sm"
-          onClick={handleReset}
+          onClick={() => newSession()}
           disabled={messages.length === 0 || isRunning}
-          title="Reset conversation"
+          title="New Chat"
+        >
+          <Plus className="h-4 w-4 mr-1" />
+          New Chat
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleReset}
+          disabled={isRunning}
+          title="Reset everything"
         >
           <RotateCcw className="h-4 w-4 mr-1" />
-          Reset
+          Reset All
         </Button>
         <Link href="/">
           <Button variant="outline" size="sm" title="Back to home">
@@ -795,9 +840,8 @@ export default function FullscreenChatPage() {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Type your message..."
+              placeholder={isRunning ? "Steer the agent..." : "Type your message..."}
               className="min-h-[80px] resize-none"
-              disabled={isRunning}
             />
           </div>
           <div className="flex justify-between items-center mt-2">
@@ -825,10 +869,16 @@ export default function FullscreenChatPage() {
               </span>
             </div>
             {isRunning ? (
-              <Button onClick={handleStop} variant="destructive">
-                <Square className="h-4 w-4 mr-1" />
-                Stop
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button onClick={handleStop} variant="destructive" size="sm">
+                  <Square className="h-4 w-4 mr-1" />
+                  Stop
+                </Button>
+                <Button onClick={handleSubmit} disabled={!input.trim()} size="sm">
+                  <Navigation className="h-4 w-4 mr-1" />
+                  Steer
+                </Button>
+              </div>
             ) : (
               <Button onClick={handleSubmit} disabled={!input.trim()}>
                 Send

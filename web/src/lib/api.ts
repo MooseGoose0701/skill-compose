@@ -662,11 +662,6 @@ export const filesApi = {
 };
 
 // Agent API
-export interface ConversationMessage {
-  role: 'user' | 'assistant';
-  content: string;
-}
-
 export interface AgentUploadedFile {
   file_id: string;
   filename: string;
@@ -676,13 +671,13 @@ export interface AgentUploadedFile {
 
 export interface AgentRequest {
   request: string;
+  session_id: string;  // Session ID for server-side session management
   agent_id?: string;  // Agent preset ID. When set, uses preset config and ignores individual config fields.
   model_provider?: string;  // LLM provider: anthropic, openrouter, openai, google
   model_name?: string;  // Model name/ID for the provider
   skills?: string[];  // Optional list of skills to activate (undefined = all)
   allowed_tools?: string[];  // Optional list of tools to enable (undefined = all)
   max_turns?: number;
-  conversation_history?: ConversationMessage[];  // Previous messages for multi-turn dialogue
   uploaded_files?: AgentUploadedFile[];  // Uploaded files available to the agent
   equipped_mcp_servers?: string[];  // Optional list of MCP servers to enable (undefined = all)
   system_prompt?: string;  // Custom system prompt to append to base prompt
@@ -710,7 +705,7 @@ const AGENT_API_BASE = BACKEND_API_BASE;
 
 // Stream event types
 export interface StreamEvent {
-  event_type: 'run_started' | 'turn_start' | 'text_delta' | 'assistant' | 'tool_call' | 'tool_result' | 'output_file' | 'complete' | 'error' | 'trace_saved';
+  event_type: 'run_started' | 'turn_start' | 'text_delta' | 'assistant' | 'tool_call' | 'tool_result' | 'output_file' | 'complete' | 'error' | 'trace_saved' | 'steering_received';
   turn: number;
   // For turn_start
   max_turns?: number;
@@ -833,6 +828,31 @@ export const agentApi = {
         }
       }
     }
+  },
+
+  steerAgent: async (traceId: string, message: string): Promise<void> => {
+    const response = await fetch(
+      `${AGENT_API_BASE}/agent/run/stream/${encodeURIComponent(traceId)}/steer`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message }),
+      }
+    );
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error.detail || `Steer failed: ${response.statusText}`);
+    }
+  },
+
+  getSession: async (sessionId: string): Promise<SessionMessages> => {
+    const response = await fetch(
+      `${AGENT_API_BASE}/published/sessions/${encodeURIComponent(sessionId)}/detail`
+    );
+    if (!response.ok) {
+      throw new ApiError(response.status, 'Session not found');
+    }
+    return response.json();
   },
 };
 

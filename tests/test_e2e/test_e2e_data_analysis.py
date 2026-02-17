@@ -349,6 +349,7 @@ class FullDataAnalysisTestBase:
                     "model_provider": config["model_provider"],
                     "model_name": config["model_name"],
                     "max_turns": 30,
+                    "session_id": "e2e-data-analysis-stream-session",
                 },
                 timeout=300,  # 5 min timeout for multi-turn analysis
             )

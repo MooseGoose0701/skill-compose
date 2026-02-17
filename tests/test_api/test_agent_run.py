@@ -3,14 +3,14 @@ Tests for the Agent run endpoint.
 
 Covers:
 - POST /api/v1/agent/run (synchronous agent execution)
-- Various request parameters: skills, max_turns, history, files, mcp_servers
+- Various request parameters: skills, max_turns, session_id, files, mcp_servers
 - Success and failure scenarios
 - Trace saving after execution
 """
 
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from httpx import AsyncClient
@@ -65,7 +65,7 @@ class MockAgentResult:
 def _make_mock_agent(result: Optional[MockAgentResult] = None):
     """Return a MagicMock that behaves like SkillsAgent."""
     instance = MagicMock()
-    instance.run.return_value = result or MockAgentResult()
+    instance.run = AsyncMock(return_value=result or MockAgentResult())
     instance.model = "kimi-k2.5"
     instance.model_provider = "kimi"
     return instance
@@ -83,7 +83,7 @@ async def test_agent_run_simple(MockAgent, client: AsyncClient):
 
     response = await client.post(
         "/api/v1/agent/run",
-        json={"request": "Hello, what can you do?"},
+        json={"request": "Hello, what can you do?", "session_id": "test-session-id"},
     )
 
     assert response.status_code == 200
@@ -101,7 +101,7 @@ async def test_agent_run_with_skills(MockAgent, client: AsyncClient):
 
     response = await client.post(
         "/api/v1/agent/run",
-        json={"request": "Analyze this", "skills": ["test-skill"]},
+        json={"request": "Analyze this", "skills": ["test-skill"], "session_id": "test-session-id"},
     )
 
     assert response.status_code == 200
@@ -120,7 +120,7 @@ async def test_agent_run_with_max_turns(MockAgent, client: AsyncClient):
 
     response = await client.post(
         "/api/v1/agent/run",
-        json={"request": "Quick task", "max_turns": 5},
+        json={"request": "Quick task", "max_turns": 5, "session_id": "test-session-id"},
     )
 
     assert response.status_code == 200
@@ -131,28 +131,18 @@ async def test_agent_run_with_max_turns(MockAgent, client: AsyncClient):
 
 
 @patch("app.api.v1.agent.SkillsAgent")
-async def test_agent_run_with_history(MockAgent, client: AsyncClient):
-    """POST /agent/run with conversation_history sends history to agent."""
+async def test_agent_run_with_session_id(MockAgent, client: AsyncClient):
+    """POST /agent/run with session_id accepts and processes the request."""
     MockAgent.return_value = _make_mock_agent()
-
-    history = [
-        {"role": "user", "content": "Hi"},
-        {"role": "assistant", "content": "Hello!"},
-    ]
 
     response = await client.post(
         "/api/v1/agent/run",
-        json={"request": "Continue our chat", "conversation_history": history},
+        json={"request": "Continue our chat", "session_id": "test-session-id"},
     )
 
     assert response.status_code == 200
     body = response.json()
     assert body["success"] is True
-    # Verify run() was called with conversation_history
-    run_call = MockAgent.return_value.run
-    run_call.assert_called_once()
-    _, run_kwargs = run_call.call_args
-    assert run_kwargs["conversation_history"] == history
 
 
 @patch("app.api.v1.agent.SkillsAgent")
@@ -171,7 +161,7 @@ async def test_agent_run_with_files(MockAgent, client: AsyncClient):
 
     response = await client.post(
         "/api/v1/agent/run",
-        json={"request": "Summarize this file", "uploaded_files": files},
+        json={"request": "Summarize this file", "uploaded_files": files, "session_id": "test-session-id"},
     )
 
     assert response.status_code == 200
@@ -197,7 +187,7 @@ async def test_agent_run_failure(MockAgent, client: AsyncClient):
 
     response = await client.post(
         "/api/v1/agent/run",
-        json={"request": "Do something impossible"},
+        json={"request": "Do something impossible", "session_id": "test-session-id"},
     )
 
     assert response.status_code == 200
@@ -213,7 +203,7 @@ async def test_agent_run_saves_trace(MockAgent, client: AsyncClient):
 
     response = await client.post(
         "/api/v1/agent/run",
-        json={"request": "Test trace saving"},
+        json={"request": "Test trace saving", "session_id": "test-session-id"},
     )
 
     assert response.status_code == 200
@@ -233,6 +223,7 @@ async def test_agent_run_with_mcp_servers(MockAgent, client: AsyncClient):
         json={
             "request": "Fetch a webpage",
             "equipped_mcp_servers": ["fetch"],
+            "session_id": "test-session-id",
         },
     )
 
