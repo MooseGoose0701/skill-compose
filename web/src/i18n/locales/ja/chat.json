@@ -1,5 +1,6 @@
 {
   "title": "チャット",
+  "chatPanel": "チャットパネル",
   "placeholder": "メッセージを入力...",
   "send": "送信",
   "stop": "停止",
@@ -11,11 +12,27 @@
   "generating": "生成中...",
   "openFullscreen": "新しいウィンドウで開く",
   "reset": "リセット",
+  "resetAll": "すべてリセット",
+  "resetEverything": "すべてリセット",
+  "resetDescription": "すべてリセット（メッセージ、ファイル、スキル、ツール、MCPサーバー、最大ターン数）して最初からやり直しますか？",
+  "close": "閉じる",
+  "manage": "管理",
   "home": "ホーム",
   "config": "設定",
   "startConversation": "会話を開始",
   "typeMessageToBegin": "下にメッセージを入力してエージェントとのチャットを開始してください。",
   "clickConfigToCustomize": "上の設定をクリックしてカスタマイズしてください。",
+  "selectSkillsHint": "上でスキルを選択してエージェントが使用できるスキルを制限できます。",
+  "multiTurnHint": "会話はマルチターン対話をサポートしています。",
+  "configManagedByPreset": "プリセットで管理 — 編集でカスタムに切替",
+  "requiredToolsNote": "* 必須ツールは無効にできません。",
+  "mcpDefaultNote": "MCPサーバーはデフォルトで無効です。",
+  "enterToSend": "Enterで送信",
+  "attach": "添付",
+  "defaultModel": "デフォルト (Kimi K2.5)",
+  "agentNotAvailable": "エージェントは利用できません",
+  "builtinTools": "内蔵ツール",
+  "selected": "選択済み",
   "configuration": {
     "title": "設定",
     "agent": "エージェント",
@@ -29,6 +46,7 @@
     "mcpServers": "MCPサーバー",
     "selectMcpServers": "MCPサーバーを選択",
     "maxTurns": "最大ターン数",
+    "turns": "ターン",
     "systemPrompt": "システムプロンプト",
     "systemPromptPlaceholder": "カスタムシステムプロンプト...",
     "model": "モデル",
@@ -66,6 +84,9 @@
   },
   "error": {
     "sendFailed": "メッセージの送信に失敗しました",
+    "steerFailed": "ステアリングメッセージの送信に失敗しました",
+    "uploadFailed": "ファイルのアップロードに失敗しました",
+    "runFailed": "エージェントの実行に失敗しました",
     "connectionLost": "接続が切断されました",
     "tryAgain": "再試行"
   },
@@ -83,5 +104,9 @@
     "placeholder": "エージェントを操舵...",
     "button": "操舵",
     "label": "ステアリング"
+  },
+  "published": {
+    "typeToBegin": "下にメッセージを入力して開始してください。",
+    "notAvailable": "このエージェントは利用できません。"
   }
 }

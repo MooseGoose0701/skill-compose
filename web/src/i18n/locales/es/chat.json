@@ -1,5 +1,6 @@
 {
   "title": "Chat",
+  "chatPanel": "Panel de Chat",
   "placeholder": "Escribe un mensaje...",
   "send": "Enviar",
   "stop": "Detener",
@@ -11,11 +12,27 @@
   "generating": "Generando...",
   "openFullscreen": "Abrir en nueva ventana",
   "reset": "Restablecer",
+  "resetAll": "Restablecer Todo",
+  "resetEverything": "Restablecer Todo",
+  "resetDescription": "¿Restablecer todo (mensajes, archivos, habilidades, herramientas, servidores MCP, turnos máximos) y empezar de nuevo?",
+  "close": "Cerrar",
+  "manage": "Gestionar",
   "home": "Inicio",
   "config": "Configurar",
   "startConversation": "Iniciar una conversación",
   "typeMessageToBegin": "Escribe un mensaje abajo para comenzar a chatear con el agente.",
   "clickConfigToCustomize": "Haz clic en Configurar arriba para personalizar los ajustes.",
+  "selectSkillsHint": "Selecciona habilidades arriba para limitar las que el agente puede usar.",
+  "multiTurnHint": "Las conversaciones admiten diálogos de múltiples turnos.",
+  "configManagedByPreset": "Configuración gestionada por preset — edita para cambiar a personalizada",
+  "requiredToolsNote": "* Las herramientas requeridas no se pueden deshabilitar.",
+  "mcpDefaultNote": "Los servidores MCP están deshabilitados por defecto.",
+  "enterToSend": "Enter para enviar",
+  "attach": "Adjuntar",
+  "defaultModel": "Predeterminado (Kimi K2.5)",
+  "agentNotAvailable": "Agente No Disponible",
+  "builtinTools": "Herramientas Integradas",
+  "selected": "seleccionado",
   "configuration": {
     "title": "Configuración",
     "agent": "Agente",
@@ -29,6 +46,7 @@
     "mcpServers": "Servidores MCP",
     "selectMcpServers": "Seleccionar servidores MCP",
     "maxTurns": "Turnos Máximos",
+    "turns": "Turnos",
     "systemPrompt": "Prompt del Sistema",
     "systemPromptPlaceholder": "Prompt del sistema personalizado...",
     "model": "Modelo",
@@ -66,6 +84,9 @@
   },
   "error": {
     "sendFailed": "Error al enviar el mensaje",
+    "steerFailed": "Error al enviar mensaje de dirección",
+    "uploadFailed": "Error al subir archivo",
+    "runFailed": "Error al ejecutar el agente",
     "connectionLost": "Conexión perdida",
     "tryAgain": "Intentar de nuevo"
   },
@@ -83,5 +104,9 @@
     "placeholder": "Dirigir al agente...",
     "button": "Dirigir",
     "label": "Dirección"
+  },
+  "published": {
+    "typeToBegin": "Escribe un mensaje abajo para comenzar.",
+    "notAvailable": "Este agente no está disponible."
   }
 }
