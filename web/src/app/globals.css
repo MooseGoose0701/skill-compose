@@ -91,3 +91,53 @@
 .code-preview-scrollbar code::-webkit-scrollbar-corner {
   background: #282c34;
 }
+
+/* Homepage: animated gradient mesh background (uses transform for compositor efficiency) */
+@keyframes gradient-shift {
+  0%, 100% { transform: translateX(0); }
+  50% { transform: translateX(-33.3%); }
+}
+
+/* Homepage: dot-grid overlay pattern */
+.dot-grid {
+  background-image: radial-gradient(circle, hsl(var(--foreground) / 0.06) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+.dark .dot-grid {
+  background-image: radial-gradient(circle, hsl(var(--foreground) / 0.08) 1px, transparent 1px);
+}
+
+/* Homepage: glass morphism card */
+.glass-card {
+  background: hsl(var(--card) / 0.6);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid hsl(var(--border) / 0.5);
+}
+.dark .glass-card {
+  background: hsl(var(--card) / 0.35);
+  border-color: hsl(var(--border) / 0.4);
+}
+
+/* Homepage: staggered fade-in-up entrance */
+.fade-in-up {
+  animation: fade-in-up 0.5s ease-out both;
+  animation-delay: var(--delay, 0ms);
+}
+@media (prefers-reduced-motion: reduce) {
+  .fade-in-up { animation: none; opacity: 1; transform: none; }
+}
+
+/* Homepage: gradient text */
+.gradient-text {
+  background: linear-gradient(135deg, #3b82f6, #8b5cf6, #6366f1);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.dark .gradient-text {
+  background: linear-gradient(135deg, #60a5fa, #a78bfa, #818cf8);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
