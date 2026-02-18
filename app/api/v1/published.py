@@ -415,6 +415,7 @@ async def published_chat(agent_id: str, request: PublishedChatRequest):
                 steps=[],
                 llm_calls=[],
                 duration_ms=0,
+                executor_name=config.get("executor_name"),
             )
             trace_db.add(trace)
             await trace_db.commit()
@@ -639,6 +640,7 @@ async def published_chat_sync(agent_id: str, request: PublishedChatRequest):
             steps=[],
             llm_calls=[],
             duration_ms=0,
+            executor_name=config.get("executor_name"),
         )
         trace_db.add(trace)
         await trace_db.commit()

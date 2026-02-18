@@ -313,6 +313,9 @@ class AgentTraceDB(Base):
     duration_ms: Mapped[Optional[int]] = mapped_column(
         nullable=True
     )  # Execution duration in milliseconds
+    executor_name: Mapped[Optional[str]] = mapped_column(
+        String(64), nullable=True
+    )  # Executor used (e.g., "remotion", "base", None for local)
 
     __table_args__ = (
         Index("ix_agent_traces_created_at", "created_at"),
