@@ -48,6 +48,7 @@ class TraceListItem(BaseModel):
     total_output_tokens: int
     created_at: datetime
     duration_ms: Optional[int] = None
+    executor_name: Optional[str] = None
 
 
 class TraceDetail(BaseModel):
@@ -67,6 +68,7 @@ class TraceDetail(BaseModel):
     llm_calls: Optional[List[dict]] = None
     created_at: datetime
     duration_ms: Optional[int] = None
+    executor_name: Optional[str] = None
 
 
 class TraceListResponse(BaseModel):
@@ -133,6 +135,7 @@ async def list_traces(
                 total_output_tokens=t.total_output_tokens,
                 created_at=t.created_at,
                 duration_ms=t.duration_ms,
+                executor_name=t.executor_name,
             )
             for t in traces
         ],
@@ -176,6 +179,7 @@ async def get_trace(
         llm_calls=trace.llm_calls,
         created_at=trace.created_at,
         duration_ms=trace.duration_ms,
+        executor_name=trace.executor_name,
     )
 
 
@@ -219,6 +223,7 @@ def _trace_to_export_dict(trace: AgentTraceDB) -> dict:
         "llm_calls": trace.llm_calls,
         "created_at": trace.created_at.isoformat() if trace.created_at else None,
         "duration_ms": trace.duration_ms,
+        "executor_name": trace.executor_name,
     }
 
 

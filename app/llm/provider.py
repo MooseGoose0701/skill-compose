@@ -592,6 +592,7 @@ class LLMClient:
             "messages": converted_messages,
             "max_tokens": max_tokens,
             "stream": True,
+            "stream_options": {"include_usage": True},
         }
 
         if converted_tools:
@@ -811,6 +812,7 @@ class LLMClient:
             "messages": converted_messages,
             "max_tokens": max_tokens,
             "stream": True,
+            "stream_options": {"include_usage": True},
         }
         if converted_tools:
             kwargs["tools"] = converted_tools

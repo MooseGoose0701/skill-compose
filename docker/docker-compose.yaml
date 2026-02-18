@@ -208,6 +208,7 @@ services:
     volumes:
       - workspaces:/app/workspaces
       - skills:/app/skills:ro
+      - uploads:/app/uploads:ro
     environment:
       - EXECUTOR_NAME=base
       - EXECUTOR_PORT=62680
@@ -237,6 +238,7 @@ services:
     volumes:
       - workspaces:/app/workspaces
       - skills:/app/skills:ro
+      - uploads:/app/uploads:ro
     environment:
       - EXECUTOR_NAME=ml
       - EXECUTOR_PORT=62681
@@ -266,6 +268,7 @@ services:
     volumes:
       - workspaces:/app/workspaces
       - skills:/app/skills:ro
+      - uploads:/app/uploads:ro
     environment:
       - EXECUTOR_NAME=cuda
       - EXECUTOR_PORT=62682
@@ -302,6 +305,7 @@ services:
     volumes:
       - workspaces:/app/workspaces
       - skills:/app/skills:ro
+      - uploads:/app/uploads:ro
     environment:
       - EXECUTOR_NAME=chemscout
       - EXECUTOR_PORT=62680
