@@ -621,7 +621,7 @@ async def run_agent_stream(request: AgentRequest, db: AsyncSession = Depends(get
                         final_messages=last_complete_event.get("final_messages"),
                     )
                 elif last_messages_snapshot:
-                    # Interrupted — save last checkpoint (best effort)
+                    # Cancelled or interrupted — save last checkpoint (best effort)
                     try:
                         await save_session_messages(session_id, "", request.request, final_messages=last_messages_snapshot)
                     except Exception:
