@@ -9,6 +9,7 @@ Each tool is defined as a dict with:
 """
 import asyncio
 import json
+import logging
 import os
 import re
 import subprocess
@@ -35,6 +36,34 @@ from app.db.models import SkillDB, SkillVersionDB
 # Get working directory from settings (loads from .env automatically via pydantic_settings)
 _settings = get_settings()
 WORKING_DIR = str(Path(_settings.app_working_dir or _settings.project_dir).resolve())
+
+logger = logging.getLogger(__name__)
+
+
+def _write_via_subprocess(filepath: Path, content: str) -> None:
+    """Write file via subprocess for Docker overlay2 filesystem consistency.
+
+    In Docker overlay2, files written by a parent process (API uvicorn worker)
+    may not be immediately visible to child subprocesses (bash, execute_code).
+    By writing via subprocess, the file is created in the same FS layer that
+    other subprocesses see, eliminating the visibility inconsistency.
+
+    Content is passed via stdin pipe to avoid shell quoting issues.
+    """
+    subprocess.run(
+        ['mkdir', '-p', str(filepath.parent)],
+        check=True, capture_output=True,
+    )
+    proc = subprocess.run(
+        ['sh', '-c', 'cat > "$1"', 'sh', str(filepath)],
+        input=content.encode('utf-8'),
+        capture_output=True,
+    )
+    if proc.returncode != 0:
+        raise IOError(
+            f"Subprocess write failed (exit {proc.returncode}): "
+            f"{proc.stderr.decode(errors='replace')}"
+        )
 
 
 def get_skill_env_vars(skill_names: List[str]) -> Dict[str, str]:
@@ -511,20 +540,17 @@ def write(file_path: str, content: str) -> Dict[str, Any]:
             return {"error": f"Cannot write to sensitive location: {file_path}"}
 
     try:
-        # Create parent directories if needed
-        filepath.parent.mkdir(parents=True, exist_ok=True)
+        _write_via_subprocess(filepath, content)
 
-        # Write file
-        with open(filepath, 'w', encoding='utf-8') as f:
-            f.write(content)
-
+        expected_bytes = len(content.encode('utf-8'))
         return {
             "success": True,
             "path": str(filepath),
-            "bytes_written": len(content.encode('utf-8')),
-            "message": f"Successfully wrote {len(content.encode('utf-8'))} bytes to {filepath}"
+            "bytes_written": expected_bytes,
+            "message": f"Successfully wrote {expected_bytes} bytes to {filepath}"
         }
     except Exception as e:
+        logger.error("Failed to write file %s: %s", filepath, e)
         return {"error": f"Failed to write file: {str(e)}"}
 
 
@@ -597,9 +623,9 @@ def edit(file_path: str, old_string: str, new_string: str, replace_all: bool = F
         return {"error": "No changes made - old_string equals new_string"}
 
     try:
-        with open(filepath, 'w', encoding='utf-8') as f:
-            f.write(new_content)
+        _write_via_subprocess(filepath, new_content)
     except Exception as e:
+        logger.error("Failed to write edited file %s: %s", filepath, e)
         return {"error": f"Failed to write file: {str(e)}"}
 
     return {
