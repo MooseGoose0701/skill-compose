@@ -26,6 +26,7 @@ import { useChatEngine } from "@/hooks/use-chat-engine";
 import { ChatMessageItem } from "./chat-message";
 import { ModelSelect, AgentPresetSelect, ExecutorSelect } from "./selects";
 import { useTranslation } from "@/i18n/client";
+import { generateUUID } from "@/lib/utils";
 
 interface ChatPanelProps {
   isOpen: boolean;
@@ -98,7 +99,7 @@ export function ChatPanel({ isOpen, onClose, defaultSkills = [] }: ChatPanelProp
         const state = useChatStore.getState();
         let currentSessionId = state.sessionId;
         if (!currentSessionId) {
-          currentSessionId = crypto.randomUUID();
+          currentSessionId = generateUUID();
           setSessionId(currentSessionId);
         }
 

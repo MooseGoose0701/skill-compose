@@ -37,6 +37,7 @@ import { ChatMessageItem } from "@/components/chat/chat-message";
 import type { StreamEventRecord } from "@/types/stream-events";
 import { handleStreamEvent, serializeEventsToText } from "@/lib/stream-utils";
 import { useTranslation } from "@/i18n/client";
+import { generateUUID } from "@/lib/utils";
 import { toast } from "sonner";
 
 interface LocalMessage extends ChatMessage {}
@@ -90,7 +91,7 @@ export default function SkillEvolvePage() {
   const initialMessageSentRef = useRef(false);
 
   // Session ID for server-side session management (new per evolve chat)
-  const [sessionId, setEvolveSessionId] = useState(() => crypto.randomUUID());
+  const [sessionId, setEvolveSessionId] = useState(() => generateUUID());
 
   const hasTraces = selectedTraceIds.size > 0;
   const hasFeedback = feedback.trim().length > 0;
@@ -205,7 +206,7 @@ export default function SkillEvolvePage() {
     setSyncResult(null);
     initialMessageSentRef.current = false;
     setAgentPreset(null);
-    setEvolveSessionId(crypto.randomUUID());
+    setEvolveSessionId(generateUUID());
   };
 
   const buildInitialMessageText = (): string => {
