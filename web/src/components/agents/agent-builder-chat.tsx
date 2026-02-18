@@ -15,6 +15,7 @@ import { ModelSelect } from '@/components/chat/selects';
 import type { ChatMessage } from '@/stores/chat-store';
 import type { StreamEventRecord } from '@/types/stream-events';
 import { handleStreamEvent, serializeEventsToText } from '@/lib/stream-utils';
+import { generateUUID } from '@/lib/utils';
 
 export function AgentBuilderChat() {
   const router = useRouter();
@@ -38,7 +39,7 @@ export function AgentBuilderChat() {
   const [selectedModelName, setSelectedModelName] = useState<string | null>('kimi-k2.5');
 
   // Session ID for server-side session management
-  const [sessionId] = useState(() => crypto.randomUUID());
+  const [sessionId] = useState(() => generateUUID());
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);

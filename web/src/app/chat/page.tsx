@@ -23,6 +23,7 @@ import { useChatEngine } from "@/hooks/use-chat-engine";
 import { ChatMessageItem } from "@/components/chat/chat-message";
 import { ModelSelect, AgentPresetSelect, ExecutorSelect } from "@/components/chat/selects";
 import { useTranslation } from "@/i18n/client";
+import { generateUUID } from "@/lib/utils";
 
 export default function FullscreenChatPage() {
   const { t } = useTranslation('chat');
@@ -60,7 +61,7 @@ export default function FullscreenChatPage() {
         const state = useChatStore.getState();
         let currentSessionId = state.sessionId;
         if (!currentSessionId) {
-          currentSessionId = crypto.randomUUID();
+          currentSessionId = generateUUID();
           setSessionId(currentSessionId);
         }
 
