@@ -102,6 +102,16 @@ cd skill-compose/docker
 docker compose down
 ```
 
+Build from source (after code changes):
+
+```bash
+cd skill-compose/docker
+cp .env.example .env  # First time only; Add your own API keys
+./rebuild.sh          # Rebuild all services
+./rebuild.sh api      # Rebuild API only
+./rebuild.sh web      # Rebuild Web only
+```
+
 <details>
 <summary>Cleanup (reset to initial state)</summary>
 

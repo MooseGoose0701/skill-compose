@@ -102,6 +102,16 @@ cd skill-compose/docker
 docker compose down
 ```
 
+从源码构建（代码变更后）：
+
+```bash
+cd skill-compose/docker
+cp .env.example .env  # 仅首次需要；填入你的 API Key
+./rebuild.sh          # 重建所有服务
+./rebuild.sh api      # 仅重建 API
+./rebuild.sh web      # 仅重建 Web
+```
+
 <details>
 <summary>清理（重置为初始状态）</summary>
 

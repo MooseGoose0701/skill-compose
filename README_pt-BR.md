@@ -102,6 +102,16 @@ cd skill-compose/docker
 docker compose down
 ```
 
+Compilar a partir do código-fonte (após alterações no código):
+
+```bash
+cd skill-compose/docker
+cp .env.example .env  # Apenas na primeira vez; adicione suas API keys
+./rebuild.sh          # Reconstruir todos os serviços
+./rebuild.sh api      # Reconstruir apenas API
+./rebuild.sh web      # Reconstruir apenas Web
+```
+
 <details>
 <summary>Limpeza (redefinir para o estado inicial)</summary>
 
