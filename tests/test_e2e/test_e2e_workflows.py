@@ -2996,3 +2996,363 @@ class TestPublishedSessionManagementE2E:
         await e2e_client.post(f"/api/v1/agents/{pid}/unpublish")
         resp = await e2e_client.delete(f"/api/v1/agents/{pid}")
         assert resp.status_code == 200
+
+
+# ===================================================================
+# Class: Resilient Streaming — turn_complete & incremental session save
+# ===================================================================
+
+@pytest.mark.e2e
+@pytest.mark.asyncio(loop_scope="class")
+class TestResilientStreamingE2E:
+    """Verify turn_complete event triggers incremental session saves and is not forwarded to SSE client.
+
+    Tests cover both published.py and agent.py streaming endpoints.
+    """
+
+    _state: dict = {}
+
+    # -- Helpers --
+
+    @staticmethod
+    def _make_multi_turn_events(answer="Multi-turn done"):
+        """Create a multi-turn event sequence with turn_complete checkpoints."""
+        turn1_snapshot = [
+            {"role": "user", "content": "do something"},
+            {"role": "assistant", "content": [{"type": "tool_use", "id": "t1", "name": "bash", "input": {"command": "ls"}}]},
+            {"role": "user", "content": [{"type": "tool_result", "tool_use_id": "t1", "content": "file1.txt"}]},
+        ]
+        turn2_snapshot = turn1_snapshot + [
+            {"role": "assistant", "content": [{"type": "tool_use", "id": "t2", "name": "read", "input": {"path": "file1.txt"}}]},
+            {"role": "user", "content": [{"type": "tool_result", "tool_use_id": "t2", "content": "hello world"}]},
+        ]
+        final_messages = turn2_snapshot + [
+            {"role": "assistant", "content": [{"type": "text", "text": answer}]},
+        ]
+
+        return [
+            StreamEvent(event_type="turn_start", turn=1, data={"turn": 1}),
+            StreamEvent(event_type="tool_call", turn=1, data={
+                "tool_name": "bash", "tool_input": {"command": "ls"},
+            }),
+            StreamEvent(event_type="tool_result", turn=1, data={
+                "tool_name": "bash", "tool_result": "file1.txt",
+            }),
+            # First checkpoint after turn 1
+            StreamEvent(event_type="turn_complete", turn=1, data={
+                "messages_snapshot": turn1_snapshot,
+            }),
+            StreamEvent(event_type="turn_start", turn=2, data={"turn": 2}),
+            StreamEvent(event_type="tool_call", turn=2, data={
+                "tool_name": "read", "tool_input": {"path": "file1.txt"},
+            }),
+            StreamEvent(event_type="tool_result", turn=2, data={
+                "tool_name": "read", "tool_result": "hello world",
+            }),
+            # Second checkpoint after turn 2
+            StreamEvent(event_type="turn_complete", turn=2, data={
+                "messages_snapshot": turn2_snapshot,
+            }),
+            StreamEvent(event_type="assistant", turn=3, data={
+                "content": answer, "turn": 3,
+            }),
+            StreamEvent(event_type="complete", turn=3, data={
+                "success": True,
+                "answer": answer,
+                "total_turns": 3,
+                "total_input_tokens": 500,
+                "total_output_tokens": 150,
+                "skills_used": [],
+                "final_messages": final_messages,
+            }),
+        ]
+
+    # -- Setup --
+
+    async def test_01_create_and_publish(self, e2e_client: AsyncClient):
+        """Create and publish an agent for testing."""
+        payload = {
+            "name": "e2e-resilient-streaming",
+            "description": "Test resilient streaming checkpoints",
+            "max_turns": 10,
+        }
+        resp = await e2e_client.post("/api/v1/agents", json=payload)
+        assert resp.status_code == 200
+        type(self)._state["preset_id"] = resp.json()["id"]
+
+        pid = type(self)._state["preset_id"]
+        resp = await e2e_client.post(
+            f"/api/v1/agents/{pid}/publish",
+            json={"api_response_mode": "streaming"},
+        )
+        assert resp.status_code == 200
+
+    # -- Published endpoint tests --
+
+    @patch("app.api.v1.published.save_session_messages", new_callable=AsyncMock)
+    @patch("app.api.v1.published.load_or_create_session", new_callable=AsyncMock)
+    @patch("app.api.v1.published.SkillsAgent")
+    @patch("app.api.v1.published.AsyncSessionLocal")
+    async def test_02_turn_complete_triggers_incremental_save(
+        self, MockSL, MockAgent, MockLoadSession, MockSave, e2e_client: AsyncClient
+    ):
+        """turn_complete events trigger incremental save_session_messages calls."""
+        pid = type(self)._state["preset_id"]
+
+        events = self._make_multi_turn_events()
+        MockAgent.return_value = _make_streaming_mock_agent(events=events, answer="Multi-turn done")
+
+        from app.db.models import AgentPresetDB
+        mock_preset = MagicMock(spec=AgentPresetDB)
+        mock_preset.id = pid
+        mock_preset.name = "e2e-resilient-streaming"
+        mock_preset.description = "Test"
+        mock_preset.is_published = True
+        mock_preset.api_response_mode = "streaming"
+        mock_preset.skill_ids = []
+        mock_preset.builtin_tools = None
+        mock_preset.max_turns = 10
+        mock_preset.mcp_servers = []
+        mock_preset.system_prompt = None
+        mock_preset.model_provider = None
+        mock_preset.model_name = None
+        mock_preset.executor_id = None
+
+        call_idx = {"i": 0}
+        results = [mock_preset, None, None, None, None, None]
+
+        @asynccontextmanager
+        async def _ctx():
+            idx = min(call_idx["i"], len(results) - 1)
+            call_idx["i"] += 1
+            mock_sess = AsyncMock(spec=AsyncSession)
+            mock_result = MagicMock()
+            mock_result.scalar_one_or_none.return_value = results[idx]
+            mock_sess.execute = AsyncMock(return_value=mock_result)
+            mock_sess.add = MagicMock()
+            mock_sess.commit = AsyncMock()
+            yield mock_sess
+
+        MockSL.side_effect = lambda: _ctx()
+
+        session_id = str(uuid.uuid4())
+        MockLoadSession.return_value = (session_id, None)
+
+        resp = await e2e_client.post(
+            f"/api/v1/published/{pid}/chat",
+            json={"request": "do something", "session_id": session_id},
+        )
+        assert resp.status_code == 200
+
+        # Verify save_session_messages was called multiple times:
+        # 2 incremental (turn_complete) + 1 final (complete)
+        assert MockSave.call_count >= 3, f"Expected >=3 save calls, got {MockSave.call_count}"
+
+        # First two calls are incremental (empty answer, with snapshot)
+        call_args_list = MockSave.call_args_list
+        # Call 0: turn 1 checkpoint — empty answer for incremental
+        assert call_args_list[0].args[1] == ""
+        # Call 1: turn 2 checkpoint — empty answer for incremental
+        assert call_args_list[1].args[1] == ""
+
+        # Last call is the definitive save with final answer
+        last_call = call_args_list[-1]
+        assert last_call.args[1] == "Multi-turn done"
+
+    @patch("app.api.v1.published.save_session_messages", new_callable=AsyncMock)
+    @patch("app.api.v1.published.load_or_create_session", new_callable=AsyncMock)
+    @patch("app.api.v1.published.SkillsAgent")
+    @patch("app.api.v1.published.AsyncSessionLocal")
+    async def test_03_turn_complete_not_forwarded_to_client(
+        self, MockSL, MockAgent, MockLoadSession, MockSave, e2e_client: AsyncClient
+    ):
+        """turn_complete events must NOT appear in SSE output to the client."""
+        pid = type(self)._state["preset_id"]
+
+        events = self._make_multi_turn_events()
+        MockAgent.return_value = _make_streaming_mock_agent(events=events, answer="Multi-turn done")
+
+        from app.db.models import AgentPresetDB
+        mock_preset = MagicMock(spec=AgentPresetDB)
+        mock_preset.id = pid
+        mock_preset.name = "e2e-resilient-streaming"
+        mock_preset.description = "Test"
+        mock_preset.is_published = True
+        mock_preset.api_response_mode = "streaming"
+        mock_preset.skill_ids = []
+        mock_preset.builtin_tools = None
+        mock_preset.max_turns = 10
+        mock_preset.mcp_servers = []
+        mock_preset.system_prompt = None
+        mock_preset.model_provider = None
+        mock_preset.model_name = None
+        mock_preset.executor_id = None
+
+        call_idx = {"i": 0}
+        results = [mock_preset, None, None, None, None, None]
+
+        @asynccontextmanager
+        async def _ctx():
+            idx = min(call_idx["i"], len(results) - 1)
+            call_idx["i"] += 1
+            mock_sess = AsyncMock(spec=AsyncSession)
+            mock_result = MagicMock()
+            mock_result.scalar_one_or_none.return_value = results[idx]
+            mock_sess.execute = AsyncMock(return_value=mock_result)
+            mock_sess.add = MagicMock()
+            mock_sess.commit = AsyncMock()
+            yield mock_sess
+
+        MockSL.side_effect = lambda: _ctx()
+
+        session_id = str(uuid.uuid4())
+        MockLoadSession.return_value = (session_id, None)
+
+        resp = await e2e_client.post(
+            f"/api/v1/published/{pid}/chat",
+            json={"request": "do something", "session_id": session_id},
+        )
+        assert resp.status_code == 200
+
+        sse_events = parse_sse_events(resp.text)
+        event_types = [e["event_type"] for e in sse_events]
+
+        # turn_complete must NOT be in SSE output
+        assert "turn_complete" not in event_types, \
+            f"turn_complete should not be forwarded to client, but found in: {event_types}"
+
+        # Other events should be present
+        assert "run_started" in event_types
+        assert "tool_call" in event_types
+        assert "tool_result" in event_types
+        assert "complete" in event_types
+
+    @patch("app.api.v1.published.save_session_messages", new_callable=AsyncMock)
+    @patch("app.api.v1.published.load_or_create_session", new_callable=AsyncMock)
+    @patch("app.api.v1.published.SkillsAgent")
+    @patch("app.api.v1.published.AsyncSessionLocal")
+    async def test_04_checkpoint_snapshot_content_correct(
+        self, MockSL, MockAgent, MockLoadSession, MockSave, e2e_client: AsyncClient
+    ):
+        """Verify incremental saves contain growing messages_snapshot."""
+        pid = type(self)._state["preset_id"]
+
+        events = self._make_multi_turn_events()
+        MockAgent.return_value = _make_streaming_mock_agent(events=events, answer="Multi-turn done")
+
+        from app.db.models import AgentPresetDB
+        mock_preset = MagicMock(spec=AgentPresetDB)
+        mock_preset.id = pid
+        mock_preset.name = "e2e-resilient-streaming"
+        mock_preset.description = "Test"
+        mock_preset.is_published = True
+        mock_preset.api_response_mode = "streaming"
+        mock_preset.skill_ids = []
+        mock_preset.builtin_tools = None
+        mock_preset.max_turns = 10
+        mock_preset.mcp_servers = []
+        mock_preset.system_prompt = None
+        mock_preset.model_provider = None
+        mock_preset.model_name = None
+        mock_preset.executor_id = None
+
+        call_idx = {"i": 0}
+        results = [mock_preset, None, None, None, None, None]
+
+        @asynccontextmanager
+        async def _ctx():
+            idx = min(call_idx["i"], len(results) - 1)
+            call_idx["i"] += 1
+            mock_sess = AsyncMock(spec=AsyncSession)
+            mock_result = MagicMock()
+            mock_result.scalar_one_or_none.return_value = results[idx]
+            mock_sess.execute = AsyncMock(return_value=mock_result)
+            mock_sess.add = MagicMock()
+            mock_sess.commit = AsyncMock()
+            yield mock_sess
+
+        MockSL.side_effect = lambda: _ctx()
+
+        session_id = str(uuid.uuid4())
+        MockLoadSession.return_value = (session_id, None)
+
+        resp = await e2e_client.post(
+            f"/api/v1/published/{pid}/chat",
+            json={"request": "do something", "session_id": session_id},
+        )
+        assert resp.status_code == 200
+
+        call_args_list = MockSave.call_args_list
+
+        # First checkpoint (turn 1): 3 messages (user + assistant tool_use + tool_result)
+        first_msgs = call_args_list[0].kwargs.get("final_messages") or call_args_list[0].args[3]
+        assert len(first_msgs) == 3
+        assert first_msgs[0]["role"] == "user"
+
+        # Second checkpoint (turn 2): 5 messages (turn1 + turn2 tool_use + tool_result)
+        second_msgs = call_args_list[1].kwargs.get("final_messages") or call_args_list[1].args[3]
+        assert len(second_msgs) == 5
+        assert len(second_msgs) > len(first_msgs)
+
+        # Final save: full messages including assistant answer
+        final_msgs = call_args_list[-1].kwargs.get("final_messages") or call_args_list[-1].args[3]
+        assert len(final_msgs) == 6  # 5 + final assistant text
+
+    # -- Agent (chat panel) endpoint tests --
+
+    @patch("app.api.v1.agent.save_session_messages", new_callable=AsyncMock)
+    @patch("app.api.v1.agent.load_or_create_session", new_callable=AsyncMock, return_value=("test-resilient-session", None))
+    @patch("app.api.v1.agent.AsyncSessionLocal")
+    @patch("app.api.v1.agent.SkillsAgent")
+    async def test_05_agent_endpoint_turn_complete_incremental_save(
+        self, MockAgent, MockSessionLocal, _mock_load, MockSave, e2e_client: AsyncClient
+    ):
+        """Agent /run/stream endpoint also handles turn_complete for incremental saves."""
+        events = self._make_multi_turn_events(answer="Agent multi-turn done")
+        MockAgent.return_value = _make_streaming_mock_agent(events=events, answer="Agent multi-turn done")
+        MockSessionLocal.side_effect = lambda: _mock_session_local()()
+
+        resp = await e2e_client.post(
+            "/api/v1/agent/run/stream",
+            json={"request": "do something", "session_id": "test-resilient-session"},
+        )
+        assert resp.status_code == 200
+
+        # Verify incremental saves happened
+        assert MockSave.call_count >= 3, f"Expected >=3 save calls, got {MockSave.call_count}"
+
+        # turn_complete not in SSE
+        sse_events = parse_sse_events(resp.text)
+        event_types = [e["event_type"] for e in sse_events]
+        assert "turn_complete" not in event_types
+
+    @patch("app.api.v1.agent.save_session_messages", new_callable=AsyncMock)
+    @patch("app.api.v1.agent.load_or_create_session", new_callable=AsyncMock, return_value=("test-resilient-session", None))
+    @patch("app.api.v1.agent.AsyncSessionLocal")
+    @patch("app.api.v1.agent.SkillsAgent")
+    async def test_06_no_turn_complete_means_no_incremental_save(
+        self, MockAgent, MockSessionLocal, _mock_load, MockSave, e2e_client: AsyncClient
+    ):
+        """Without turn_complete events, only the final save happens."""
+        events = _make_stream_events(answer="Simple answer")
+        MockAgent.return_value = _make_streaming_mock_agent(events=events, answer="Simple answer")
+        MockSessionLocal.side_effect = lambda: _mock_session_local()()
+
+        resp = await e2e_client.post(
+            "/api/v1/agent/run/stream",
+            json={"request": "simple question", "session_id": "test-resilient-session"},
+        )
+        assert resp.status_code == 200
+
+        # Only 1 save call (the final completion save)
+        assert MockSave.call_count == 1, f"Expected 1 save call, got {MockSave.call_count}"
+        assert MockSave.call_args_list[0].args[1] == "Simple answer"
+
+    # -- Cleanup --
+
+    async def test_07_cleanup(self, e2e_client: AsyncClient):
+        """Unpublish and delete the test agent."""
+        pid = type(self)._state["preset_id"]
+        await e2e_client.post(f"/api/v1/agents/{pid}/unpublish")
+        resp = await e2e_client.delete(f"/api/v1/agents/{pid}")
+        assert resp.status_code == 200

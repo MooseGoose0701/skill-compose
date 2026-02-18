@@ -457,12 +457,23 @@ async def published_chat(agent_id: str, request: PublishedChatRequest):
         )
 
         last_complete_event = None
+        last_messages_snapshot = None  # Incremental checkpoint for resilient save
         collected_steps = []
         current_text_buffer = ""
         was_cancelled = False
 
         try:
             async for event in event_stream:
+                # Intercept turn_complete for incremental session save (not forwarded to client)
+                if event.event_type == "turn_complete":
+                    last_messages_snapshot = event.data.get("messages_snapshot")
+                    if session_id and last_messages_snapshot:
+                        try:
+                            await save_session_messages(session_id, "", request.request, final_messages=last_messages_snapshot)
+                        except Exception:
+                            pass  # fire-and-forget
+                    continue
+
                 event_data = {
                     "event_type": event.event_type,
                     "turn": event.turn,
@@ -555,13 +566,21 @@ async def published_chat(agent_id: str, request: PublishedChatRequest):
             })
 
             # Save full conversation messages to session
-            if not was_cancelled and session_id and last_complete_event:
-                await save_session_messages(
-                    session_id,
-                    final_answer,
-                    request.request,
-                    final_messages=last_complete_event.get("final_messages"),
-                )
+            if session_id:
+                if not was_cancelled and last_complete_event:
+                    # Normal completion — definitive save with final answer
+                    await save_session_messages(
+                        session_id,
+                        final_answer,
+                        request.request,
+                        final_messages=last_complete_event.get("final_messages"),
+                    )
+                elif last_messages_snapshot:
+                    # Interrupted — save last checkpoint (best effort)
+                    try:
+                        await save_session_messages(session_id, "", request.request, final_messages=last_messages_snapshot)
+                    except Exception:
+                        pass
 
         if not was_cancelled:
             yield f"data: {json.dumps({'event_type': 'trace_saved', 'turn': 0, 'trace_id': trace_id})}\n\n"

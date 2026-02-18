@@ -165,6 +165,11 @@ export function useChatEngine(options: ChatEngineOptions): ChatEngineReturn {
     setStreamingEvents([]);
     setCurrentOutputFiles([]);
 
+    // Track partial progress for resilient error recovery
+    let partialEvents: StreamEventRecord[] | null = null;
+    let partialTraceId: string | undefined;
+    let partialOutputFiles: OutputFileInfo[] | undefined;
+
     try {
       if (rm === 'non_streaming' && sa.runSync) {
         // ── Non-streaming (sync) mode ──
@@ -229,6 +234,7 @@ export function useChatEngine(options: ChatEngineOptions): ChatEngineReturn {
       } else {
         // ── Streaming mode ──
         const events: StreamEventRecord[] = [];
+        partialEvents = events;  // Same reference — accumulates automatically
         let finalAnswer = "";
         let traceId: string | undefined;
         let hasError = false;
@@ -245,6 +251,7 @@ export function useChatEngine(options: ChatEngineOptions): ChatEngineReturn {
             switch (event.event_type) {
               case "run_started":
                 traceId = event.trace_id;
+                partialTraceId = traceId;
                 currentTraceIdRef.current = traceId || null;
                 if (event.session_id && onSid) {
                   onSid(event.session_id);
@@ -281,6 +288,7 @@ export function useChatEngine(options: ChatEngineOptions): ChatEngineReturn {
                     description: event.description,
                   };
                   outputFiles.push(fileInfo);
+                  partialOutputFiles = [...outputFiles];
                   flushSync(() => {
                     setCurrentOutputFiles([...outputFiles]);
                   });
@@ -307,14 +315,49 @@ export function useChatEngine(options: ChatEngineOptions): ChatEngineReturn {
         });
       }
     } catch (err) {
-      if (err instanceof Error && err.name === 'AbortError') {
+      const isAbort = err instanceof Error && err.name === 'AbortError';
+      if (isAbort) {
+        // User clicked Stop — preserve partial progress if available
+        if (partialEvents && partialEvents.length > 0) {
+          ma.updateMessage(loadingMessageId, {
+            content: serializeEventsToText(partialEvents),
+            streamEvents: partialEvents,
+            isLoading: false,
+            traceId: partialTraceId,
+            outputFiles: partialOutputFiles,
+          });
+        } else {
+          // No progress yet — remove messages as if request never happened
+          if (currentRequestMessagesRef.current.length > 0) {
+            ma.removeMessages(currentRequestMessagesRef.current);
+          }
+        }
         return;
       }
-      ma.updateMessage(loadingMessageId, {
-        content: "Failed to run agent",
-        isLoading: false,
-        error: err instanceof Error ? err.message : "Unknown error",
-      });
+      if (partialEvents && partialEvents.length > 0) {
+        // Preserve accumulated progress and append error indicator
+        partialEvents.push({
+          id: `error-${Date.now()}`,
+          timestamp: Date.now(),
+          type: 'error',
+          data: { message: `Connection lost: ${err instanceof Error ? err.message : 'Unknown error'}` },
+        });
+        ma.updateMessage(loadingMessageId, {
+          content: serializeEventsToText(partialEvents),
+          streamEvents: partialEvents,
+          isLoading: false,
+          traceId: partialTraceId,
+          error: err instanceof Error ? err.message : "Unknown error",
+          outputFiles: partialOutputFiles,
+        });
+      } else {
+        // No partial progress — fallback to original behavior
+        ma.updateMessage(loadingMessageId, {
+          content: "Failed to run agent",
+          isLoading: false,
+          error: err instanceof Error ? err.message : "Unknown error",
+        });
+      }
     } finally {
       ma.setIsRunning(false);
       setStreamingMessageId(null);
@@ -335,23 +378,11 @@ export function useChatEngine(options: ChatEngineOptions): ChatEngineReturn {
   }, [handleSubmit]);
 
   const handleStop = React.useCallback(() => {
-    const ma = adapterRef.current.messageAdapter;
-    if (!ma.getIsRunning() || !abortControllerRef.current) return;
+    if (!adapterRef.current.messageAdapter.getIsRunning() || !abortControllerRef.current) return;
 
+    // Signal abort — the catch block in handleSubmit will preserve partial
+    // progress or remove messages if nothing was accumulated yet.
     abortControllerRef.current.abort();
-
-    if (currentRequestMessagesRef.current.length > 0) {
-      ma.removeMessages(currentRequestMessagesRef.current);
-    }
-
-    ma.setIsRunning(false);
-    setStreamingMessageId(null);
-    setStreamingContent(null);
-    setStreamingEvents([]);
-    setCurrentOutputFiles([]);
-    abortControllerRef.current = null;
-    currentRequestMessagesRef.current = [];
-    currentTraceIdRef.current = null;
   }, []);
 
   const handleFileUpload = React.useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
