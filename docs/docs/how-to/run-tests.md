@@ -28,7 +28,7 @@ Do not run multiple test suites in parallel — they share the same test databas
 
 ## Test Categories
 
-### Unit Tests (~390 tests, ~55s)
+### Unit Tests (~394 tests, ~55s)
 
 Test individual API endpoints and services using a per-test isolated database. No API keys required.
 
@@ -42,7 +42,7 @@ Or run directly:
 pytest tests/test_api/ tests/test_core/ tests/test_services/ -v
 ```
 
-### E2E Workflow Tests (~170 tests, ~15s)
+### E2E Workflow Tests (~168 tests, ~15s)
 
 End-to-end API workflows using mocked LLM responses. Covers skills lifecycle, agents, traces, file upload, code execution, MCP, and more.
 
@@ -50,7 +50,7 @@ End-to-end API workflows using mocked LLM responses. Covers skills lifecycle, ag
 ./scripts/run-tests.sh e2e
 ```
 
-### Real LLM Tests (~62 tests, ~6 min)
+### Real LLM Tests (~72 tests, ~7 min)
 
 Tests that make real API calls to Kimi 2.5. Requires `MOONSHOT_API_KEY` in your `.env` file.
 
@@ -58,12 +58,13 @@ Tests that make real API calls to Kimi 2.5. Requires `MOONSHOT_API_KEY` in your 
 ./scripts/run-tests.sh llm
 ```
 
-This runs three test suites:
+This runs four test suites:
 
 | Suite | Tests | Coverage |
 |-------|-------|----------|
 | Real Agent | 26 | Agent chat, streaming, evolve, import lifecycle |
 | Published Agent | 21 | Publish, streaming/non-streaming modes, multi-turn, MCP tools |
+| Compression | 10 | Context compression with real LLM, summary format, published agent compression |
 | Data Analysis | 15 | Skill creation, file upload, agent execution, trace verification |
 
 ## Understanding Results
@@ -74,13 +75,14 @@ The script prints a color-coded summary at the end:
 ============================================
  Summary
 ============================================
-  PASS  Unit Tests  (48s)
+  PASS  Unit Tests  (55s)
   PASS  E2E Workflow (mock)  (15s)
   PASS  E2E Real Agent (Kimi 2.5)  (262s)
   PASS  E2E Published Agent (Kimi 2.5)  (47s)
+  PASS  E2E Compression (Kimi 2.5)  (60s)
   PASS  E2E Data Analysis (Kimi 2.5)  (181s)
 
-  Total: 5 passed, 0 failed, 0 skipped
+  Total: 6 passed, 0 failed, 0 skipped
 ```
 
 - **PASS** — All tests in the suite passed

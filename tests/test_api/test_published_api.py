@@ -272,10 +272,12 @@ class TestPublishedChat:
         )
         assert resp.status_code == 404
 
+    @patch("app.api.v1.published.save_session_messages", new_callable=AsyncMock)
+    @patch("app.api.v1.published.load_or_create_session", new_callable=AsyncMock)
     @patch("app.api.v1.published.SkillsAgent")
     @patch("app.api.v1.published.AsyncSessionLocal")
     async def test_chat_creates_session(
-        self, MockSL, MockAgent, client: AsyncClient
+        self, MockSL, MockAgent, MockLoadSession, _mock_save, client: AsyncClient
     ):
         """Chatting with a valid published agent returns SSE stream."""
         preset = _make_preset(published=True)
@@ -314,6 +316,7 @@ class TestPublishedChat:
         MockSL.side_effect = lambda: _ctx()
 
         session_id = str(uuid.uuid4())
+        MockLoadSession.return_value = (session_id, None)
         resp = await client.post(
             f"{API}/{preset.id}/chat",
             json={"request": "hello", "session_id": session_id},

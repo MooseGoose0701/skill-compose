@@ -61,11 +61,14 @@ class TestRealAgentE2E:
         assert body["name"] == "e2e-real-agent"
         type(self)._state["preset_id"] = body["id"]
 
-    async def test_02_first_message(self, e2e_client: AsyncClient):
+    async def test_02_first_message(self, e2e_client: AsyncClient, e2e_session_factories):
         """Send a simple message and validate response structure."""
         session_id = "e2e-real-session-001"
         type(self)._state["session_id"] = session_id
-        with _patch_api_key():
+        with (
+            _patch_api_key(),
+            patch("app.api.v1.sessions.AsyncSessionLocal", e2e_session_factories["async"]),
+        ):
             resp = await e2e_client.post(
                 "/api/v1/agent/run",
                 json={
@@ -85,10 +88,13 @@ class TestRealAgentE2E:
         type(self)._state["trace_id_1"] = body["trace_id"]
         type(self)._state["first_answer"] = body["answer"]
 
-    async def test_03_follow_up(self, e2e_client: AsyncClient):
+    async def test_03_follow_up(self, e2e_client: AsyncClient, e2e_session_factories):
         """Send a follow-up message using the same session (history loaded from DB)."""
         session_id = type(self)._state["session_id"]
-        with _patch_api_key():
+        with (
+            _patch_api_key(),
+            patch("app.api.v1.sessions.AsyncSessionLocal", e2e_session_factories["async"]),
+        ):
             resp = await e2e_client.post(
                 "/api/v1/agent/run",
                 json={
@@ -125,9 +131,12 @@ class TestRealAgentE2E:
                 assert detail["total_input_tokens"] > 0
                 assert detail["total_output_tokens"] > 0
 
-    async def test_05_stream_conversation(self, e2e_client: AsyncClient):
+    async def test_05_stream_conversation(self, e2e_client: AsyncClient, e2e_session_factories):
         """Test SSE streaming with real LLM."""
-        with _patch_api_key():
+        with (
+            _patch_api_key(),
+            patch("app.api.v1.sessions.AsyncSessionLocal", e2e_session_factories["async"]),
+        ):
             resp = await e2e_client.post(
                 "/api/v1/agent/run/stream",
                 json={
@@ -254,9 +263,12 @@ class TestRealEvolveE2E:
         result = next(r for r in body["results"] if r["name"] == "jpg-to-bmp")
         assert result["success"] is True
 
-    async def test_03_run_agent_to_generate_trace(self, e2e_client: AsyncClient):
+    async def test_03_run_agent_to_generate_trace(self, e2e_client: AsyncClient, e2e_session_factories):
         """Run Agent with jpg-to-bmp to create a trace."""
-        with _patch_api_key():
+        with (
+            _patch_api_key(),
+            patch("app.api.v1.sessions.AsyncSessionLocal", e2e_session_factories["async"]),
+        ):
             resp = await e2e_client.post(
                 "/api/v1/agent/run",
                 json={
