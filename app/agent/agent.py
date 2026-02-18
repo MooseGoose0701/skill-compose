@@ -132,7 +132,7 @@ class AgentResult:
 @dataclass
 class StreamEvent:
     """Event emitted during streaming execution."""
-    event_type: str  # "turn_start", "text_delta", "assistant", "tool_call", "tool_result", "output_file", "complete", "error"
+    event_type: str  # "turn_start", "text_delta", "assistant", "tool_call", "tool_result", "output_file", "turn_complete", "complete", "error"
     turn: int
     data: Dict[str, Any] = field(default_factory=dict)
 
@@ -1034,6 +1034,14 @@ class SkillsAgent:
                             turn=turns,
                             data={"message": steering_msg}
                         ))
+
+            # Emit turn_complete checkpoint (all tool_use/tool_result pairs matched)
+            if streaming:
+                await event_stream.push(StreamEvent(
+                    event_type="turn_complete",
+                    turn=turns,
+                    data={"messages_snapshot": messages.copy()}
+                ))
 
         # Exited the loop — either max turns or cancellation
 
