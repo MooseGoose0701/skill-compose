@@ -527,8 +527,10 @@ class TestAgentPresetLifecycleE2E:
         assert body["description"] == "Updated E2E preset"
         assert body["max_turns"] == 20
 
+    @patch("app.api.v1.agent.save_session_messages", new_callable=AsyncMock)
+    @patch("app.api.v1.agent.load_or_create_session", new_callable=AsyncMock, return_value=("test-session-id", None))
     @patch("app.api.v1.agent.SkillsAgent")
-    async def test_06_run_agent(self, MockAgent, e2e_client: AsyncClient):
+    async def test_06_run_agent(self, MockAgent, _mock_load, _mock_save, e2e_client: AsyncClient):
         MockAgent.return_value = _make_mock_agent()
         resp = await e2e_client.post(
             "/api/v1/agent/run",
@@ -630,8 +632,10 @@ class TestAgentRunAndTraceE2E:
 
     _state: dict = {}
 
+    @patch("app.api.v1.agent.save_session_messages", new_callable=AsyncMock)
+    @patch("app.api.v1.agent.load_or_create_session", new_callable=AsyncMock, return_value=("test-session-id", None))
     @patch("app.api.v1.agent.SkillsAgent")
-    async def test_01_run_simple(self, MockAgent, e2e_client: AsyncClient):
+    async def test_01_run_simple(self, MockAgent, _mock_load, _mock_save, e2e_client: AsyncClient):
         MockAgent.return_value = _make_mock_agent()
         resp = await e2e_client.post(
             "/api/v1/agent/run",
@@ -666,9 +670,11 @@ class TestAgentRunAndTraceE2E:
         for t in body["traces"]:
             assert t["success"] is True
 
+    @patch("app.api.v1.agent.save_session_messages", new_callable=AsyncMock)
+    @patch("app.api.v1.agent.load_or_create_session", new_callable=AsyncMock, return_value=("test-session-id", None))
     @patch("app.api.v1.agent.SkillsAgent")
     async def test_05_run_with_skills_and_session(
-        self, MockAgent, e2e_client: AsyncClient
+        self, MockAgent, _mock_load, _mock_save, e2e_client: AsyncClient
     ):
         MockAgent.return_value = _make_mock_agent()
         resp = await e2e_client.post(
@@ -684,10 +690,12 @@ class TestAgentRunAndTraceE2E:
         assert body["success"] is True
         type(self)._state["trace_id_2"] = body["trace_id"]
 
+    @patch("app.api.v1.agent.save_session_messages", new_callable=AsyncMock)
+    @patch("app.api.v1.agent.load_or_create_session", new_callable=AsyncMock, return_value=("test-session-id", None))
     @patch("app.api.v1.agent.AsyncSessionLocal")
     @patch("app.api.v1.agent.SkillsAgent")
     async def test_06_run_stream(
-        self, MockAgent, MockSessionLocal, e2e_client: AsyncClient
+        self, MockAgent, MockSessionLocal, _mock_load, _mock_save, e2e_client: AsyncClient
     ):
         MockAgent.return_value = _make_streaming_mock_agent()
         MockSessionLocal.side_effect = lambda: _mock_session_local()()
@@ -751,9 +759,11 @@ class TestFileUploadE2E:
         assert body["file_id"] == fid
         assert body["filename"] == "e2e-test.txt"
 
+    @patch("app.api.v1.agent.save_session_messages", new_callable=AsyncMock)
+    @patch("app.api.v1.agent.load_or_create_session", new_callable=AsyncMock, return_value=("test-session-id", None))
     @patch("app.api.v1.agent.SkillsAgent")
     async def test_03_run_agent_with_file(
-        self, MockAgent, e2e_client: AsyncClient
+        self, MockAgent, _mock_load, _mock_save, e2e_client: AsyncClient
     ):
         MockAgent.return_value = _make_mock_agent()
         files = [
@@ -949,17 +959,19 @@ class TestPublishedAgentSessionE2E:
         assert resp.status_code == 200
         assert resp.json()["is_published"] is True
 
+    @patch("app.api.v1.published.save_session_messages", new_callable=AsyncMock)
+    @patch("app.api.v1.published.load_or_create_session", new_callable=AsyncMock)
     @patch("app.api.v1.published.SkillsAgent")
     @patch("app.api.v1.published.AsyncSessionLocal")
     async def test_03_chat_sse(
-        self, MockSL, MockAgent, e2e_client: AsyncClient
+        self, MockSL, MockAgent, MockLoadSession, _mock_save, e2e_client: AsyncClient
     ):
         pid = type(self)._state["preset_id"]
 
         # Mock agent
         MockAgent.return_value = _make_streaming_mock_agent(answer="Published reply")
 
-        # Mock AsyncSessionLocal: first call finds preset, second finds no session
+        # Mock AsyncSessionLocal: first call finds preset
         from app.db.models import AgentPresetDB
 
         mock_preset = MagicMock(spec=AgentPresetDB)
@@ -992,6 +1004,7 @@ class TestPublishedAgentSessionE2E:
         MockSL.side_effect = lambda: _ctx()
 
         session_id = str(uuid.uuid4())
+        MockLoadSession.return_value = (session_id, None)
         resp = await e2e_client.post(
             f"/api/v1/published/{pid}/chat",
             json={"request": "Hello published", "session_id": session_id},
@@ -2303,9 +2316,11 @@ class TestAutoDetectOutputFilesE2E:
 
     _state: dict = {}
 
+    @patch("app.api.v1.agent.save_session_messages", new_callable=AsyncMock)
+    @patch("app.api.v1.agent.load_or_create_session", new_callable=AsyncMock, return_value=("test-session-id", None))
     @patch("app.api.v1.agent.SkillsAgent")
     async def test_01_run_with_output_files(
-        self, MockAgent, e2e_client: AsyncClient
+        self, MockAgent, _mock_load, _mock_save, e2e_client: AsyncClient
     ):
         """POST /agent/run → output_files populated from auto-detected files."""
         mock_result = _MockAgentResult(
@@ -2333,9 +2348,11 @@ class TestAutoDetectOutputFilesE2E:
         assert body["output_files"][0]["download_url"].startswith("/api/v1/files/output/download?path=")
         type(self)._state["trace_id_1"] = body["trace_id"]
 
+    @patch("app.api.v1.agent.save_session_messages", new_callable=AsyncMock)
+    @patch("app.api.v1.agent.load_or_create_session", new_callable=AsyncMock, return_value=("test-session-id", None))
     @patch("app.api.v1.agent.SkillsAgent")
     async def test_02_run_no_output_files(
-        self, MockAgent, e2e_client: AsyncClient
+        self, MockAgent, _mock_load, _mock_save, e2e_client: AsyncClient
     ):
         """POST /agent/run without output files → output_files is null."""
         MockAgent.return_value = _make_mock_agent()
@@ -2349,10 +2366,12 @@ class TestAutoDetectOutputFilesE2E:
         assert body["success"] is True
         assert body["output_files"] is None
 
+    @patch("app.api.v1.agent.save_session_messages", new_callable=AsyncMock)
+    @patch("app.api.v1.agent.load_or_create_session", new_callable=AsyncMock, return_value=("test-session-id", None))
     @patch("app.api.v1.agent.AsyncSessionLocal")
     @patch("app.api.v1.agent.SkillsAgent")
     async def test_03_stream_with_output_file_events(
-        self, MockAgent, MockSessionLocal, e2e_client: AsyncClient
+        self, MockAgent, MockSessionLocal, _mock_load, _mock_save, e2e_client: AsyncClient
     ):
         """POST /agent/run/stream → output_file SSE events + output_files in complete."""
         mock_output_files = [
@@ -2423,10 +2442,12 @@ class TestAutoDetectOutputFilesE2E:
         assert "output_files" in complete_event
         assert len(complete_event["output_files"]) == 1
 
+    @patch("app.api.v1.agent.save_session_messages", new_callable=AsyncMock)
+    @patch("app.api.v1.agent.load_or_create_session", new_callable=AsyncMock, return_value=("test-session-id", None))
     @patch("app.api.v1.agent.AsyncSessionLocal")
     @patch("app.api.v1.agent.SkillsAgent")
     async def test_04_stream_no_output_files(
-        self, MockAgent, MockSessionLocal, e2e_client: AsyncClient
+        self, MockAgent, MockSessionLocal, _mock_load, _mock_save, e2e_client: AsyncClient
     ):
         """POST /agent/run/stream without output files → no output_file events."""
         MockAgent.return_value = _make_streaming_mock_agent(answer="Just text")
@@ -2680,10 +2701,12 @@ class TestPublishedAgentOutputFilesE2E:
         )
         assert resp.status_code == 200
 
+    @patch("app.api.v1.published.save_session_messages", new_callable=AsyncMock)
+    @patch("app.api.v1.published.load_or_create_session", new_callable=AsyncMock)
     @patch("app.api.v1.published.SkillsAgent")
     @patch("app.api.v1.published.AsyncSessionLocal")
     async def test_02_sync_chat_with_output_files(
-        self, MockSL, MockAgent, e2e_client: AsyncClient
+        self, MockSL, MockAgent, MockLoadSession, _mock_save, e2e_client: AsyncClient
     ):
         """POST /published/{id}/chat/sync → output_files in response."""
         pid = type(self)._state["preset_id"]
@@ -2741,6 +2764,7 @@ class TestPublishedAgentOutputFilesE2E:
         MockSL.side_effect = lambda: _ctx()
 
         session_id = str(uuid.uuid4())
+        MockLoadSession.return_value = (session_id, None)
         resp = await e2e_client.post(
             f"/api/v1/published/{pid}/chat/sync",
             json={"request": "Analyze this data", "session_id": session_id},
@@ -2752,10 +2776,12 @@ class TestPublishedAgentOutputFilesE2E:
         assert len(body["output_files"]) == 1
         assert body["output_files"][0]["filename"] == "analysis.pdf"
 
+    @patch("app.api.v1.published.save_session_messages", new_callable=AsyncMock)
+    @patch("app.api.v1.published.load_or_create_session", new_callable=AsyncMock)
     @patch("app.api.v1.published.SkillsAgent")
     @patch("app.api.v1.published.AsyncSessionLocal")
     async def test_03_sync_chat_no_output_files(
-        self, MockSL, MockAgent, e2e_client: AsyncClient
+        self, MockSL, MockAgent, MockLoadSession, _mock_save, e2e_client: AsyncClient
     ):
         """POST /published/{id}/chat/sync without output_files → null."""
         pid = type(self)._state["preset_id"]
@@ -2802,6 +2828,7 @@ class TestPublishedAgentOutputFilesE2E:
         MockSL.side_effect = lambda: _ctx()
 
         session_id = str(uuid.uuid4())
+        MockLoadSession.return_value = (session_id, None)
         resp = await e2e_client.post(
             f"/api/v1/published/{pid}/chat/sync",
             json={"request": "Just a question", "session_id": session_id},

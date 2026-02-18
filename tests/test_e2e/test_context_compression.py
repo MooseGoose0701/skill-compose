@@ -650,15 +650,18 @@ class TestPublishedSessionFullMessagesE2E:
         )
         assert resp.status_code == 200
 
+    @patch("app.api.v1.published.save_session_messages", new_callable=AsyncMock)
+    @patch("app.api.v1.published.load_or_create_session", new_callable=AsyncMock)
     @patch("app.api.v1.published.SkillsAgent")
     @patch("app.api.v1.published.AsyncSessionLocal")
     async def test_02_streaming_saves_full_messages(
-        self, MockSL, MockAgent, e2e_client: AsyncClient,
+        self, MockSL, MockAgent, MockLoadSession, _mock_save, e2e_client: AsyncClient,
     ):
         """Streaming chat saves final_messages (with tool_use/tool_result) to session."""
         pid = type(self)._state["preset_id"]
         session_id = str(uuid.uuid4())
         type(self)._state["session_id"] = session_id
+        MockLoadSession.return_value = (session_id, None)
 
         # Build final_messages with tool context
         final_msgs = [
@@ -806,10 +809,12 @@ class TestPublishedSessionFullMessagesE2E:
         assert fm[3]["role"] == "assistant"
         assert fm[3]["content"][0]["type"] == "text"
 
+    @patch("app.api.v1.published.save_session_messages", new_callable=AsyncMock)
+    @patch("app.api.v1.published.load_or_create_session", new_callable=AsyncMock)
     @patch("app.api.v1.published.SkillsAgent")
     @patch("app.api.v1.published.AsyncSessionLocal")
     async def test_03_nonstreaming_saves_full_messages(
-        self, MockSL, MockAgent, e2e_client: AsyncClient,
+        self, MockSL, MockAgent, MockLoadSession, _mock_save, e2e_client: AsyncClient,
     ):
         """Non-streaming chat also saves final_messages to session."""
         pid = type(self)._state["preset_id"]
@@ -823,6 +828,7 @@ class TestPublishedSessionFullMessagesE2E:
         assert resp.status_code == 200
 
         session_id = str(uuid.uuid4())
+        MockLoadSession.return_value = (session_id, None)
 
         final_msgs = [
             {"role": "user", "content": "Hello"},
