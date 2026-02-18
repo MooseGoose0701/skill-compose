@@ -576,7 +576,7 @@ async def published_chat(agent_id: str, request: PublishedChatRequest):
                         final_messages=last_complete_event.get("final_messages"),
                     )
                 elif last_messages_snapshot:
-                    # Interrupted — save last checkpoint (best effort)
+                    # Cancelled or interrupted — save last checkpoint (best effort)
                     try:
                         await save_session_messages(session_id, "", request.request, final_messages=last_messages_snapshot)
                     except Exception:
