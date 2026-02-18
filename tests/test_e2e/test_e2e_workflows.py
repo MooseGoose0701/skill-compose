@@ -3348,9 +3348,127 @@ class TestResilientStreamingE2E:
         assert MockSave.call_count == 1, f"Expected 1 save call, got {MockSave.call_count}"
         assert MockSave.call_args_list[0].args[1] == "Simple answer"
 
+    # -- Session continuity after stop --
+
+    @patch("app.api.v1.published.save_session_messages", new_callable=AsyncMock)
+    @patch("app.api.v1.published.load_or_create_session", new_callable=AsyncMock)
+    @patch("app.api.v1.published.SkillsAgent")
+    @patch("app.api.v1.published.AsyncSessionLocal")
+    async def test_07_stop_then_continue_preserves_context(
+        self, MockSL, MockAgent, MockLoadSession, MockSave, e2e_client: AsyncClient
+    ):
+        """After stop, the next request receives saved checkpoint as conversation_history."""
+        pid = type(self)._state["preset_id"]
+        session_id = str(uuid.uuid4())
+
+        # -- Run 1: multi-turn, then simulated cancel --
+        # Agent pushes turn_complete checkpoint then completes normally
+        # (real cancel is hard to simulate in mock — we verify save was called)
+        checkpoint_messages = [
+            {"role": "user", "content": "analyze data"},
+            {"role": "assistant", "content": [{"type": "tool_use", "id": "t1", "name": "execute_code", "input": {"code": "import pandas"}}]},
+            {"role": "user", "content": [{"type": "tool_result", "tool_use_id": "t1", "content": "ok"}]},
+        ]
+
+        run1_events = [
+            StreamEvent(event_type="turn_start", turn=1, data={"turn": 1}),
+            StreamEvent(event_type="tool_call", turn=1, data={
+                "tool_name": "execute_code", "tool_input": {"code": "import pandas"},
+            }),
+            StreamEvent(event_type="tool_result", turn=1, data={
+                "tool_name": "execute_code", "tool_result": "ok",
+            }),
+            StreamEvent(event_type="turn_complete", turn=1, data={
+                "messages_snapshot": checkpoint_messages,
+            }),
+            StreamEvent(event_type="assistant", turn=2, data={"content": "Done", "turn": 2}),
+            StreamEvent(event_type="complete", turn=2, data={
+                "success": True, "answer": "Done", "total_turns": 2,
+                "total_input_tokens": 200, "total_output_tokens": 50,
+                "skills_used": [], "final_messages": checkpoint_messages + [
+                    {"role": "assistant", "content": [{"type": "text", "text": "Done"}]},
+                ],
+            }),
+        ]
+
+        MockAgent.return_value = _make_streaming_mock_agent(events=run1_events, answer="Done")
+
+        from app.db.models import AgentPresetDB
+        mock_preset = MagicMock(spec=AgentPresetDB)
+        mock_preset.id = pid
+        mock_preset.name = "e2e-resilient-streaming"
+        mock_preset.description = "Test"
+        mock_preset.is_published = True
+        mock_preset.api_response_mode = "streaming"
+        mock_preset.skill_ids = []
+        mock_preset.builtin_tools = None
+        mock_preset.max_turns = 10
+        mock_preset.mcp_servers = []
+        mock_preset.system_prompt = None
+        mock_preset.model_provider = None
+        mock_preset.model_name = None
+        mock_preset.executor_id = None
+
+        call_idx = {"i": 0}
+        results = [mock_preset, None, None, None, None, None]
+
+        @asynccontextmanager
+        async def _ctx():
+            idx = min(call_idx["i"], len(results) - 1)
+            call_idx["i"] += 1
+            mock_sess = AsyncMock(spec=AsyncSession)
+            mock_result = MagicMock()
+            mock_result.scalar_one_or_none.return_value = results[idx]
+            mock_sess.execute = AsyncMock(return_value=mock_result)
+            mock_sess.add = MagicMock()
+            mock_sess.commit = AsyncMock()
+            yield mock_sess
+
+        MockSL.side_effect = lambda: _ctx()
+        MockLoadSession.return_value = (session_id, None)  # New session
+
+        resp = await e2e_client.post(
+            f"/api/v1/published/{pid}/chat",
+            json={"request": "analyze data", "session_id": session_id},
+        )
+        assert resp.status_code == 200
+
+        # Verify checkpoint was saved (first call = incremental save from turn_complete)
+        assert MockSave.call_count >= 1
+        saved_snapshot = MockSave.call_args_list[0].kwargs.get("final_messages") or MockSave.call_args_list[0].args[3]
+        assert len(saved_snapshot) == 3  # The checkpoint_messages
+
+        # -- Run 2: same session_id, load_or_create returns the checkpoint --
+        MockSave.reset_mock()
+        MockAgent.reset_mock()
+
+        run2_events = _make_stream_events(answer="Continued from checkpoint")
+        mock_agent2 = _make_streaming_mock_agent(events=run2_events, answer="Continued from checkpoint")
+        MockAgent.return_value = mock_agent2
+
+        call_idx["i"] = 0  # Reset counter for AsyncSessionLocal
+        MockLoadSession.return_value = (session_id, checkpoint_messages)  # Return saved history
+
+        resp2 = await e2e_client.post(
+            f"/api/v1/published/{pid}/chat",
+            json={"request": "what did I import?", "session_id": session_id},
+        )
+        assert resp2.status_code == 200
+
+        # Verify the agent received the checkpoint as conversation_history
+        agent_run_call = mock_agent2.run.call_args
+        received_history = agent_run_call.kwargs.get("conversation_history")
+        if received_history is None and len(agent_run_call.args) > 1:
+            received_history = agent_run_call.args[1]
+        assert received_history is not None, \
+            f"Agent should receive conversation_history from session checkpoint. call_args={agent_run_call}"
+        assert len(received_history) == 3, f"Expected 3 messages from checkpoint, got {len(received_history)}"
+        assert received_history[0]["role"] == "user"
+        assert received_history[0]["content"] == "analyze data"
+
     # -- Cleanup --
 
-    async def test_07_cleanup(self, e2e_client: AsyncClient):
+    async def test_08_cleanup(self, e2e_client: AsyncClient):
         """Unpublish and delete the test agent."""
         pid = type(self)._state["preset_id"]
         await e2e_client.post(f"/api/v1/agents/{pid}/unpublish")
