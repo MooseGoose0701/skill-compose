@@ -11,6 +11,7 @@ import type { ChatMessage } from "@/stores/chat-store";
 import { ChatMessageItem } from "@/components/chat/chat-message";
 import { useChatEngine } from "@/hooks/use-chat-engine";
 import { useTranslation } from "@/i18n/client";
+import { generateUUID } from "@/lib/utils";
 import { toast } from "sonner";
 import { sessionMessagesToChatMessages } from "@/lib/session-utils";
 import { SessionSidebar } from "@/components/published/session-sidebar";
@@ -50,11 +51,11 @@ function getSessionStorageKey(agentId: string): string {
 }
 
 function getOrCreateSessionId(agentId: string): string {
-  if (typeof window === 'undefined') return crypto.randomUUID();
+  if (typeof window === 'undefined') return generateUUID();
   const key = getSessionStorageKey(agentId);
   const existing = sessionStorage.getItem(key);
   if (existing) return existing;
-  const id = crypto.randomUUID();
+  const id = generateUUID();
   sessionStorage.setItem(key, id);
   return id;
 }
@@ -190,7 +191,7 @@ export default function PublishedChatPage() {
   }, [isRunning, queryClient]);
 
   const handleNewChat = useCallback(() => {
-    const newId = crypto.randomUUID();
+    const newId = generateUUID();
     sessionStorage.setItem(getSessionStorageKey(agentId), newId);
     setSessionId(newId);
     setMessages([]);
