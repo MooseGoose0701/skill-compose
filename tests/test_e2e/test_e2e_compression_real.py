@@ -196,7 +196,7 @@ class TestRealCompressionE2E:
     # 1. Streaming agent compression via /agent/run/stream
     # -------------------------------------------------------------------------
 
-    async def test_01_stream_with_compression_event(self, e2e_client: AsyncClient):
+    async def test_01_stream_with_compression_event(self, e2e_client: AsyncClient, e2e_session_factories):
         """Stream agent with long history + tool use → compression fires on Turn 2."""
         # Pre-create a session with long history in the DB
         session_id = str(uuid.uuid4())
@@ -211,10 +211,10 @@ class TestRealCompressionE2E:
                 "content": f"Planet {i+1}: " + ("This planet has many moons and interesting features. " * 50),
             })
 
-        from app.db.database import AsyncSessionLocal
         from app.db.models import PublishedSessionDB
         from app.api.v1.sessions import CHAT_SENTINEL_AGENT_ID
-        async with AsyncSessionLocal() as db:
+        _AsyncSessionLocal = e2e_session_factories["async"]
+        async with _AsyncSessionLocal() as db:
             db.add(PublishedSessionDB(
                 id=session_id,
                 agent_id=CHAT_SENTINEL_AGENT_ID,
@@ -222,7 +222,7 @@ class TestRealCompressionE2E:
             ))
             await db.commit()
 
-        with _patch_kimi_key(), _patch_low_threshold():
+        with _patch_kimi_key(), _patch_low_threshold(), patch("app.api.v1.sessions.AsyncSessionLocal", _AsyncSessionLocal):
             resp = await e2e_client.post(
                 "/api/v1/agent/run/stream",
                 json={
@@ -401,7 +401,7 @@ class TestRealCompressionE2E:
         # Very small context limit to force compression
         agent._get_context_limit = lambda: 5000
 
-        compressed, s_in, s_out = agent._compress_messages(history)
+        compressed, s_in, s_out = await agent._compress_messages(history)
 
         assert s_in > 0, "Summary should have consumed input tokens"
         assert s_out > 0, "Summary should have produced output tokens"

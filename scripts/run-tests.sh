@@ -105,6 +105,9 @@ run_llm() {
     run_pytest "E2E Published Agent (Kimi 2.5)" \
         tests/test_e2e/test_e2e_published_agent.py
 
+    run_pytest "E2E Compression (Kimi 2.5)" \
+        tests/test_e2e/test_e2e_compression_real.py
+
     run_pytest "E2E Data Analysis (Kimi 2.5)" \
         tests/test_e2e/test_e2e_data_analysis.py::TestDataAnalysisKimiE2E
 }
@@ -153,9 +156,9 @@ case "${1:-all}" in
         echo "用法: $0 [unit|e2e|llm|all]"
         echo ""
         echo "命令:"
-        echo "  unit, u  - 单元测试 (~340 tests, ~45s)"
-        echo "  e2e      - E2E 工作流测试, mock 无 LLM (~160 tests, ~12s)"
-        echo "  llm, l   - E2E 真实 LLM 测试, Kimi 2.5 (~62 tests, ~6min)"
+        echo "  unit, u  - 单元测试 (~394 tests, ~55s)"
+        echo "  e2e      - E2E 工作流测试, mock 无 LLM (~168 tests, ~15s)"
+        echo "  llm, l   - E2E 真实 LLM 测试, Kimi 2.5 (~72 tests, ~7min)"
         echo "  all, a   - 全部串行运行 (默认)"
         exit 0
         ;;

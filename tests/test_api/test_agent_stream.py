@@ -126,8 +126,10 @@ def _mock_session_local(db_session: AsyncSession):
 
 
 @pytest.mark.asyncio
+@patch("app.api.v1.agent.save_session_messages", new_callable=AsyncMock)
+@patch("app.api.v1.agent.load_or_create_session", new_callable=AsyncMock, return_value=("test-session-id", None))
 @patch("app.api.v1.agent.SkillsAgent")
-async def test_stream_returns_event_stream(MockAgent, client):
+async def test_stream_returns_event_stream(MockAgent, _mock_load, _mock_save, client):
     MockAgent.return_value = _make_mock_agent_instance()
 
     response = await client.post(
@@ -139,9 +141,11 @@ async def test_stream_returns_event_stream(MockAgent, client):
 
 
 @pytest.mark.asyncio
+@patch("app.api.v1.agent.save_session_messages", new_callable=AsyncMock)
+@patch("app.api.v1.agent.load_or_create_session", new_callable=AsyncMock, return_value=("test-session-id", None))
 @patch("app.api.v1.agent.AsyncSessionLocal")
 @patch("app.api.v1.agent.SkillsAgent")
-async def test_stream_sends_run_started(MockAgent, MockSessionLocal, client, db_session):
+async def test_stream_sends_run_started(MockAgent, MockSessionLocal, _mock_load, _mock_save, client, db_session):
     MockAgent.return_value = _make_mock_agent_instance()
     MockSessionLocal.side_effect = lambda: _mock_session_local(db_session)()
 
@@ -160,9 +164,11 @@ async def test_stream_sends_run_started(MockAgent, MockSessionLocal, client, db_
 
 
 @pytest.mark.asyncio
+@patch("app.api.v1.agent.save_session_messages", new_callable=AsyncMock)
+@patch("app.api.v1.agent.load_or_create_session", new_callable=AsyncMock, return_value=("test-session-id", None))
 @patch("app.api.v1.agent.AsyncSessionLocal")
 @patch("app.api.v1.agent.SkillsAgent")
-async def test_stream_sends_trace_saved(MockAgent, MockSessionLocal, client, db_session):
+async def test_stream_sends_trace_saved(MockAgent, MockSessionLocal, _mock_load, _mock_save, client, db_session):
     MockAgent.return_value = _make_mock_agent_instance()
     MockSessionLocal.side_effect = lambda: _mock_session_local(db_session)()
 
@@ -178,9 +184,11 @@ async def test_stream_sends_trace_saved(MockAgent, MockSessionLocal, client, db_
 
 
 @pytest.mark.asyncio
+@patch("app.api.v1.agent.save_session_messages", new_callable=AsyncMock)
+@patch("app.api.v1.agent.load_or_create_session", new_callable=AsyncMock, return_value=("test-session-id", None))
 @patch("app.api.v1.agent.AsyncSessionLocal")
 @patch("app.api.v1.agent.SkillsAgent")
-async def test_stream_with_skills(MockAgent, MockSessionLocal, client, db_session):
+async def test_stream_with_skills(MockAgent, MockSessionLocal, _mock_load, _mock_save, client, db_session):
     MockAgent.return_value = _make_mock_agent_instance()
     MockSessionLocal.side_effect = lambda: _mock_session_local(db_session)()
 
@@ -195,9 +203,11 @@ async def test_stream_with_skills(MockAgent, MockSessionLocal, client, db_sessio
 
 
 @pytest.mark.asyncio
+@patch("app.api.v1.agent.save_session_messages", new_callable=AsyncMock)
+@patch("app.api.v1.agent.load_or_create_session", new_callable=AsyncMock, return_value=("test-session-id", None))
 @patch("app.api.v1.agent.AsyncSessionLocal")
 @patch("app.api.v1.agent.SkillsAgent")
-async def test_stream_with_mcp_servers(MockAgent, MockSessionLocal, client, db_session):
+async def test_stream_with_mcp_servers(MockAgent, MockSessionLocal, _mock_load, _mock_save, client, db_session):
     MockAgent.return_value = _make_mock_agent_instance()
     MockSessionLocal.side_effect = lambda: _mock_session_local(db_session)()
 
@@ -212,9 +222,11 @@ async def test_stream_with_mcp_servers(MockAgent, MockSessionLocal, client, db_s
 
 
 @pytest.mark.asyncio
+@patch("app.api.v1.agent.save_session_messages", new_callable=AsyncMock)
+@patch("app.api.v1.agent.load_or_create_session", new_callable=AsyncMock, return_value=("test-session-id", None))
 @patch("app.api.v1.agent.AsyncSessionLocal")
 @patch("app.api.v1.agent.SkillsAgent")
-async def test_stream_error_handling(MockAgent, MockSessionLocal, client, db_session):
+async def test_stream_error_handling(MockAgent, MockSessionLocal, _mock_load, _mock_save, client, db_session):
     """When agent encounters error, it pushes error complete event and stream includes it."""
     # In the async architecture, agent.run() catches errors internally
     # and pushes a complete event with success=False

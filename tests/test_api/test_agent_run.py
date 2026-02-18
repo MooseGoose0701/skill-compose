@@ -76,8 +76,10 @@ def _make_mock_agent(result: Optional[MockAgentResult] = None):
 # ---------------------------------------------------------------------------
 
 
+@patch("app.api.v1.agent.save_session_messages", new_callable=AsyncMock)
+@patch("app.api.v1.agent.load_or_create_session", new_callable=AsyncMock, return_value=("test-session-id", None))
 @patch("app.api.v1.agent.SkillsAgent")
-async def test_agent_run_simple(MockAgent, client: AsyncClient):
+async def test_agent_run_simple(MockAgent, _mock_load, _mock_save, client: AsyncClient):
     """POST /agent/run with a simple request returns 200 with success=True."""
     MockAgent.return_value = _make_mock_agent()
 
@@ -94,8 +96,10 @@ async def test_agent_run_simple(MockAgent, client: AsyncClient):
     assert len(body["steps"]) >= 1
 
 
+@patch("app.api.v1.agent.save_session_messages", new_callable=AsyncMock)
+@patch("app.api.v1.agent.load_or_create_session", new_callable=AsyncMock, return_value=("test-session-id", None))
 @patch("app.api.v1.agent.SkillsAgent")
-async def test_agent_run_with_skills(MockAgent, client: AsyncClient):
+async def test_agent_run_with_skills(MockAgent, _mock_load, _mock_save, client: AsyncClient):
     """POST /agent/run with skills parameter passes skills to agent."""
     MockAgent.return_value = _make_mock_agent()
 
@@ -113,8 +117,10 @@ async def test_agent_run_with_skills(MockAgent, client: AsyncClient):
     assert call_kwargs["allowed_skills"] == ["test-skill"]
 
 
+@patch("app.api.v1.agent.save_session_messages", new_callable=AsyncMock)
+@patch("app.api.v1.agent.load_or_create_session", new_callable=AsyncMock, return_value=("test-session-id", None))
 @patch("app.api.v1.agent.SkillsAgent")
-async def test_agent_run_with_max_turns(MockAgent, client: AsyncClient):
+async def test_agent_run_with_max_turns(MockAgent, _mock_load, _mock_save, client: AsyncClient):
     """POST /agent/run with max_turns passes the value to agent."""
     MockAgent.return_value = _make_mock_agent()
 
@@ -130,8 +136,10 @@ async def test_agent_run_with_max_turns(MockAgent, client: AsyncClient):
     assert call_kwargs["max_turns"] == 5
 
 
+@patch("app.api.v1.agent.save_session_messages", new_callable=AsyncMock)
+@patch("app.api.v1.agent.load_or_create_session", new_callable=AsyncMock, return_value=("test-session-id", None))
 @patch("app.api.v1.agent.SkillsAgent")
-async def test_agent_run_with_session_id(MockAgent, client: AsyncClient):
+async def test_agent_run_with_session_id(MockAgent, _mock_load, _mock_save, client: AsyncClient):
     """POST /agent/run with session_id accepts and processes the request."""
     MockAgent.return_value = _make_mock_agent()
 
@@ -145,8 +153,10 @@ async def test_agent_run_with_session_id(MockAgent, client: AsyncClient):
     assert body["success"] is True
 
 
+@patch("app.api.v1.agent.save_session_messages", new_callable=AsyncMock)
+@patch("app.api.v1.agent.load_or_create_session", new_callable=AsyncMock, return_value=("test-session-id", None))
 @patch("app.api.v1.agent.SkillsAgent")
-async def test_agent_run_with_files(MockAgent, client: AsyncClient):
+async def test_agent_run_with_files(MockAgent, _mock_load, _mock_save, client: AsyncClient):
     """POST /agent/run with uploaded_files appends file info to request."""
     MockAgent.return_value = _make_mock_agent()
 
@@ -174,8 +184,10 @@ async def test_agent_run_with_files(MockAgent, client: AsyncClient):
     assert "/tmp/uploads/report.pdf" in actual_request
 
 
+@patch("app.api.v1.agent.save_session_messages", new_callable=AsyncMock)
+@patch("app.api.v1.agent.load_or_create_session", new_callable=AsyncMock, return_value=("test-session-id", None))
 @patch("app.api.v1.agent.SkillsAgent")
-async def test_agent_run_failure(MockAgent, client: AsyncClient):
+async def test_agent_run_failure(MockAgent, _mock_load, _mock_save, client: AsyncClient):
     """POST /agent/run when agent fails returns 200 with success=False."""
     failed_result = MockAgentResult(
         success=False,
@@ -196,8 +208,10 @@ async def test_agent_run_failure(MockAgent, client: AsyncClient):
     assert body["error"] == "Something went wrong"
 
 
+@patch("app.api.v1.agent.save_session_messages", new_callable=AsyncMock)
+@patch("app.api.v1.agent.load_or_create_session", new_callable=AsyncMock, return_value=("test-session-id", None))
 @patch("app.api.v1.agent.SkillsAgent")
-async def test_agent_run_saves_trace(MockAgent, client: AsyncClient):
+async def test_agent_run_saves_trace(MockAgent, _mock_load, _mock_save, client: AsyncClient):
     """POST /agent/run saves an execution trace and returns trace_id."""
     MockAgent.return_value = _make_mock_agent()
 
@@ -213,8 +227,10 @@ async def test_agent_run_saves_trace(MockAgent, client: AsyncClient):
     assert len(body["trace_id"]) > 0
 
 
+@patch("app.api.v1.agent.save_session_messages", new_callable=AsyncMock)
+@patch("app.api.v1.agent.load_or_create_session", new_callable=AsyncMock, return_value=("test-session-id", None))
 @patch("app.api.v1.agent.SkillsAgent")
-async def test_agent_run_with_mcp_servers(MockAgent, client: AsyncClient):
+async def test_agent_run_with_mcp_servers(MockAgent, _mock_load, _mock_save, client: AsyncClient):
     """POST /agent/run with equipped_mcp_servers passes them to agent."""
     MockAgent.return_value = _make_mock_agent()
 
