@@ -1,0 +1,104 @@
+# ==============================================================================
+# Executor: Remotion - Video Rendering Environment
+# ==============================================================================
+# Extends the base executor with Node.js 20, Chromium, ffmpeg, and yt-dlp
+# for creating and rendering Remotion videos (React-based video generation).
+#
+# Included tools:
+# - Node.js 20 + npm (Remotion project scaffolding and rendering)
+# - Chromium (headless browser for Remotion rendering)
+# - ffmpeg (video/audio encoding)
+# - yt-dlp (audio/video downloading for audio-extractor skill)
+# - deno (JS runtime required by yt-dlp for YouTube extraction)
+#
+# Included Python packages:
+# - requests, httpx (HTTP clients)
+# - pyyaml (config parsing)
+# - pillow (image processing)
+# ==============================================================================
+
+FROM python:3.11-slim
+
+LABEL org.opencontainers.image.title="Skills Executor - Remotion"
+LABEL org.opencontainers.image.description="Video rendering environment with Node.js, Chromium, ffmpeg"
+LABEL org.opencontainers.image.version="1.0.0"
+
+WORKDIR /app
+
+# Install system dependencies: Node.js 20, Chromium, ffmpeg, yt-dlp
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    git \
+    unzip \
+    # Chromium for Remotion headless rendering
+    chromium \
+    # ffmpeg for video/audio encoding
+    ffmpeg \
+    # Fonts for rendering (CJK + emoji support)
+    fonts-noto-cjk \
+    fonts-noto-color-emoji \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Node.js 20 via NodeSource
+RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+    && apt-get install -y nodejs \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install deno (required by yt-dlp for YouTube JS extraction since 2025+)
+RUN curl -fsSL https://deno.land/install.sh | DENO_INSTALL=/usr/local sh
+
+# Install yt-dlp for audio extraction
+RUN pip install --no-cache-dir yt-dlp
+
+# Install executor server dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Install common Python packages
+RUN pip install --no-cache-dir \
+    requests \
+    httpx \
+    pyyaml \
+    pillow
+
+# Copy executor server and kernel module
+COPY executor_server.py .
+COPY ipython_kernel.py .
+
+# Environment
+ENV EXECUTOR_NAME=remotion
+ENV WORKSPACES_DIR=/app/workspaces
+ENV PYTHONUNBUFFERED=1
+# Tell Puppeteer/Remotion where to find Chromium
+ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
+ENV CHROMIUM_PATH=/usr/bin/chromium
+
+# Pre-cache common Remotion + Three.js dependencies to avoid npm install timeouts.
+# npm cache is intentionally kept warm so workspace npm installs resolve from cache (~2s).
+RUN mkdir -p /opt/remotion-template && cd /opt/remotion-template \
+    && npm init -y \
+    && npm install --save \
+       remotion@latest \
+       @remotion/cli@latest \
+       @remotion/three@latest \
+       @remotion/media-utils@latest \
+       @remotion/zod-types@latest \
+       @react-three/fiber \
+       @react-three/drei \
+       @react-three/postprocessing \
+       three \
+       zod \
+       react \
+       react-dom
+
+# Pre-download Chrome Headless Shell so Remotion never needs to fetch 87MB at runtime.
+# This bakes the browser binary into the image layer.
+RUN cd /opt/remotion-template \
+    && npx remotion browser ensure
+
+# Create workspaces directory
+RUN mkdir -p /app/workspaces
+
+EXPOSE 62680
+
+CMD uvicorn executor_server:app --host 0.0.0.0 --port ${EXECUTOR_PORT:-62680}
