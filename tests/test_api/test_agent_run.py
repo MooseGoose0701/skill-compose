@@ -15,6 +15,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from httpx import AsyncClient
 
+from app.api.v1.sessions import SessionData
+
 
 # ---------------------------------------------------------------------------
 # Mock dataclasses matching app.agent.agent (AgentStep, LLMCall, AgentResult)
@@ -77,7 +79,7 @@ def _make_mock_agent(result: Optional[MockAgentResult] = None):
 
 
 @patch("app.api.v1.agent.save_session_messages", new_callable=AsyncMock)
-@patch("app.api.v1.agent.load_or_create_session", new_callable=AsyncMock, return_value=("test-session-id", None))
+@patch("app.api.v1.agent.load_or_create_session", new_callable=AsyncMock, return_value=SessionData(session_id="test-session-id"))
 @patch("app.api.v1.agent.SkillsAgent")
 async def test_agent_run_simple(MockAgent, _mock_load, _mock_save, client: AsyncClient):
     """POST /agent/run with a simple request returns 200 with success=True."""
@@ -97,7 +99,7 @@ async def test_agent_run_simple(MockAgent, _mock_load, _mock_save, client: Async
 
 
 @patch("app.api.v1.agent.save_session_messages", new_callable=AsyncMock)
-@patch("app.api.v1.agent.load_or_create_session", new_callable=AsyncMock, return_value=("test-session-id", None))
+@patch("app.api.v1.agent.load_or_create_session", new_callable=AsyncMock, return_value=SessionData(session_id="test-session-id"))
 @patch("app.api.v1.agent.SkillsAgent")
 async def test_agent_run_with_skills(MockAgent, _mock_load, _mock_save, client: AsyncClient):
     """POST /agent/run with skills parameter passes skills to agent."""
@@ -118,7 +120,7 @@ async def test_agent_run_with_skills(MockAgent, _mock_load, _mock_save, client: 
 
 
 @patch("app.api.v1.agent.save_session_messages", new_callable=AsyncMock)
-@patch("app.api.v1.agent.load_or_create_session", new_callable=AsyncMock, return_value=("test-session-id", None))
+@patch("app.api.v1.agent.load_or_create_session", new_callable=AsyncMock, return_value=SessionData(session_id="test-session-id"))
 @patch("app.api.v1.agent.SkillsAgent")
 async def test_agent_run_with_max_turns(MockAgent, _mock_load, _mock_save, client: AsyncClient):
     """POST /agent/run with max_turns passes the value to agent."""
@@ -137,7 +139,7 @@ async def test_agent_run_with_max_turns(MockAgent, _mock_load, _mock_save, clien
 
 
 @patch("app.api.v1.agent.save_session_messages", new_callable=AsyncMock)
-@patch("app.api.v1.agent.load_or_create_session", new_callable=AsyncMock, return_value=("test-session-id", None))
+@patch("app.api.v1.agent.load_or_create_session", new_callable=AsyncMock, return_value=SessionData(session_id="test-session-id"))
 @patch("app.api.v1.agent.SkillsAgent")
 async def test_agent_run_with_session_id(MockAgent, _mock_load, _mock_save, client: AsyncClient):
     """POST /agent/run with session_id accepts and processes the request."""
@@ -154,7 +156,7 @@ async def test_agent_run_with_session_id(MockAgent, _mock_load, _mock_save, clie
 
 
 @patch("app.api.v1.agent.save_session_messages", new_callable=AsyncMock)
-@patch("app.api.v1.agent.load_or_create_session", new_callable=AsyncMock, return_value=("test-session-id", None))
+@patch("app.api.v1.agent.load_or_create_session", new_callable=AsyncMock, return_value=SessionData(session_id="test-session-id"))
 @patch("app.api.v1.agent.SkillsAgent")
 async def test_agent_run_with_files(MockAgent, _mock_load, _mock_save, client: AsyncClient):
     """POST /agent/run with uploaded_files appends file info to request."""
@@ -185,7 +187,7 @@ async def test_agent_run_with_files(MockAgent, _mock_load, _mock_save, client: A
 
 
 @patch("app.api.v1.agent.save_session_messages", new_callable=AsyncMock)
-@patch("app.api.v1.agent.load_or_create_session", new_callable=AsyncMock, return_value=("test-session-id", None))
+@patch("app.api.v1.agent.load_or_create_session", new_callable=AsyncMock, return_value=SessionData(session_id="test-session-id"))
 @patch("app.api.v1.agent.SkillsAgent")
 async def test_agent_run_failure(MockAgent, _mock_load, _mock_save, client: AsyncClient):
     """POST /agent/run when agent fails returns 200 with success=False."""
@@ -209,7 +211,7 @@ async def test_agent_run_failure(MockAgent, _mock_load, _mock_save, client: Asyn
 
 
 @patch("app.api.v1.agent.save_session_messages", new_callable=AsyncMock)
-@patch("app.api.v1.agent.load_or_create_session", new_callable=AsyncMock, return_value=("test-session-id", None))
+@patch("app.api.v1.agent.load_or_create_session", new_callable=AsyncMock, return_value=SessionData(session_id="test-session-id"))
 @patch("app.api.v1.agent.SkillsAgent")
 async def test_agent_run_saves_trace(MockAgent, _mock_load, _mock_save, client: AsyncClient):
     """POST /agent/run saves an execution trace and returns trace_id."""
@@ -228,7 +230,7 @@ async def test_agent_run_saves_trace(MockAgent, _mock_load, _mock_save, client: 
 
 
 @patch("app.api.v1.agent.save_session_messages", new_callable=AsyncMock)
-@patch("app.api.v1.agent.load_or_create_session", new_callable=AsyncMock, return_value=("test-session-id", None))
+@patch("app.api.v1.agent.load_or_create_session", new_callable=AsyncMock, return_value=SessionData(session_id="test-session-id"))
 @patch("app.api.v1.agent.SkillsAgent")
 async def test_agent_run_with_mcp_servers(MockAgent, _mock_load, _mock_save, client: AsyncClient):
     """POST /agent/run with equipped_mcp_servers passes them to agent."""

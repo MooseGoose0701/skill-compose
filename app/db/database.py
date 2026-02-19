@@ -205,6 +205,15 @@ async def _run_migrations():
             "CREATE INDEX IF NOT EXISTS ix_published_sessions_agent_id ON published_sessions (agent_id)"
         ))
 
+    # Add agent_context column to published_sessions table
+    async with engine.begin() as conn:
+        await conn.execute(text("""
+            DO $$ BEGIN
+                ALTER TABLE published_sessions ADD COLUMN agent_context JSONB DEFAULT NULL;
+            EXCEPTION WHEN duplicate_column THEN NULL;
+            END $$
+        """))
+
     # Add category and is_pinned columns to skills table
     async with engine.begin() as conn:
         await conn.execute(text("""

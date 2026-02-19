@@ -24,6 +24,7 @@ from unittest.mock import patch
 import pytest
 from httpx import AsyncClient
 
+from app.db.models import PublishedSessionDB
 from tests.test_e2e.conftest import parse_sse_events
 
 # ---------------------------------------------------------------------------
@@ -211,7 +212,6 @@ class TestRealCompressionE2E:
                 "content": f"Planet {i+1}: " + ("This planet has many moons and interesting features. " * 50),
             })
 
-        from app.db.models import PublishedSessionDB
         from app.api.v1.sessions import CHAT_SENTINEL_AGENT_ID
         _AsyncSessionLocal = e2e_session_factories["async"]
         async with _AsyncSessionLocal() as db:
@@ -251,6 +251,26 @@ class TestRealCompressionE2E:
         assert "42" in complete.get("answer", ""), f"Expected 42, got: {complete.get('answer')}"
 
         type(self)._state["trace_id_stream"] = events[0].get("trace_id") if events else None
+
+        # Verify dual-store: agent_context should differ from display messages after compression
+        async with _AsyncSessionLocal() as db:
+            from sqlalchemy import select as sa_select
+            result = await db.execute(
+                sa_select(PublishedSessionDB).where(PublishedSessionDB.id == session_id)
+            )
+            record = result.scalar_one_or_none()
+
+        assert record is not None
+        # Display messages should still contain original history + new turn
+        assert len(record.messages) >= len(history), (
+            f"Display messages ({len(record.messages)}) should contain at least original history ({len(history)})"
+        )
+        # agent_context should be set (compressed) and shorter than display
+        if record.agent_context is not None:
+            assert len(record.agent_context) < len(record.messages), (
+                f"agent_context ({len(record.agent_context)}) should be shorter than "
+                f"display messages ({len(record.messages)}) after compression"
+            )
 
     # -------------------------------------------------------------------------
     # 2-5. Published Agent multi-turn compression
@@ -368,11 +388,12 @@ class TestRealCompressionE2E:
         assert complete.get("success") is True
         assert len(complete.get("answer", "")) > 0
 
-    async def test_06_verify_session_messages(self, e2e_client: AsyncClient):
-        """Session contains messages after compression."""
+    async def test_06_verify_session_messages(self, e2e_client: AsyncClient, e2e_session_factories):
+        """Session display messages are append-only; agent_context is separately stored."""
         agent_id = type(self)._state["agent_id"]
         session_id = type(self)._state["session_id"]
 
+        # Verify display messages via API
         resp = await e2e_client.get(
             f"/api/v1/published/{agent_id}/sessions/{session_id}"
         )
@@ -380,6 +401,42 @@ class TestRealCompressionE2E:
         body = resp.json()
         assert body["session_id"] == session_id
         assert len(body["messages"]) >= 2
+
+        # Verify dual-store invariant by querying DB directly
+        _AsyncSessionLocal = e2e_session_factories["async"]
+        async with _AsyncSessionLocal() as db:
+            from sqlalchemy import select as sa_select
+            result = await db.execute(
+                sa_select(PublishedSessionDB).where(PublishedSessionDB.id == session_id)
+            )
+            record = result.scalar_one_or_none()
+
+        assert record is not None, "Session should exist in DB"
+
+        display_msgs = record.messages or []
+        agent_ctx = record.agent_context
+
+        # Display messages should be the full append-only history
+        assert len(display_msgs) >= 4, (
+            f"Expected >= 4 display messages (3 turns of user+assistant), got {len(display_msgs)}"
+        )
+
+        # agent_context should be set (not NULL) after compression happened
+        assert agent_ctx is not None, (
+            "agent_context should be populated after compression"
+        )
+
+        # After compression, agent_context should be shorter or equal to display
+        # (it may contain a summary replacing older turns)
+        assert len(agent_ctx) <= len(display_msgs), (
+            f"agent_context ({len(agent_ctx)}) should be <= display messages ({len(display_msgs)}) "
+            f"after compression"
+        )
+
+        # Store for later verification
+        type(self)._state["display_msg_count"] = len(display_msgs)
+        type(self)._state["agent_ctx_count"] = len(agent_ctx)
+        type(self)._state["agent_ctx"] = agent_ctx
 
     # -------------------------------------------------------------------------
     # 6-8. Summary quality (direct _compress_messages call)

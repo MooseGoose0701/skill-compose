@@ -25,6 +25,7 @@ from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agent.agent import StreamEvent
+from app.api.v1.sessions import SessionData
 
 from tests.factories import make_skill, make_skill_version, make_skill_file, make_trace
 
@@ -528,7 +529,7 @@ class TestAgentPresetLifecycleE2E:
         assert body["max_turns"] == 20
 
     @patch("app.api.v1.agent.save_session_messages", new_callable=AsyncMock)
-    @patch("app.api.v1.agent.load_or_create_session", new_callable=AsyncMock, return_value=("test-session-id", None))
+    @patch("app.api.v1.agent.load_or_create_session", new_callable=AsyncMock, return_value=SessionData(session_id="test-session-id"))
     @patch("app.api.v1.agent.SkillsAgent")
     async def test_06_run_agent(self, MockAgent, _mock_load, _mock_save, e2e_client: AsyncClient):
         MockAgent.return_value = _make_mock_agent()
@@ -633,7 +634,7 @@ class TestAgentRunAndTraceE2E:
     _state: dict = {}
 
     @patch("app.api.v1.agent.save_session_messages", new_callable=AsyncMock)
-    @patch("app.api.v1.agent.load_or_create_session", new_callable=AsyncMock, return_value=("test-session-id", None))
+    @patch("app.api.v1.agent.load_or_create_session", new_callable=AsyncMock, return_value=SessionData(session_id="test-session-id"))
     @patch("app.api.v1.agent.SkillsAgent")
     async def test_01_run_simple(self, MockAgent, _mock_load, _mock_save, e2e_client: AsyncClient):
         MockAgent.return_value = _make_mock_agent()
@@ -671,7 +672,7 @@ class TestAgentRunAndTraceE2E:
             assert t["success"] is True
 
     @patch("app.api.v1.agent.save_session_messages", new_callable=AsyncMock)
-    @patch("app.api.v1.agent.load_or_create_session", new_callable=AsyncMock, return_value=("test-session-id", None))
+    @patch("app.api.v1.agent.load_or_create_session", new_callable=AsyncMock, return_value=SessionData(session_id="test-session-id"))
     @patch("app.api.v1.agent.SkillsAgent")
     async def test_05_run_with_skills_and_session(
         self, MockAgent, _mock_load, _mock_save, e2e_client: AsyncClient
@@ -690,12 +691,14 @@ class TestAgentRunAndTraceE2E:
         assert body["success"] is True
         type(self)._state["trace_id_2"] = body["trace_id"]
 
+    @patch("app.api.v1.agent.pre_compress_if_needed", new_callable=AsyncMock, return_value=[])
+    @patch("app.api.v1.agent.save_session_checkpoint", new_callable=AsyncMock)
     @patch("app.api.v1.agent.save_session_messages", new_callable=AsyncMock)
-    @patch("app.api.v1.agent.load_or_create_session", new_callable=AsyncMock, return_value=("test-session-id", None))
+    @patch("app.api.v1.agent.load_or_create_session", new_callable=AsyncMock, return_value=SessionData(session_id="test-session-id"))
     @patch("app.api.v1.agent.AsyncSessionLocal")
     @patch("app.api.v1.agent.SkillsAgent")
     async def test_06_run_stream(
-        self, MockAgent, MockSessionLocal, _mock_load, _mock_save, e2e_client: AsyncClient
+        self, MockAgent, MockSessionLocal, _mock_load, _mock_save, _mock_checkpoint, _mock_precompress, e2e_client: AsyncClient
     ):
         MockAgent.return_value = _make_streaming_mock_agent()
         MockSessionLocal.side_effect = lambda: _mock_session_local()()
@@ -760,7 +763,7 @@ class TestFileUploadE2E:
         assert body["filename"] == "e2e-test.txt"
 
     @patch("app.api.v1.agent.save_session_messages", new_callable=AsyncMock)
-    @patch("app.api.v1.agent.load_or_create_session", new_callable=AsyncMock, return_value=("test-session-id", None))
+    @patch("app.api.v1.agent.load_or_create_session", new_callable=AsyncMock, return_value=SessionData(session_id="test-session-id"))
     @patch("app.api.v1.agent.SkillsAgent")
     async def test_03_run_agent_with_file(
         self, MockAgent, _mock_load, _mock_save, e2e_client: AsyncClient
@@ -959,12 +962,14 @@ class TestPublishedAgentSessionE2E:
         assert resp.status_code == 200
         assert resp.json()["is_published"] is True
 
+    @patch("app.api.v1.published.pre_compress_if_needed", new_callable=AsyncMock, return_value=[])
+    @patch("app.api.v1.published.save_session_checkpoint", new_callable=AsyncMock)
     @patch("app.api.v1.published.save_session_messages", new_callable=AsyncMock)
     @patch("app.api.v1.published.load_or_create_session", new_callable=AsyncMock)
     @patch("app.api.v1.published.SkillsAgent")
     @patch("app.api.v1.published.AsyncSessionLocal")
     async def test_03_chat_sse(
-        self, MockSL, MockAgent, MockLoadSession, _mock_save, e2e_client: AsyncClient
+        self, MockSL, MockAgent, MockLoadSession, _mock_save, _mock_checkpoint, _mock_precompress, e2e_client: AsyncClient
     ):
         pid = type(self)._state["preset_id"]
 
@@ -1004,7 +1009,7 @@ class TestPublishedAgentSessionE2E:
         MockSL.side_effect = lambda: _ctx()
 
         session_id = str(uuid.uuid4())
-        MockLoadSession.return_value = (session_id, None)
+        MockLoadSession.return_value = SessionData(session_id=session_id)
         resp = await e2e_client.post(
             f"/api/v1/published/{pid}/chat",
             json={"request": "Hello published", "session_id": session_id},
@@ -2328,7 +2333,7 @@ class TestAutoDetectOutputFilesE2E:
     _state: dict = {}
 
     @patch("app.api.v1.agent.save_session_messages", new_callable=AsyncMock)
-    @patch("app.api.v1.agent.load_or_create_session", new_callable=AsyncMock, return_value=("test-session-id", None))
+    @patch("app.api.v1.agent.load_or_create_session", new_callable=AsyncMock, return_value=SessionData(session_id="test-session-id"))
     @patch("app.api.v1.agent.SkillsAgent")
     async def test_01_run_with_output_files(
         self, MockAgent, _mock_load, _mock_save, e2e_client: AsyncClient
@@ -2360,7 +2365,7 @@ class TestAutoDetectOutputFilesE2E:
         type(self)._state["trace_id_1"] = body["trace_id"]
 
     @patch("app.api.v1.agent.save_session_messages", new_callable=AsyncMock)
-    @patch("app.api.v1.agent.load_or_create_session", new_callable=AsyncMock, return_value=("test-session-id", None))
+    @patch("app.api.v1.agent.load_or_create_session", new_callable=AsyncMock, return_value=SessionData(session_id="test-session-id"))
     @patch("app.api.v1.agent.SkillsAgent")
     async def test_02_run_no_output_files(
         self, MockAgent, _mock_load, _mock_save, e2e_client: AsyncClient
@@ -2377,12 +2382,14 @@ class TestAutoDetectOutputFilesE2E:
         assert body["success"] is True
         assert body["output_files"] is None
 
+    @patch("app.api.v1.agent.pre_compress_if_needed", new_callable=AsyncMock, return_value=[])
+    @patch("app.api.v1.agent.save_session_checkpoint", new_callable=AsyncMock)
     @patch("app.api.v1.agent.save_session_messages", new_callable=AsyncMock)
-    @patch("app.api.v1.agent.load_or_create_session", new_callable=AsyncMock, return_value=("test-session-id", None))
+    @patch("app.api.v1.agent.load_or_create_session", new_callable=AsyncMock, return_value=SessionData(session_id="test-session-id"))
     @patch("app.api.v1.agent.AsyncSessionLocal")
     @patch("app.api.v1.agent.SkillsAgent")
     async def test_03_stream_with_output_file_events(
-        self, MockAgent, MockSessionLocal, _mock_load, _mock_save, e2e_client: AsyncClient
+        self, MockAgent, MockSessionLocal, _mock_load, _mock_save, _mock_checkpoint, _mock_precompress, e2e_client: AsyncClient
     ):
         """POST /agent/run/stream → output_file SSE events + output_files in complete."""
         mock_output_files = [
@@ -2453,12 +2460,14 @@ class TestAutoDetectOutputFilesE2E:
         assert "output_files" in complete_event
         assert len(complete_event["output_files"]) == 1
 
+    @patch("app.api.v1.agent.pre_compress_if_needed", new_callable=AsyncMock, return_value=[])
+    @patch("app.api.v1.agent.save_session_checkpoint", new_callable=AsyncMock)
     @patch("app.api.v1.agent.save_session_messages", new_callable=AsyncMock)
-    @patch("app.api.v1.agent.load_or_create_session", new_callable=AsyncMock, return_value=("test-session-id", None))
+    @patch("app.api.v1.agent.load_or_create_session", new_callable=AsyncMock, return_value=SessionData(session_id="test-session-id"))
     @patch("app.api.v1.agent.AsyncSessionLocal")
     @patch("app.api.v1.agent.SkillsAgent")
     async def test_04_stream_no_output_files(
-        self, MockAgent, MockSessionLocal, _mock_load, _mock_save, e2e_client: AsyncClient
+        self, MockAgent, MockSessionLocal, _mock_load, _mock_save, _mock_checkpoint, _mock_precompress, e2e_client: AsyncClient
     ):
         """POST /agent/run/stream without output files → no output_file events."""
         MockAgent.return_value = _make_streaming_mock_agent(answer="Just text")
@@ -2775,7 +2784,7 @@ class TestPublishedAgentOutputFilesE2E:
         MockSL.side_effect = lambda: _ctx()
 
         session_id = str(uuid.uuid4())
-        MockLoadSession.return_value = (session_id, None)
+        MockLoadSession.return_value = SessionData(session_id=session_id)
         resp = await e2e_client.post(
             f"/api/v1/published/{pid}/chat/sync",
             json={"request": "Analyze this data", "session_id": session_id},
@@ -2839,7 +2848,7 @@ class TestPublishedAgentOutputFilesE2E:
         MockSL.side_effect = lambda: _ctx()
 
         session_id = str(uuid.uuid4())
-        MockLoadSession.return_value = (session_id, None)
+        MockLoadSession.return_value = SessionData(session_id=session_id)
         resp = await e2e_client.post(
             f"/api/v1/published/{pid}/chat/sync",
             json={"request": "Just a question", "session_id": session_id},
@@ -3100,12 +3109,14 @@ class TestResilientStreamingE2E:
 
     # -- Published endpoint tests --
 
+    @patch("app.api.v1.published.pre_compress_if_needed", new_callable=AsyncMock, return_value=[])
+    @patch("app.api.v1.published.save_session_checkpoint", new_callable=AsyncMock)
     @patch("app.api.v1.published.save_session_messages", new_callable=AsyncMock)
     @patch("app.api.v1.published.load_or_create_session", new_callable=AsyncMock)
     @patch("app.api.v1.published.SkillsAgent")
     @patch("app.api.v1.published.AsyncSessionLocal")
     async def test_02_turn_complete_triggers_incremental_save(
-        self, MockSL, MockAgent, MockLoadSession, MockSave, e2e_client: AsyncClient
+        self, MockSL, MockAgent, MockLoadSession, MockSave, _mock_checkpoint, _mock_precompress, e2e_client: AsyncClient
     ):
         """turn_complete events trigger incremental save_session_messages calls."""
         pid = type(self)._state["preset_id"]
@@ -3147,7 +3158,7 @@ class TestResilientStreamingE2E:
         MockSL.side_effect = lambda: _ctx()
 
         session_id = str(uuid.uuid4())
-        MockLoadSession.return_value = (session_id, None)
+        MockLoadSession.return_value = SessionData(session_id=session_id)
 
         resp = await e2e_client.post(
             f"/api/v1/published/{pid}/chat",
@@ -3155,27 +3166,24 @@ class TestResilientStreamingE2E:
         )
         assert resp.status_code == 200
 
-        # Verify save_session_messages was called multiple times:
-        # 2 incremental (turn_complete) + 1 final (complete)
-        assert MockSave.call_count >= 3, f"Expected >=3 save calls, got {MockSave.call_count}"
+        # Verify save_session_checkpoint was called for incremental saves (turn_complete)
+        assert _mock_checkpoint.call_count >= 2, f"Expected >=2 checkpoint calls, got {_mock_checkpoint.call_count}"
 
-        # First two calls are incremental (empty answer, with snapshot)
-        call_args_list = MockSave.call_args_list
-        # Call 0: turn 1 checkpoint — empty answer for incremental
-        assert call_args_list[0].args[1] == ""
-        # Call 1: turn 2 checkpoint — empty answer for incremental
-        assert call_args_list[1].args[1] == ""
+        # Verify save_session_messages was called once for the final save
+        assert MockSave.call_count == 1, f"Expected 1 final save call, got {MockSave.call_count}"
 
-        # Last call is the definitive save with final answer
-        last_call = call_args_list[-1]
+        # Final call is the definitive save with final answer
+        last_call = MockSave.call_args_list[-1]
         assert last_call.args[1] == "Multi-turn done"
 
+    @patch("app.api.v1.published.pre_compress_if_needed", new_callable=AsyncMock, return_value=[])
+    @patch("app.api.v1.published.save_session_checkpoint", new_callable=AsyncMock)
     @patch("app.api.v1.published.save_session_messages", new_callable=AsyncMock)
     @patch("app.api.v1.published.load_or_create_session", new_callable=AsyncMock)
     @patch("app.api.v1.published.SkillsAgent")
     @patch("app.api.v1.published.AsyncSessionLocal")
     async def test_03_turn_complete_not_forwarded_to_client(
-        self, MockSL, MockAgent, MockLoadSession, MockSave, e2e_client: AsyncClient
+        self, MockSL, MockAgent, MockLoadSession, MockSave, _mock_checkpoint, _mock_precompress, e2e_client: AsyncClient
     ):
         """turn_complete events must NOT appear in SSE output to the client."""
         pid = type(self)._state["preset_id"]
@@ -3217,7 +3225,7 @@ class TestResilientStreamingE2E:
         MockSL.side_effect = lambda: _ctx()
 
         session_id = str(uuid.uuid4())
-        MockLoadSession.return_value = (session_id, None)
+        MockLoadSession.return_value = SessionData(session_id=session_id)
 
         resp = await e2e_client.post(
             f"/api/v1/published/{pid}/chat",
@@ -3238,12 +3246,14 @@ class TestResilientStreamingE2E:
         assert "tool_result" in event_types
         assert "complete" in event_types
 
+    @patch("app.api.v1.published.pre_compress_if_needed", new_callable=AsyncMock, return_value=[])
+    @patch("app.api.v1.published.save_session_checkpoint", new_callable=AsyncMock)
     @patch("app.api.v1.published.save_session_messages", new_callable=AsyncMock)
     @patch("app.api.v1.published.load_or_create_session", new_callable=AsyncMock)
     @patch("app.api.v1.published.SkillsAgent")
     @patch("app.api.v1.published.AsyncSessionLocal")
     async def test_04_checkpoint_snapshot_content_correct(
-        self, MockSL, MockAgent, MockLoadSession, MockSave, e2e_client: AsyncClient
+        self, MockSL, MockAgent, MockLoadSession, MockSave, _mock_checkpoint, _mock_precompress, e2e_client: AsyncClient
     ):
         """Verify incremental saves contain growing messages_snapshot."""
         pid = type(self)._state["preset_id"]
@@ -3285,7 +3295,7 @@ class TestResilientStreamingE2E:
         MockSL.side_effect = lambda: _ctx()
 
         session_id = str(uuid.uuid4())
-        MockLoadSession.return_value = (session_id, None)
+        MockLoadSession.return_value = SessionData(session_id=session_id)
 
         resp = await e2e_client.post(
             f"/api/v1/published/{pid}/chat",
@@ -3293,30 +3303,34 @@ class TestResilientStreamingE2E:
         )
         assert resp.status_code == 200
 
-        call_args_list = MockSave.call_args_list
+        checkpoint_args_list = _mock_checkpoint.call_args_list
 
         # First checkpoint (turn 1): 3 messages (user + assistant tool_use + tool_result)
-        first_msgs = call_args_list[0].kwargs.get("final_messages") or call_args_list[0].args[3]
+        first_msgs = checkpoint_args_list[0].args[1]  # save_session_checkpoint(session_id, snapshot)
         assert len(first_msgs) == 3
         assert first_msgs[0]["role"] == "user"
 
         # Second checkpoint (turn 2): 5 messages (turn1 + turn2 tool_use + tool_result)
-        second_msgs = call_args_list[1].kwargs.get("final_messages") or call_args_list[1].args[3]
+        second_msgs = checkpoint_args_list[1].args[1]
         assert len(second_msgs) == 5
         assert len(second_msgs) > len(first_msgs)
 
-        # Final save: full messages including assistant answer
-        final_msgs = call_args_list[-1].kwargs.get("final_messages") or call_args_list[-1].args[3]
+        # Final save via save_session_messages: full messages including assistant answer
+        final_save_args = MockSave.call_args_list
+        assert len(final_save_args) >= 1
+        final_msgs = final_save_args[-1].kwargs.get("final_messages") or final_save_args[-1].args[3]
         assert len(final_msgs) == 6  # 5 + final assistant text
 
     # -- Agent (chat panel) endpoint tests --
 
+    @patch("app.api.v1.agent.pre_compress_if_needed", new_callable=AsyncMock, return_value=[])
+    @patch("app.api.v1.agent.save_session_checkpoint", new_callable=AsyncMock)
     @patch("app.api.v1.agent.save_session_messages", new_callable=AsyncMock)
-    @patch("app.api.v1.agent.load_or_create_session", new_callable=AsyncMock, return_value=("test-resilient-session", None))
+    @patch("app.api.v1.agent.load_or_create_session", new_callable=AsyncMock, return_value=SessionData(session_id="test-resilient-session"))
     @patch("app.api.v1.agent.AsyncSessionLocal")
     @patch("app.api.v1.agent.SkillsAgent")
     async def test_05_agent_endpoint_turn_complete_incremental_save(
-        self, MockAgent, MockSessionLocal, _mock_load, MockSave, e2e_client: AsyncClient
+        self, MockAgent, MockSessionLocal, _mock_load, MockSave, _mock_checkpoint, _mock_precompress, e2e_client: AsyncClient
     ):
         """Agent /run/stream endpoint also handles turn_complete for incremental saves."""
         events = self._make_multi_turn_events(answer="Agent multi-turn done")
@@ -3329,20 +3343,25 @@ class TestResilientStreamingE2E:
         )
         assert resp.status_code == 200
 
-        # Verify incremental saves happened
-        assert MockSave.call_count >= 3, f"Expected >=3 save calls, got {MockSave.call_count}"
+        # Verify incremental checkpoint saves happened via save_session_checkpoint
+        assert _mock_checkpoint.call_count >= 2, f"Expected >=2 checkpoint calls, got {_mock_checkpoint.call_count}"
+
+        # Verify final save_session_messages was called once
+        assert MockSave.call_count == 1, f"Expected 1 final save call, got {MockSave.call_count}"
 
         # turn_complete not in SSE
         sse_events = parse_sse_events(resp.text)
         event_types = [e["event_type"] for e in sse_events]
         assert "turn_complete" not in event_types
 
+    @patch("app.api.v1.agent.pre_compress_if_needed", new_callable=AsyncMock, return_value=[])
+    @patch("app.api.v1.agent.save_session_checkpoint", new_callable=AsyncMock)
     @patch("app.api.v1.agent.save_session_messages", new_callable=AsyncMock)
-    @patch("app.api.v1.agent.load_or_create_session", new_callable=AsyncMock, return_value=("test-resilient-session", None))
+    @patch("app.api.v1.agent.load_or_create_session", new_callable=AsyncMock, return_value=SessionData(session_id="test-resilient-session"))
     @patch("app.api.v1.agent.AsyncSessionLocal")
     @patch("app.api.v1.agent.SkillsAgent")
     async def test_06_no_turn_complete_means_no_incremental_save(
-        self, MockAgent, MockSessionLocal, _mock_load, MockSave, e2e_client: AsyncClient
+        self, MockAgent, MockSessionLocal, _mock_load, MockSave, _mock_checkpoint, _mock_precompress, e2e_client: AsyncClient
     ):
         """Without turn_complete events, only the final save happens."""
         events = _make_stream_events(answer="Simple answer")
@@ -3361,14 +3380,19 @@ class TestResilientStreamingE2E:
 
     # -- Session continuity after stop --
 
+    @patch("app.api.v1.published.pre_compress_if_needed", new_callable=AsyncMock, return_value=[])
+    @patch("app.api.v1.published.save_session_checkpoint", new_callable=AsyncMock)
     @patch("app.api.v1.published.save_session_messages", new_callable=AsyncMock)
     @patch("app.api.v1.published.load_or_create_session", new_callable=AsyncMock)
     @patch("app.api.v1.published.SkillsAgent")
     @patch("app.api.v1.published.AsyncSessionLocal")
     async def test_07_stop_then_continue_preserves_context(
-        self, MockSL, MockAgent, MockLoadSession, MockSave, e2e_client: AsyncClient
+        self, MockSL, MockAgent, MockLoadSession, MockSave, _mock_checkpoint, _mock_precompress, e2e_client: AsyncClient
     ):
         """After stop, the next request receives saved checkpoint as conversation_history."""
+        # pre_compress_if_needed should pass through the context unchanged
+        _mock_precompress.side_effect = lambda ctx, *a, **kw: ctx
+
         pid = type(self)._state["preset_id"]
         session_id = str(uuid.uuid4())
 
@@ -3436,7 +3460,7 @@ class TestResilientStreamingE2E:
             yield mock_sess
 
         MockSL.side_effect = lambda: _ctx()
-        MockLoadSession.return_value = (session_id, None)  # New session
+        MockLoadSession.return_value = SessionData(session_id=session_id)  # New session
 
         resp = await e2e_client.post(
             f"/api/v1/published/{pid}/chat",
@@ -3444,9 +3468,9 @@ class TestResilientStreamingE2E:
         )
         assert resp.status_code == 200
 
-        # Verify checkpoint was saved (first call = incremental save from turn_complete)
-        assert MockSave.call_count >= 1
-        saved_snapshot = MockSave.call_args_list[0].kwargs.get("final_messages") or MockSave.call_args_list[0].args[3]
+        # Verify checkpoint was saved via save_session_checkpoint (turn_complete)
+        assert _mock_checkpoint.call_count >= 1
+        saved_snapshot = _mock_checkpoint.call_args_list[0].args[1]  # save_session_checkpoint(session_id, snapshot)
         assert len(saved_snapshot) == 3  # The checkpoint_messages
 
         # -- Run 2: same session_id, load_or_create returns the checkpoint --
@@ -3458,7 +3482,7 @@ class TestResilientStreamingE2E:
         MockAgent.return_value = mock_agent2
 
         call_idx["i"] = 0  # Reset counter for AsyncSessionLocal
-        MockLoadSession.return_value = (session_id, checkpoint_messages)  # Return saved history
+        MockLoadSession.return_value = SessionData(session_id=session_id, agent_context=checkpoint_messages)  # Return saved history
 
         resp2 = await e2e_client.post(
             f"/api/v1/published/{pid}/chat",
