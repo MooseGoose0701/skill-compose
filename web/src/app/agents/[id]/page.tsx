@@ -77,6 +77,7 @@ export default function AgentDetailPage() {
     setSelectedExecutorId: setChatExecutorId,
     clearMessages,
     clearUploadedFiles,
+    setSessionId,
   } = useChatStore();
   const chatPanel = useChatPanel();
 
@@ -90,6 +91,8 @@ export default function AgentDetailPage() {
 
   const applyPresetToChat = () => {
     if (!preset) return;
+    // Reset session so the new agent gets a fresh server-side session
+    setSessionId(null);
     setSelectedSkills(preset.skill_ids || []);
     setMaxTurns(preset.max_turns);
     if (preset.builtin_tools === null && tools.length > 0) {

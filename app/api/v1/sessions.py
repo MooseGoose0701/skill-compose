@@ -43,6 +43,9 @@ async def load_or_create_session(
     Returns SessionData with display_messages and agent_context.
     For brand-new sessions both fields are None.
     For existing sessions with agent_context=NULL, falls back to copying messages.
+
+    If the session exists but with a different agent_id (e.g. switching from
+    custom chat to an agent preset), the session is reset for the new agent.
     """
     async with AsyncSessionLocal() as db:
         result = await db.execute(
@@ -64,18 +67,35 @@ async def load_or_create_session(
                 display_messages=display,
                 agent_context=ctx if ctx else None,
             )
-        else:
-            # Create new session with caller-provided ID
-            new_session = PublishedSessionDB(
-                id=session_id,
-                agent_id=agent_id,
-                messages=[],
-                agent_context=None,
-            )
-            db.add(new_session)
-            await db.commit()
 
+        # Check if session exists with a different agent_id
+        result2 = await db.execute(
+            select(PublishedSessionDB).where(
+                PublishedSessionDB.id == session_id,
+            )
+        )
+        existing = result2.scalar_one_or_none()
+
+        if existing:
+            # Session exists but agent switched — reset for the new agent
+            existing.agent_id = agent_id
+            existing.messages = []
+            existing.agent_context = None
+            existing.updated_at = datetime.utcnow()
+            await db.commit()
             return SessionData(session_id=session_id)
+
+        # Create new session with caller-provided ID
+        new_session = PublishedSessionDB(
+            id=session_id,
+            agent_id=agent_id,
+            messages=[],
+            agent_context=None,
+        )
+        db.add(new_session)
+        await db.commit()
+
+        return SessionData(session_id=session_id)
 
 
 async def save_session_messages(
