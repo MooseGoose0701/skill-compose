@@ -83,6 +83,7 @@ class AgentWorkspace:
         timeout: int = DEFAULT_TIMEOUT,
         max_output_chars: int = MAX_OUTPUT_CHARS,
         env_vars: Optional[Dict[str, str]] = None,
+        workspace_id: Optional[str] = None,
     ):
         """
         Initialize a new workspace.
@@ -92,8 +93,9 @@ class AgentWorkspace:
             timeout: Default execution timeout in seconds
             max_output_chars: Maximum characters in output
             env_vars: Additional environment variables for execution
+            workspace_id: Optional fixed ID (e.g. session_id) to reuse workspace across requests
         """
-        self.workspace_id = str(uuid.uuid4())
+        self.workspace_id = workspace_id or str(uuid.uuid4())
 
         # Per-session workspace directory for code execution output
         # This is where execute_code/bash cwd points, and file_scanner scans

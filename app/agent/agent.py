@@ -450,6 +450,7 @@ class SkillsAgent:
         equipped_mcp_servers: Optional[List[str]] = None,
         custom_system_prompt: Optional[str] = None,
         executor_name: Optional[str] = None,
+        workspace_id: Optional[str] = None,
     ):
         # Model configuration
         self.model_provider = model_provider or settings.default_model_provider
@@ -475,6 +476,7 @@ class SkillsAgent:
             equipped_mcp_servers=equipped_mcp_servers,
             skill_names=allowed_skills,
             executor_name=executor_name,
+            workspace_id=workspace_id,
         )
 
         # Filter tools if allowed_tools is specified
