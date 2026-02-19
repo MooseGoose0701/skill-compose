@@ -2605,7 +2605,7 @@ class TestWriteWorkspaceE2E:
     """
 
     async def test_01_write_resolves_to_workspace(self):
-        """write('rel.txt') lands in workspace_dir, not WORKING_DIR."""
+        """write('rel.txt') lands in workspace_dir."""
         from app.agent.tools import create_workspace_bound_tools
         from app.tools.code_executor import AgentWorkspace
 

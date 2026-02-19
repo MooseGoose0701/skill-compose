@@ -70,18 +70,15 @@ class AgentWorkspace:
     """
     Workspace for Agent code execution.
 
-    - working_dir: The cwd for subprocess (typically project root)
+    - workspace_dir: Per-session isolated directory where code runs
     - temp_path: Where temporary scripts are stored (/tmp/agent_workspaces/xxx)
 
-    This allows Agent to:
-    - Execute scripts in the project directory (e.g., python skills/xxx/script.py)
-    - Access project files with relative paths
-    - Keep temp scripts separate from the project
+    All tools resolve relative paths to workspace_dir.
+    Project files must be accessed via absolute paths.
     """
 
     def __init__(
         self,
-        working_dir: Optional[str] = None,
         temp_base_dir: str = TEMP_SCRIPTS_BASE_DIR,
         timeout: int = DEFAULT_TIMEOUT,
         max_output_chars: int = MAX_OUTPUT_CHARS,
@@ -91,16 +88,12 @@ class AgentWorkspace:
         Initialize a new workspace.
 
         Args:
-            working_dir: Working directory for command execution (default: cwd)
             temp_base_dir: Base directory for temporary scripts
             timeout: Default execution timeout in seconds
             max_output_chars: Maximum characters in output
             env_vars: Additional environment variables for execution
         """
         self.workspace_id = str(uuid.uuid4())
-
-        # Working directory for subprocess cwd (project root)
-        self.working_dir = Path(working_dir).resolve() if working_dir else Path.cwd()
 
         # Per-session workspace directory for code execution output
         # This is where execute_code/bash cwd points, and file_scanner scans
@@ -385,12 +378,11 @@ class CodeExecutor:
 
     def __init__(
         self,
-        working_dir: str = ".",
         timeout: int = DEFAULT_TIMEOUT,
         verbose: bool = False,
         max_output_chars: int = MAX_OUTPUT_CHARS,
+        **kwargs,
     ):
-        self.working_dir = os.path.abspath(working_dir)
         self.timeout = timeout
         self.verbose = verbose
         self.max_output_chars = max_output_chars
@@ -401,7 +393,6 @@ class CodeExecutor:
         """Get or create the workspace."""
         if self._workspace is None:
             self._workspace = AgentWorkspace(
-                working_dir=self.working_dir,
                 timeout=self.timeout,
                 max_output_chars=self.max_output_chars,
                 env_vars=self._env_vars,
@@ -443,9 +434,9 @@ _executor_instance: Optional[CodeExecutor] = None
 
 
 def get_code_executor(
-    working_dir: str = ".",
     timeout: int = DEFAULT_TIMEOUT,
     force_new: bool = False,
+    **kwargs,
 ) -> CodeExecutor:
     """
     Get or create a CodeExecutor instance (legacy API).
@@ -456,7 +447,6 @@ def get_code_executor(
 
     if _executor_instance is None or force_new:
         _executor_instance = CodeExecutor(
-            working_dir=working_dir,
             timeout=timeout,
         )
 

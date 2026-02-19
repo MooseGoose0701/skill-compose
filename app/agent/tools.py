@@ -33,9 +33,10 @@ from app.tools.mcp_client import (
 from app.db.database import SyncSessionLocal
 from app.db.models import SkillDB, SkillVersionDB
 
-# Get working directory from settings (loads from .env automatically via pydantic_settings)
+# Get settings (loads from .env automatically via pydantic_settings)
 _settings = get_settings()
-WORKING_DIR = str(Path(_settings.app_working_dir or _settings.project_dir).resolve())
+# Skills directory — used as default path for glob/grep and in tool descriptions
+_SKILLS_DIR = str(Path(_settings.skills_dir or _settings.custom_skills_dir).resolve())
 # Persistent directory for output files (survives workspace cleanup)
 _PERSIST_DIR = Path(_settings.upload_dir)
 
@@ -239,20 +240,6 @@ BINARY_EXTENSIONS = {
 }
 
 
-def _get_skill_source_paths() -> List[Path]:
-    """Get paths to skill source code directories."""
-    skills_dir = Path(WORKING_DIR) / "skills"
-    source_paths = []
-
-    if skills_dir.exists():
-        # Add skill directories that contain source code
-        for skill_dir in skills_dir.iterdir():
-            if skill_dir.is_dir():
-                source_paths.append(skill_dir)
-
-    return source_paths
-
-
 def _is_binary_file(filepath: Path) -> bool:
     """Check if a file is binary based on extension and content."""
     # Check extension first
@@ -296,11 +283,9 @@ def glob(pattern: str, path: Optional[str] = None) -> Dict[str, Any]:
     # Determine search path
     if path:
         search_path = Path(path)
-        if not search_path.is_absolute():
-            search_path = Path(WORKING_DIR) / path
     else:
         # Default to skills directory
-        search_path = Path(WORKING_DIR) / "skills"
+        search_path = Path(_SKILLS_DIR)
 
     if not search_path.exists():
         return {"error": f"Path not found: {search_path}", "files": [], "count": 0}
@@ -366,10 +351,8 @@ def grep(pattern: str, path: Optional[str] = None, include: Optional[str] = None
     # Determine search path
     if path:
         search_path = Path(path)
-        if not search_path.is_absolute():
-            search_path = Path(WORKING_DIR) / path
     else:
-        search_path = Path(WORKING_DIR) / "skills"
+        search_path = Path(_SKILLS_DIR)
 
     if not search_path.exists():
         return {"error": f"Path not found: {search_path}", "matches": 0, "output": ""}
@@ -531,8 +514,6 @@ def write(file_path: str, content: str) -> Dict[str, Any]:
         content: Content to write to the file
     """
     filepath = Path(file_path)
-    if not filepath.is_absolute():
-        filepath = Path(WORKING_DIR) / file_path
 
     # Security: prevent writing to sensitive locations
     sensitive_patterns = ['.env', 'credentials', 'secrets', '.git/']
@@ -571,8 +552,6 @@ def edit(file_path: str, old_string: str, new_string: str, replace_all: bool = F
         Success/error status with details
     """
     filepath = Path(file_path)
-    if not filepath.is_absolute():
-        filepath = Path(WORKING_DIR) / file_path
 
     if not filepath.exists():
         return {"error": f"File not found: {filepath}"}
@@ -649,8 +628,6 @@ def read(file_path: str, offset: int = 0, limit: Optional[int] = None) -> Dict[s
         limit: Number of lines to read (defaults to 2000)
     """
     filepath = Path(file_path)
-    if not filepath.is_absolute():
-        filepath = Path(WORKING_DIR) / file_path
 
     if not filepath.exists():
         # Try to suggest similar files
@@ -934,7 +911,7 @@ BASE_TOOLS = [
         "description": f"""Execute Python code. Variables, imports, and state persist across calls within the same session (powered by IPython kernel).
 
 IMPORTANT: Code runs in an isolated workspace directory, NOT the project root.
-To access project files, use absolute paths (e.g., "{WORKING_DIR}/skills/my-skill/scripts/main.py").""",
+To access project files, use absolute paths (e.g., "{_SKILLS_DIR}/my-skill/scripts/main.py").""",
         "input_schema": {
             "type": "object",
             "properties": {
@@ -952,12 +929,12 @@ To access project files, use absolute paths (e.g., "{WORKING_DIR}/skills/my-skil
 
 IMPORTANT:
 - Commands run in an isolated workspace directory, NOT the project root
-- To access project files, use absolute paths (e.g., "python {WORKING_DIR}/skills/my-skill/scripts/main.py")
+- To access project files, use absolute paths (e.g., "python {_SKILLS_DIR}/my-skill/scripts/main.py")
 - Use for system commands, not for file operations (use read/write/edit instead)
 - Supports optional timeout parameter
 Examples:
 - bash(command="pip install pandas")
-- bash(command="python {WORKING_DIR}/skills/my-skill/scripts/main.py")
+- bash(command="python {_SKILLS_DIR}/my-skill/scripts/main.py")
 - bash(command="ls -la")""",
         "input_schema": {
             "type": "object",
@@ -1243,20 +1220,17 @@ def create_workspace_bound_tools(workspace: AgentWorkspace) -> Dict[str, Callabl
         return result
 
     def read_in_workspace(file_path, offset=0, limit=None, **kwargs):
-        """Read that tries workspace_dir first for relative paths, then falls back to WORKING_DIR."""
+        """Read that resolves relative paths to workspace_dir."""
         filepath = Path(file_path)
         if not filepath.is_absolute():
-            workspace_path = workspace.workspace_dir / file_path
-            if workspace_path.exists():
-                return read(str(workspace_path), offset, limit)
-        return read(file_path, offset, limit)
+            filepath = workspace.workspace_dir / file_path
+        return read(str(filepath), offset, limit)
 
     def write_in_workspace(file_path, content, **kwargs):
         """Write that resolves relative paths to workspace_dir (same cwd as execute_code)."""
         from app.tools.file_scanner import build_output_file_infos
         filepath = Path(file_path)
         if not filepath.is_absolute():
-            # Resolve relative paths to workspace dir, not WORKING_DIR
             filepath = workspace.workspace_dir / file_path
         result = write(str(filepath), content)
         if result.get("success") and result.get("path"):
@@ -1265,11 +1239,37 @@ def create_workspace_bound_tools(workspace: AgentWorkspace) -> Dict[str, Callabl
                 result["new_files"] = file_infos
         return result
 
+    def glob_in_workspace(pattern, path=None, **kwargs):
+        """Glob that resolves relative paths to workspace_dir."""
+        if path:
+            p = Path(path)
+            if not p.is_absolute():
+                path = str(workspace.workspace_dir / path)
+        return glob(pattern, path)
+
+    def grep_in_workspace(pattern, path=None, include=None, **kwargs):
+        """Grep that resolves relative paths to workspace_dir."""
+        if path:
+            p = Path(path)
+            if not p.is_absolute():
+                path = str(workspace.workspace_dir / path)
+        return grep(pattern, path, include)
+
+    def edit_in_workspace(file_path, old_string, new_string, replace_all=False, **kwargs):
+        """Edit that resolves relative paths to workspace_dir."""
+        filepath = Path(file_path)
+        if not filepath.is_absolute():
+            filepath = workspace.workspace_dir / file_path
+        return edit(str(filepath), old_string, new_string, replace_all)
+
     return {
         "execute_code": execute_code_with_scan,
         "bash": bash_with_scan,
         "read": read_in_workspace,
         "write": write_in_workspace,
+        "glob": glob_in_workspace,
+        "grep": grep_in_workspace,
+        "edit": edit_in_workspace,
     }
 
 
@@ -1399,13 +1399,11 @@ def create_executor_bound_tools(
         return output
 
     def read_in_workspace(file_path, offset=0, limit=None, **kwargs):
-        """Read that tries workspace_dir first for relative paths, then falls back to WORKING_DIR."""
+        """Read that resolves relative paths to workspace_dir."""
         filepath = Path(file_path)
         if not filepath.is_absolute():
-            workspace_path = wks_path / file_path
-            if workspace_path.exists():
-                return read(str(workspace_path), offset, limit)
-        return read(file_path, offset, limit)
+            filepath = wks_path / file_path
+        return read(str(filepath), offset, limit)
 
     def write_in_workspace(file_path, content, **kwargs):
         """Write that resolves relative paths to workspace_dir (same cwd as execute_code)."""
@@ -1420,11 +1418,37 @@ def create_executor_bound_tools(
                 result["new_files"] = file_infos
         return result
 
+    def glob_in_workspace(pattern, path=None, **kwargs):
+        """Glob that resolves relative paths to workspace_dir."""
+        if path:
+            p = Path(path)
+            if not p.is_absolute():
+                path = str(wks_path / path)
+        return glob(pattern, path)
+
+    def grep_in_workspace(pattern, path=None, include=None, **kwargs):
+        """Grep that resolves relative paths to workspace_dir."""
+        if path:
+            p = Path(path)
+            if not p.is_absolute():
+                path = str(wks_path / path)
+        return grep(pattern, path, include)
+
+    def edit_in_workspace(file_path, old_string, new_string, replace_all=False, **kwargs):
+        """Edit that resolves relative paths to workspace_dir."""
+        filepath = Path(file_path)
+        if not filepath.is_absolute():
+            filepath = wks_path / file_path
+        return edit(str(filepath), old_string, new_string, replace_all)
+
     return {
         "execute_code": execute_code_remote,
         "bash": bash_remote,
         "read": read_in_workspace,
         "write": write_in_workspace,
+        "glob": glob_in_workspace,
+        "grep": grep_in_workspace,
+        "edit": edit_in_workspace,
     }
 
 
@@ -1467,9 +1491,8 @@ def get_tools_for_agent(
         Tuple of (tools list for Claude, tool_functions dict, workspace)
     """
     # Create workspace with skill environment variables
-    # working_dir is the project root so Agent can access skills/, etc.
     env_vars = get_skill_env_vars(skill_names) if skill_names else {}
-    workspace = AgentWorkspace(working_dir=WORKING_DIR, env_vars=env_vars)
+    workspace = AgentWorkspace(env_vars=env_vars)
 
     # Start with base tools
     tools = BASE_TOOLS.copy()
