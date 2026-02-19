@@ -295,7 +295,7 @@ IMPORTANT: Use the absolute file paths shown above when reading or processing fi
     return actual_request, image_contents
 
 
-def _create_agent(config: dict) -> SkillsAgent:
+def _create_agent(config: dict, workspace_id: Optional[str] = None) -> SkillsAgent:
     """Create a SkillsAgent from resolved config."""
     return SkillsAgent(
         model=config.get("model_name"),
@@ -307,6 +307,7 @@ def _create_agent(config: dict) -> SkillsAgent:
         equipped_mcp_servers=config["equipped_mcp_servers"],
         custom_system_prompt=config["system_prompt"],
         executor_name=config.get("executor_name"),
+        workspace_id=workspace_id,
     )
 
 
@@ -328,19 +329,21 @@ async def run_agent(request: AgentRequest, db: AsyncSession = Depends(get_db)):
 
     start_time = time.time()
 
-    agent = _create_agent(config)
+    # Load session history from DB (dual-store)
+    agent_id = config.get("agent_id") or CHAT_SENTINEL_AGENT_ID
+    session_data = await load_or_create_session(request.session_id, agent_id)
+    session_id = session_data.session_id
+    history = session_data.agent_context  # Use agent_context for the agent
+    history_len = len(history) if history else 0
+
+    # Create agent with session_id as workspace_id for deterministic mapping
+    agent = _create_agent(config, workspace_id=session_id)
 
     try:
-        # Load session history from DB (dual-store)
-        agent_id = config.get("agent_id") or CHAT_SENTINEL_AGENT_ID
-        session_data = await load_or_create_session(request.session_id, agent_id)
-        session_id = session_data.session_id
-        history = session_data.agent_context  # Use agent_context for the agent
-        history_len = len(history) if history else 0
-
         # Pre-compress if context exceeds threshold
-        effective_provider = config.get("model_provider") or agent.model_provider
-        effective_model = config.get("model_name") or agent.model
+        from app.config import settings as app_settings_run
+        effective_provider = config.get("model_provider") or app_settings_run.default_model_provider
+        effective_model = config.get("model_name") or app_settings_run.default_model_name
         if history:
             history = await pre_compress_if_needed(history, effective_provider, effective_model)
 
@@ -499,6 +502,7 @@ async def run_agent_stream(request: AgentRequest, db: AsyncSession = Depends(get
             equipped_mcp_servers=config["equipped_mcp_servers"],
             custom_system_prompt=config["system_prompt"],
             executor_name=config.get("executor_name"),
+            workspace_id=session_id,
         )
 
         event_stream = EventStream()

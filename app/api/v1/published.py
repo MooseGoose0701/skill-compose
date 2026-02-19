@@ -444,6 +444,7 @@ async def published_chat(agent_id: str, request: PublishedChatRequest):
             equipped_mcp_servers=config["equipped_mcp_servers"],
             custom_system_prompt=config["system_prompt"],
             executor_name=config.get("executor_name"),
+            workspace_id=session_id,
         )
 
         event_stream = EventStream()
@@ -724,6 +725,7 @@ async def published_chat_sync(agent_id: str, request: PublishedChatRequest):
         equipped_mcp_servers=config["equipped_mcp_servers"],
         custom_system_prompt=config["system_prompt"],
         executor_name=config.get("executor_name"),
+        workspace_id=session_id,
     )
 
     try:

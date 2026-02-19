@@ -1471,6 +1471,7 @@ def get_tools_for_agent(
     equipped_mcp_servers: Optional[List[str]] = None,
     skill_names: Optional[List[str]] = None,
     executor_name: Optional[str] = None,
+    workspace_id: Optional[str] = None,
 ) -> tuple[List[Dict[str, Any]], Dict[str, Callable], AgentWorkspace]:
     """
     Get tools, tool functions, and workspace for an agent.
@@ -1492,7 +1493,7 @@ def get_tools_for_agent(
     """
     # Create workspace with skill environment variables
     env_vars = get_skill_env_vars(skill_names) if skill_names else {}
-    workspace = AgentWorkspace(env_vars=env_vars)
+    workspace = AgentWorkspace(env_vars=env_vars, workspace_id=workspace_id)
 
     # Start with base tools
     tools = BASE_TOOLS.copy()
