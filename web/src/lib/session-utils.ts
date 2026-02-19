@@ -62,6 +62,31 @@ export function sessionMessagesToChatMessages(raw: RawMessage[]): ChatMessage[] 
                   success: !block.is_error,
                 },
               });
+
+              // Extract output_file events from tool results that detect new files
+              if (toolName === 'execute_code' || toolName === 'bash' || toolName === 'write') {
+                try {
+                  const parsed = JSON.parse(resultContent);
+                  if (Array.isArray(parsed.new_files)) {
+                    for (const nf of parsed.new_files) {
+                      if (nf.download_url) {
+                        events.push({
+                          id: nextId(),
+                          timestamp: now,
+                          type: 'output_file',
+                          data: {
+                            fileId: nf.file_id || nextId(),
+                            filename: nf.filename || 'file',
+                            size: nf.size || 0,
+                            contentType: nf.content_type || 'application/octet-stream',
+                            downloadUrl: nf.download_url,
+                          },
+                        });
+                      }
+                    }
+                  }
+                } catch { /* not JSON, skip */ }
+              }
             }
           }
           continue;
