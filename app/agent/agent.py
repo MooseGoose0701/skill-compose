@@ -33,7 +33,7 @@ if TYPE_CHECKING:
     from app.agent.event_stream import EventStream
 
 # Context window compression constants
-COMPRESSION_THRESHOLD_RATIO = 0.7  # Trigger compression when input tokens exceed 70% of limit
+COMPRESSION_THRESHOLD_RATIO = 0.5  # Trigger compression when input tokens exceed 50% of limit
 MAX_RECENT_TURNS = 3               # Keep at most 3 recent logical turns
 RECENT_TURNS_TOKEN_BUDGET = 0.25   # Recent turns can use up to 25% of context limit
 CHARS_PER_TOKEN = 3.5              # Conservative estimate for mixed CJK/English text
@@ -702,27 +702,47 @@ class SkillsAgent:
                     if self.verbose:
                         print(f"\n[Stream Error] {stream_err}")
                     if self._is_retryable_error(stream_err):
-                        if self.verbose:
-                            print(f"[Stream Retry] Retrying with non-streaming call after 2s...")
-                        await asyncio.sleep(2)
-                        try:
-                            response = await self.client.acreate(
-                                messages=messages,
-                                system=self.system_prompt,
-                                tools=self.tools,
-                                max_tokens=16384,
-                            )
-                        except Exception as retry_err:
+                        # Retry with exponential backoff (up to 3 attempts)
+                        for attempt in range(1, 4):
+                            delay = 2 ** attempt  # 2s, 4s, 8s
                             if self.verbose:
-                                print(f"[Stream Retry] Retry also failed: {retry_err}")
+                                print(f"[Stream Retry] Attempt {attempt}/3 with non-streaming call after {delay}s...")
+                            await asyncio.sleep(delay)
+                            try:
+                                response = await self.client.acreate(
+                                    messages=messages,
+                                    system=self.system_prompt,
+                                    tools=self.tools,
+                                    max_tokens=16384,
+                                )
+                                break  # Success
+                            except Exception as retry_err:
+                                if self.verbose:
+                                    print(f"[Stream Retry] Attempt {attempt}/3 failed: {retry_err}")
+                                if attempt == 3 or not self._is_retryable_error(retry_err):
+                                    break  # Give up
             else:
-                # Non-streaming: single call
-                response = await self.client.acreate(
-                    messages=messages,
-                    system=self.system_prompt,
-                    tools=self.tools,
-                    max_tokens=16384,
-                )
+                # Non-streaming: single call with retry
+                for attempt in range(4):  # 1 initial + 3 retries
+                    try:
+                        response = await self.client.acreate(
+                            messages=messages,
+                            system=self.system_prompt,
+                            tools=self.tools,
+                            max_tokens=16384,
+                        )
+                        break
+                    except Exception as call_err:
+                        if attempt < 3 and self._is_retryable_error(call_err):
+                            delay = 2 ** (attempt + 1)
+                            if self.verbose:
+                                print(f"\n[LLM Retry] Attempt {attempt+1}/3 failed: {call_err}")
+                                print(f"[LLM Retry] Retrying after {delay}s...")
+                            await asyncio.sleep(delay)
+                        else:
+                            if self.verbose:
+                                print(f"\n[LLM Error] Non-retryable: {call_err}")
+                            break
 
             # Check cancellation after LLM call
             if cancellation_event and cancellation_event.is_set():
