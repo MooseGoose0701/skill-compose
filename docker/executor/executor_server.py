@@ -204,10 +204,15 @@ async def execute_python(request: ExecuteRequest):
         )
 
 
+REMOTION_BROWSER_DIR = REMOTION_TEMPLATE_DIR / ".remotion"
+
+
 def _copy_template_node_modules(target_dir: Path) -> None:
     """Copy pre-cached node_modules into target_dir if it has package.json but no node_modules."""
     nm = target_dir / "node_modules"
     if nm.exists():
+        # node_modules exists — just ensure .remotion Chrome binary is present
+        _ensure_remotion_browser(nm)
         return
     pkg = target_dir / "package.json"
     if not pkg.exists():
@@ -220,11 +225,27 @@ def _copy_template_node_modules(target_dir: Path) -> None:
         logger.warning("Failed to copy template node_modules to %s: %s", nm, e)
 
 
+def _ensure_remotion_browser(node_modules: Path) -> None:
+    """Copy the pre-downloaded .remotion Chrome binary into node_modules if missing."""
+    target = node_modules / ".remotion"
+    if target.exists():
+        return
+    if not REMOTION_BROWSER_DIR.is_dir():
+        return
+    try:
+        import shutil
+        shutil.copytree(REMOTION_BROWSER_DIR, target, symlinks=True)
+        logger.info("Copied .remotion Chrome binary to %s", target)
+    except Exception as e:
+        logger.warning("Failed to copy .remotion to %s: %s", target, e)
+
+
 def _ensure_node_modules(workspace: Path) -> None:
     """
     For remotion executor: if a project has package.json but no node_modules,
     copy the pre-cached template to skip npm install (~18s → ~1s).
-    Checks both the workspace root and one level of subdirectories.
+    Checks workspace root, one level of subdirectories, and /app/ for
+    projects the agent may have created outside the workspace.
     """
     if EXECUTOR_NAME != "remotion":
         return
@@ -236,6 +257,13 @@ def _ensure_node_modules(workspace: Path) -> None:
     for sub in workspace.iterdir():
         if sub.is_dir() and not sub.name.startswith(".") and sub.name != "node_modules":
             _copy_template_node_modules(sub)
+    # Also check /app/ — agents sometimes create projects there with absolute paths
+    app_dir = Path("/app")
+    for sub in app_dir.iterdir():
+        if (sub.is_dir()
+            and sub.name not in ("workspaces", "skills", "uploads", "config")
+            and not sub.name.startswith(".")):
+            _copy_template_node_modules(sub)
 
 
 @app.post("/execute/bash", response_model=ExecuteResponse)
@@ -245,8 +273,12 @@ async def execute_bash(request: BashRequest):
     """
     workspace = get_workspace(request.workspace_id)
 
-    # Pre-warm: copy cached node_modules before npm install runs
-    if "npm install" in request.command or "npm i " in request.command or request.command.strip().endswith("npm i"):
+    # Pre-warm: copy cached node_modules (including .remotion/ Chrome binary)
+    # before npm install or remotion render runs
+    if ("npm install" in request.command
+        or "npm i " in request.command
+        or request.command.strip().endswith("npm i")
+        or "npx remotion" in request.command):
         _ensure_node_modules(workspace)
 
     # Build environment
