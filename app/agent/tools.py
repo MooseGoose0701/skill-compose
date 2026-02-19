@@ -36,6 +36,8 @@ from app.db.models import SkillDB, SkillVersionDB
 # Get working directory from settings (loads from .env automatically via pydantic_settings)
 _settings = get_settings()
 WORKING_DIR = str(Path(_settings.app_working_dir or _settings.project_dir).resolve())
+# Persistent directory for output files (survives workspace cleanup)
+_PERSIST_DIR = Path(_settings.upload_dir)
 
 logger = logging.getLogger(__name__)
 
@@ -1189,7 +1191,7 @@ def _write_with_output_detection(file_path, content, **kwargs):
     from app.tools.file_scanner import build_output_file_infos
     result = write(file_path, content)
     if result.get("success") and result.get("path"):
-        file_infos = build_output_file_infos([Path(result["path"])])
+        file_infos = build_output_file_infos([Path(result["path"])], persist_dir=_PERSIST_DIR)
         if file_infos:
             result["new_files"] = file_infos
     return result
@@ -1228,7 +1230,7 @@ def create_workspace_bound_tools(workspace: AgentWorkspace) -> Dict[str, Callabl
         after = snapshot_files(workspace.workspace_dir, recursive=True)
         new_files = diff_new_files(before, after)
         if new_files:
-            result["new_files"] = build_output_file_infos(new_files)
+            result["new_files"] = build_output_file_infos(new_files, persist_dir=_PERSIST_DIR)
         return result
 
     def bash_with_scan(command, timeout=None, **kwargs):
@@ -1237,7 +1239,7 @@ def create_workspace_bound_tools(workspace: AgentWorkspace) -> Dict[str, Callabl
         after = snapshot_files(workspace.workspace_dir, recursive=True)
         new_files = diff_new_files(before, after)
         if new_files:
-            result["new_files"] = build_output_file_infos(new_files)
+            result["new_files"] = build_output_file_infos(new_files, persist_dir=_PERSIST_DIR)
         return result
 
     def read_in_workspace(file_path, offset=0, limit=None, **kwargs):
@@ -1258,7 +1260,7 @@ def create_workspace_bound_tools(workspace: AgentWorkspace) -> Dict[str, Callabl
             filepath = workspace.workspace_dir / file_path
         result = write(str(filepath), content)
         if result.get("success") and result.get("path"):
-            file_infos = build_output_file_infos([Path(result["path"])])
+            file_infos = build_output_file_infos([Path(result["path"])], persist_dir=_PERSIST_DIR)
             if file_infos:
                 result["new_files"] = file_infos
         return result
@@ -1357,7 +1359,7 @@ def create_executor_bound_tools(
         after = snapshot_files(wks_path, recursive=True) if wks_path.exists() else {}
         new_files = diff_new_files(before, after)
         if new_files:
-            output["new_files"] = build_output_file_infos(new_files)
+            output["new_files"] = build_output_file_infos(new_files, persist_dir=_PERSIST_DIR)
         return output
 
     def bash_remote(command: str, timeout: Optional[int] = None, **kwargs) -> Dict[str, Any]:
@@ -1393,7 +1395,7 @@ def create_executor_bound_tools(
         after = snapshot_files(wks_path, recursive=True) if wks_path.exists() else {}
         new_files = diff_new_files(before, after)
         if new_files:
-            output["new_files"] = build_output_file_infos(new_files)
+            output["new_files"] = build_output_file_infos(new_files, persist_dir=_PERSIST_DIR)
         return output
 
     def read_in_workspace(file_path, offset=0, limit=None, **kwargs):
@@ -1413,7 +1415,7 @@ def create_executor_bound_tools(
             filepath = wks_path / file_path
         result = write(str(filepath), content)
         if result.get("success") and result.get("path"):
-            file_infos = build_output_file_infos([Path(result["path"])])
+            file_infos = build_output_file_infos([Path(result["path"])], persist_dir=_PERSIST_DIR)
             if file_infos:
                 result["new_files"] = file_infos
         return result

@@ -33,7 +33,7 @@ if TYPE_CHECKING:
     from app.agent.event_stream import EventStream
 
 # Context window compression constants
-COMPRESSION_THRESHOLD_RATIO = 0.5  # Trigger compression when input tokens exceed 50% of limit
+COMPRESSION_THRESHOLD_RATIO = 0.7  # Trigger compression when input tokens exceed 70% of limit
 MAX_RECENT_TURNS = 3               # Keep at most 3 recent logical turns
 RECENT_TURNS_TOKEN_BUDGET = 0.25   # Recent turns can use up to 25% of context limit
 CHARS_PER_TOKEN = 3.5              # Conservative estimate for mixed CJK/English text
@@ -47,11 +47,37 @@ TOOL_RESULT_NO_TRUNCATE = {"list_skills", "get_skill"}
 
 
 def truncate_tool_result(tool_name: str, result: str) -> str:
-    """Truncate tool result for LLM messages. Preserves head + tail for error visibility."""
+    """Truncate tool result for LLM messages. Preserves head + tail for error visibility.
+
+    For execute_code/bash/write, if the result contains ``new_files`` metadata,
+    the truncated output is re-serialised as valid JSON so the frontend can
+    parse ``new_files`` from session data on page refresh.
+    """
     if tool_name in TOOL_RESULT_NO_TRUNCATE:
         return result
     if len(result) <= TOOL_RESULT_MAX_CHARS:
         return result
+
+    # For code-execution tools, preserve new_files metadata as valid JSON
+    if tool_name in ("execute_code", "bash", "write"):
+        try:
+            parsed = json.loads(result)
+            if isinstance(parsed, dict) and parsed.get("new_files"):
+                output_text = str(parsed.get("output", ""))
+                max_output = TOOL_RESULT_MAX_CHARS - 300  # Reserve for JSON structure + new_files
+                if len(output_text) > max_output:
+                    output_text = output_text[:max_output] + "...(truncated)"
+                truncated = {
+                    "success": parsed.get("success"),
+                    "output": output_text,
+                    "new_files": parsed["new_files"],
+                }
+                if parsed.get("error"):
+                    truncated["error"] = str(parsed["error"])[:500]
+                return json.dumps(truncated, ensure_ascii=False)
+        except (json.JSONDecodeError, TypeError):
+            pass
+
     return (
         result[:TOOL_RESULT_HEAD_CHARS]
         + f"\n\n... [truncated {len(result) - TOOL_RESULT_HEAD_CHARS - TOOL_RESULT_TAIL_CHARS} chars] ...\n\n"
