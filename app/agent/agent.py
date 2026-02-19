@@ -89,6 +89,185 @@ Outstanding work items and next steps, in priority order. Include any blockers.
 Be concise but thorough. Preserve exact file paths, variable names, model names, API parameters, and configuration values. Do not omit details that would be needed to continue the work."""
 
 
+def _serialize_messages_for_summary(messages: List[Dict]) -> str:
+    """Serialize messages into readable text for summarization.
+
+    Truncates tool_use inputs to 500 chars and tool_results to 1000 chars.
+    If total text exceeds 100K chars, takes first and last halves with a truncation marker.
+    """
+    parts = []
+    for msg in messages:
+        role = msg.get("role", "unknown")
+        content = msg.get("content", "")
+
+        if isinstance(content, str):
+            parts.append(f"[{role}]: {content}")
+        elif isinstance(content, list):
+            for block in content:
+                if isinstance(block, dict):
+                    block_type = block.get("type", "")
+                    if block_type == "text":
+                        parts.append(f"[{role}]: {block.get('text', '')}")
+                    elif block_type == "tool_use":
+                        tool_name = block.get("name", "unknown")
+                        tool_input = json.dumps(block.get("input", {}), ensure_ascii=False)
+                        if len(tool_input) > 500:
+                            tool_input = tool_input[:500] + "...(truncated)"
+                        parts.append(f"[{role} -> tool_use({tool_name})]: {tool_input}")
+                    elif block_type == "tool_result":
+                        tool_content = block.get("content", "")
+                        if isinstance(tool_content, str) and len(tool_content) > 1000:
+                            tool_content = tool_content[:1000] + "...(truncated)"
+                        parts.append(f"[tool_result]: {tool_content}")
+                elif isinstance(block, str):
+                    parts.append(f"[{role}]: {block}")
+
+    text = "\n\n".join(parts)
+
+    # If total text exceeds 100K characters, take head + tail
+    max_chars = 100_000
+    if len(text) > max_chars:
+        half = max_chars // 2
+        text = text[:half] + "\n\n[... truncated middle section ...]\n\n" + text[-half:]
+
+    return text
+
+
+async def compress_messages_standalone(
+    messages: List[Dict],
+    model_provider: str,
+    model_name: str,
+    verbose: bool = False,
+) -> tuple:
+    """Compress old messages into a structured summary, keeping recent turns.
+
+    Standalone version that doesn't require a SkillsAgent instance.
+    Used for pre-compressing session context before starting the agent.
+
+    Returns:
+        (compressed_messages, summary_input_tokens, summary_output_tokens)
+    """
+    context_limit = get_context_limit(model_provider, model_name)
+
+    # Find logical turn boundaries: indices of real user messages (not tool_result).
+    turn_boundaries = []
+    for i, msg in enumerate(messages):
+        if msg.get("role") != "user":
+            continue
+        content = msg.get("content", "")
+        if isinstance(content, str):
+            turn_boundaries.append(i)
+        elif isinstance(content, list):
+            is_tool_result = any(
+                isinstance(b, dict) and b.get("type") == "tool_result"
+                for b in content
+            )
+            if not is_tool_result:
+                turn_boundaries.append(i)
+
+    # Need at least 2 turn boundaries (1 to compress + 1 to keep)
+    if len(turn_boundaries) < 2:
+        if verbose:
+            print("[Pre-Compress] Not enough logical turns to compress, skipping")
+        return messages, 0, 0
+
+    # Dynamically select how many recent turns to keep within token budget.
+    max_recent_tokens = int(context_limit * RECENT_TURNS_TOKEN_BUDGET)
+    accumulated_tokens = 0
+    keep_turns = 0
+
+    for idx in range(len(turn_boundaries) - 1, -1, -1):
+        turn_start = turn_boundaries[idx]
+        turn_end = turn_boundaries[idx + 1] if idx + 1 < len(turn_boundaries) else len(messages)
+        turn_chars = sum(
+            len(json.dumps(messages[i].get("content", ""), ensure_ascii=False))
+            for i in range(turn_start, turn_end)
+        )
+        turn_tokens = turn_chars / CHARS_PER_TOKEN
+        if accumulated_tokens + turn_tokens > max_recent_tokens and keep_turns >= 1:
+            break
+        accumulated_tokens += turn_tokens
+        keep_turns += 1
+        if keep_turns >= MAX_RECENT_TURNS:
+            break
+
+    # Ensure we have something left to compress
+    if keep_turns >= len(turn_boundaries):
+        if verbose:
+            print("[Pre-Compress] All turns fit in budget, skipping")
+        return messages, 0, 0
+
+    split_point = turn_boundaries[-keep_turns]
+
+    if verbose:
+        print(f"[Pre-Compress] Keeping {keep_turns} recent logical turns (~{int(accumulated_tokens)} tokens)")
+
+    old_messages = messages[:split_point]
+    recent_messages = messages[split_point:]
+
+    if verbose:
+        print(f"[Pre-Compress] Compressing {len(old_messages)} old messages, keeping {len(recent_messages)} recent messages")
+
+    # Serialize old messages for summarization
+    serialized = _serialize_messages_for_summary(old_messages)
+
+    # Call LLM to generate a structured summary
+    client = LLMClient(provider=model_provider, model=model_name)
+    summary_input_tokens = 0
+    summary_output_tokens = 0
+    try:
+        summary_response = await client.acreate(
+            messages=[{
+                "role": "user",
+                "content": f"Please summarize the following conversation:\n\n{serialized}"
+            }],
+            system=SUMMARY_SYSTEM_PROMPT,
+            max_tokens=4096,
+        )
+        summary_input_tokens = summary_response.usage.input_tokens
+        summary_output_tokens = summary_response.usage.output_tokens
+        summary_text = summary_response.text_content
+
+        if verbose:
+            print(f"[Pre-Compress] Summary generated ({summary_input_tokens} in / {summary_output_tokens} out)")
+    except Exception as e:
+        # Fallback: use truncated serialized text as summary
+        if verbose:
+            print(f"[Pre-Compress] Summary API call failed: {e}, using fallback")
+        summary_text = serialized
+        if len(summary_text) > 10000:
+            summary_text = summary_text[:5000] + "\n\n[... truncated ...]\n\n" + summary_text[-5000:]
+
+    # Build the compression message.
+    if "<summary>" not in summary_text:
+        summary_text = f"<summary>\n{summary_text}\n</summary>"
+
+    compression_content = (
+        "This session is being continued from a previous conversation that ran out of context. "
+        "The summary below covers the earlier portion of the conversation.\n\n"
+        f"{summary_text}\n\n"
+        "Please continue the conversation from where we left off without asking the user any further questions. "
+        "Continue with the last task that you were asked to work on."
+    )
+
+    # Build compressed messages: summary as first user message + recent messages
+    compressed = [{"role": "user", "content": compression_content}]
+
+    # If recent_messages starts with a user message, we need an assistant acknowledgment
+    if recent_messages and recent_messages[0].get("role") == "user":
+        compressed.append({
+            "role": "assistant",
+            "content": [{"type": "text", "text": "I understand the context. Let me continue from where we left off."}]
+        })
+
+    compressed.extend(recent_messages)
+
+    if verbose:
+        print(f"[Pre-Compress] Messages reduced from {len(messages)} to {len(compressed)}")
+
+    return compressed, summary_input_tokens, summary_output_tokens
+
+
 @dataclass
 class LLMCall:
     """Record of a single LLM API call."""
@@ -393,47 +572,8 @@ class SkillsAgent:
         return any(p in err_str for p in retryable_patterns)
 
     def _serialize_messages_for_summary(self, messages: List[Dict]) -> str:
-        """Serialize messages into readable text for summarization.
-
-        Truncates tool_use inputs to 500 chars and tool_results to 1000 chars.
-        If total text exceeds 100K chars, takes first and last halves with a truncation marker.
-        """
-        parts = []
-        for msg in messages:
-            role = msg.get("role", "unknown")
-            content = msg.get("content", "")
-
-            if isinstance(content, str):
-                parts.append(f"[{role}]: {content}")
-            elif isinstance(content, list):
-                for block in content:
-                    if isinstance(block, dict):
-                        block_type = block.get("type", "")
-                        if block_type == "text":
-                            parts.append(f"[{role}]: {block.get('text', '')}")
-                        elif block_type == "tool_use":
-                            tool_name = block.get("name", "unknown")
-                            tool_input = json.dumps(block.get("input", {}), ensure_ascii=False)
-                            if len(tool_input) > 500:
-                                tool_input = tool_input[:500] + "...(truncated)"
-                            parts.append(f"[{role} -> tool_use({tool_name})]: {tool_input}")
-                        elif block_type == "tool_result":
-                            tool_content = block.get("content", "")
-                            if isinstance(tool_content, str) and len(tool_content) > 1000:
-                                tool_content = tool_content[:1000] + "...(truncated)"
-                            parts.append(f"[tool_result]: {tool_content}")
-                    elif isinstance(block, str):
-                        parts.append(f"[{role}]: {block}")
-
-        text = "\n\n".join(parts)
-
-        # If total text exceeds 100K characters, take head + tail
-        max_chars = 100_000
-        if len(text) > max_chars:
-            half = max_chars // 2
-            text = text[:half] + "\n\n[... truncated middle section ...]\n\n" + text[-half:]
-
-        return text
+        """Serialize messages into readable text for summarization. Delegates to module-level function."""
+        return _serialize_messages_for_summary(messages)
 
     async def _compress_messages(self, messages: List[Dict]) -> tuple:
         """Compress old messages into a structured summary, keeping recent turns.

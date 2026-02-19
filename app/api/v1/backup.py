@@ -294,6 +294,7 @@ async def _create_backup_zip(
             "id": sess.id,
             "agent_id": sess.agent_id,
             "messages": sess.messages,
+            "agent_context": sess.agent_context,
             "created_at": _serialize_datetime(sess.created_at),
             "updated_at": _serialize_datetime(sess.updated_at),
         })
@@ -635,6 +636,7 @@ async def _restore_from_zip(
                 id=sess["id"],
                 agent_id=sess["agent_id"],
                 messages=sess.get("messages"),
+                agent_context=sess.get("agent_context"),
                 created_at=datetime.fromisoformat(sess["created_at"]) if sess.get("created_at") else datetime.utcnow(),
                 updated_at=datetime.fromisoformat(sess["updated_at"]) if sess.get("updated_at") else datetime.utcnow(),
             )

@@ -511,7 +511,10 @@ class PublishedSessionDB(Base):
     )
     messages: Mapped[Optional[List[dict]]] = mapped_column(
         JSONB, nullable=True, default=list
-    )  # [{"role": "user", "content": "..."}, {"role": "assistant", "content": "..."}]
+    )  # Append-only display history — never compressed, preserves all tool_use/tool_result blocks
+    agent_context: Mapped[Optional[List[dict]]] = mapped_column(
+        JSONB, nullable=True, default=None
+    )  # Agent working message list — whole-replaced each request, may contain compression summaries
     created_at: Mapped[datetime] = mapped_column(
         DateTime, default=datetime.utcnow, nullable=False
     )

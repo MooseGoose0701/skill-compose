@@ -161,12 +161,14 @@ def make_background_task(
 def make_published_session(
     agent_id: str,
     messages: Optional[List[dict]] = None,
+    agent_context: Optional[List[dict]] = None,
     **kwargs,
 ) -> PublishedSessionDB:
     return PublishedSessionDB(
         id=kwargs.get("id", str(uuid.uuid4())),
         agent_id=agent_id,
         messages=messages or [],
+        agent_context=agent_context,
         created_at=kwargs.get("created_at", datetime.utcnow()),
         updated_at=kwargs.get("updated_at", datetime.utcnow()),
     )
