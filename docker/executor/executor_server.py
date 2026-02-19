@@ -109,6 +109,9 @@ def truncate_output(output: str, max_size: int = MAX_OUTPUT_SIZE) -> str:
     )
 
 
+REMOTION_TEMPLATE_DIR = Path("/opt/remotion-template/node_modules")
+
+
 def get_workspace(workspace_id: str) -> Path:
     """Get or create workspace directory."""
     workspace = WORKSPACES_DIR / workspace_id
@@ -201,12 +204,50 @@ async def execute_python(request: ExecuteRequest):
         )
 
 
+def _copy_template_node_modules(target_dir: Path) -> None:
+    """Copy pre-cached node_modules into target_dir if it has package.json but no node_modules."""
+    nm = target_dir / "node_modules"
+    if nm.exists():
+        return
+    pkg = target_dir / "package.json"
+    if not pkg.exists():
+        return
+    try:
+        import shutil
+        shutil.copytree(REMOTION_TEMPLATE_DIR, nm, symlinks=True)
+        logger.info("Copied pre-cached node_modules to %s", nm)
+    except Exception as e:
+        logger.warning("Failed to copy template node_modules to %s: %s", nm, e)
+
+
+def _ensure_node_modules(workspace: Path) -> None:
+    """
+    For remotion executor: if a project has package.json but no node_modules,
+    copy the pre-cached template to skip npm install (~18s → ~1s).
+    Checks both the workspace root and one level of subdirectories.
+    """
+    if EXECUTOR_NAME != "remotion":
+        return
+    if not REMOTION_TEMPLATE_DIR.is_dir():
+        return
+    # Check workspace root
+    _copy_template_node_modules(workspace)
+    # Check one level of subdirectories (e.g. workspace/my-project/)
+    for sub in workspace.iterdir():
+        if sub.is_dir() and not sub.name.startswith(".") and sub.name != "node_modules":
+            _copy_template_node_modules(sub)
+
+
 @app.post("/execute/bash", response_model=ExecuteResponse)
 async def execute_bash(request: BashRequest):
     """
     Execute a shell command in the workspace.
     """
     workspace = get_workspace(request.workspace_id)
+
+    # Pre-warm: copy cached node_modules before npm install runs
+    if "npm install" in request.command or "npm i " in request.command or request.command.strip().endswith("npm i"):
+        _ensure_node_modules(workspace)
 
     # Build environment
     env = os.environ.copy()
