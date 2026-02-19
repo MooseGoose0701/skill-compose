@@ -19,7 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agent import SkillsAgent, EventStream, write_steering_message, poll_steering_messages, cleanup_steering_dir
 from app.api.v1.agent import _finalize_trace
-from app.api.v1.sessions import load_or_create_session, save_session_messages, save_session_checkpoint, pre_compress_if_needed
+from app.api.v1.sessions import load_or_create_session, save_session_messages, save_session_checkpoint, save_session_checkpoint_sync, pre_compress_if_needed
 from app.config import get_settings
 from app.db.database import AsyncSessionLocal, get_db
 from app.db.models import AgentPresetDB, AgentTraceDB, PublishedSessionDB, ExecutorDB
@@ -616,8 +616,9 @@ async def published_chat(agent_id: str, request: PublishedChatRequest):
                     )
                 elif last_messages_snapshot:
                     # Cancelled or interrupted — save last checkpoint (agent_context only)
+                    # Use sync DB to avoid orphaned async connections in cancelled context
                     try:
-                        await save_session_checkpoint(session_id, last_messages_snapshot)
+                        save_session_checkpoint_sync(session_id, last_messages_snapshot)
                     except Exception:
                         pass
 

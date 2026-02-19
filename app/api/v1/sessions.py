@@ -157,6 +157,31 @@ async def save_session_checkpoint(
         pass  # fire-and-forget
 
 
+def save_session_checkpoint_sync(
+    session_id: str,
+    agent_context: list,
+) -> None:
+    """Sync version of save_session_checkpoint — safe to call from cancelled async contexts.
+
+    Uses psycopg2 (sync) instead of asyncpg to avoid orphaned connections when
+    ASGI tears down the request scope during SSE cancellation.
+    """
+    from app.db.database import SyncSessionLocal
+    try:
+        with SyncSessionLocal() as db:
+            db.execute(
+                update(PublishedSessionDB)
+                .where(PublishedSessionDB.id == session_id)
+                .values(
+                    agent_context=agent_context,
+                    updated_at=datetime.utcnow(),
+                )
+            )
+            db.commit()
+    except Exception:
+        pass  # fire-and-forget
+
+
 async def pre_compress_if_needed(
     agent_context: List[dict],
     model_provider: str,
