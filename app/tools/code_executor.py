@@ -338,9 +338,11 @@ class AgentWorkspace:
 
     def cleanup(self) -> None:
         """
-        Shutdown kernel and delete the temp and workspace directories.
+        Shutdown kernel and delete the temp directory.
 
         Call this when the Agent request is complete.
+        Workspace directory is intentionally preserved so output files
+        remain downloadable. Old workspaces are reaped on server startup.
         """
         # Shutdown kernel first
         try:
@@ -353,12 +355,6 @@ class AgentWorkspace:
         try:
             if self.temp_path.exists():
                 shutil.rmtree(self.temp_path, ignore_errors=True)
-        except Exception:
-            pass  # Best effort cleanup
-        # Delete workspace directory
-        try:
-            if self.workspace_dir.exists():
-                shutil.rmtree(self.workspace_dir, ignore_errors=True)
         except Exception:
             pass  # Best effort cleanup
 

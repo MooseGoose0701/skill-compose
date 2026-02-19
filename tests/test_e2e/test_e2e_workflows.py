@@ -1712,24 +1712,35 @@ class TestWorkspaceIsolationE2E:
     2. Concurrent workspaces don't interfere with each other
     """
 
-    async def test_01_workspace_cleanup(self):
-        """Verify workspace is cleaned up after context manager exits."""
+    async def test_01_workspace_preserved_after_cleanup(self):
+        """Verify workspace_dir is preserved after cleanup for output file downloads.
+
+        cleanup() should delete temp_path (scripts) but preserve workspace_dir
+        so output files remain downloadable.
+        """
         from app.tools.code_executor import AgentWorkspace
         import os
+        import shutil
 
-        workspace_path = None
+        workspace_dir_path = None
+        temp_path = None
 
         with AgentWorkspace() as ws:
-            workspace_path = ws.path
-            # Verify workspace exists during execution
-            assert os.path.exists(workspace_path), "Workspace should exist during use"
+            workspace_dir_path = str(ws.workspace_dir)
+            temp_path = str(ws.temp_path)
+            assert os.path.exists(workspace_dir_path), "workspace_dir should exist during use"
+            assert os.path.exists(temp_path), "temp_path should exist during use"
 
-            # Execute some code to create files
-            result = ws.execute("print('test cleanup')")
+            result = ws.execute("with open('output.txt', 'w') as f: f.write('hello')")
             assert result.success is True
 
-        # After context manager exits, workspace should be cleaned up
-        assert not os.path.exists(workspace_path), "Workspace should be deleted after cleanup"
+        # After cleanup: workspace_dir preserved, temp_path deleted
+        assert os.path.exists(workspace_dir_path), "workspace_dir should be preserved after cleanup"
+        assert os.path.exists(os.path.join(workspace_dir_path, "output.txt"))
+        assert not os.path.exists(temp_path), "temp_path should be deleted after cleanup"
+
+        # Manual cleanup for test hygiene
+        shutil.rmtree(workspace_dir_path, ignore_errors=True)
 
     async def test_02_workspace_kernel_variable_persistence(self):
         """Verify variables persist between executions via IPython kernel."""

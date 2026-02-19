@@ -11,6 +11,7 @@ API Docs:
     http://localhost:8000/docs
 """
 import logging
+import os
 import traceback
 from contextlib import asynccontextmanager
 
@@ -23,6 +24,34 @@ from app.api.v1.router import api_router
 from app.db.database import init_db, AsyncSessionLocal
 
 logger = logging.getLogger("skills_api")
+
+
+def _cleanup_old_workspaces():
+    """Remove workspace directories older than 24 hours on startup.
+
+    After the cleanup() change that preserves workspace_dir for output file
+    downloads, this reaper prevents unbounded disk growth.
+    """
+    import shutil
+    import time
+    from pathlib import Path
+
+    workspaces_dir = Path(os.environ.get("WORKSPACES_DIR", "/app/workspaces"))
+    if not workspaces_dir.exists():
+        return
+
+    cutoff = time.time() - 24 * 3600
+    removed = 0
+    for entry in workspaces_dir.iterdir():
+        if entry.is_dir():
+            try:
+                if entry.stat().st_mtime < cutoff:
+                    shutil.rmtree(entry, ignore_errors=True)
+                    removed += 1
+            except Exception:
+                pass
+    if removed:
+        logger.info(f"Cleaned up {removed} old workspace(s) from {workspaces_dir}")
 
 
 async def _cleanup_stale_traces():
@@ -90,6 +119,7 @@ async def lifespan(app: FastAPI):
         # Log error but don't fail - entrypoint.sh should have initialized already
         logger.error(f"Database init failed (entrypoint.sh should have initialized): {e}")
     await _cleanup_stale_traces()
+    _cleanup_old_workspaces()
 
     # Warmup this worker's database connections
     await _warmup_worker()
