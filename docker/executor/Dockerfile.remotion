@@ -25,7 +25,7 @@ LABEL org.opencontainers.image.version="1.0.0"
 
 WORKDIR /app
 
-# Install system dependencies: Node.js 20, Chromium, ffmpeg, yt-dlp
+# Install system dependencies: Node.js 20, Chromium, ffmpeg, yt-dlp, Mesa GL
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     git \
@@ -34,6 +34,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     chromium \
     # ffmpeg for video/audio encoding
     ffmpeg \
+    # Mesa OpenGL libraries — general GL compatibility.
+    # Note: --gl=angle still does NOT work without real GPU hardware.
+    # For 3D/WebGL in headless Docker, use --gl=swangle (SwiftShader, bundled in Chrome).
+    libegl-mesa0 \
+    libgl1-mesa-dri \
+    libglx-mesa0 \
     # Fonts for rendering (CJK + emoji support)
     fonts-noto-cjk \
     fonts-noto-color-emoji \
@@ -95,6 +101,12 @@ RUN mkdir -p /opt/remotion-template && cd /opt/remotion-template \
 # This bakes the browser binary into the image layer.
 RUN cd /opt/remotion-template \
     && npx remotion browser ensure
+
+# Point Remotion directly to the pre-downloaded Chrome Headless Shell binary.
+# Note: this env var alone does NOT prevent Remotion from downloading Chrome—
+# Remotion also checks <project>/node_modules/.remotion/ at render time.
+# The executor_server pre-copies node_modules (including .remotion/) to fix that.
+ENV REMOTION_CHROME_EXECUTABLE_PATH=/opt/remotion-template/node_modules/.remotion/chrome-headless-shell/linux64/chrome-headless-shell-linux64/chrome-headless-shell
 
 # Create workspaces directory
 RUN mkdir -p /app/workspaces
