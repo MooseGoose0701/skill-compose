@@ -215,6 +215,8 @@ export function ChatPanel({ isOpen, onClose, defaultSkills = [] }: ChatPanelProp
   const applyPreset = (presetId: string) => {
     const preset = agentPresets.find((p) => p.id === presetId);
     if (!preset) return;
+    // Reset session so the new agent gets a fresh server-side session
+    setSessionId(null);
     setSelectedAgentPreset(preset.id);
     setSelectedSkills(preset.skill_ids || []);
     setMaxTurns(preset.max_turns);
