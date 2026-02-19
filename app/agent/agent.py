@@ -24,7 +24,7 @@ from typing import Any, Dict, Generator, List, Optional, TYPE_CHECKING
 from dataclasses import dataclass, field, asdict
 
 from app.config import settings
-from app.agent.tools import TOOLS, call_tool, acall_tool, get_tools_for_agent, BASE_TOOLS, get_mcp_client, WORKING_DIR
+from app.agent.tools import TOOLS, call_tool, acall_tool, get_tools_for_agent, BASE_TOOLS, get_mcp_client, _SKILLS_DIR
 from app.core.tools_registry import get_all_tools, get_tools_by_ids, tools_to_claude_format
 from app.llm import LLMClient, LLMTextBlock, LLMToolCall
 from app.llm.models import MODEL_CONTEXT_LIMITS, DEFAULT_CONTEXT_LIMIT, get_context_limit
@@ -393,20 +393,20 @@ When using skills, you can explore the source code to understand:
 Example workflow:
 ```
 # Find all Python files in a skill
-glob_files(pattern="**/*.py", path="skills/data-analyzer")
+glob_files(pattern="**/*.py", path="{skills_dir}/data-analyzer")
 
 # Search for a specific function
-grep_search(pattern="def analyze", include="*.py", path="skills/data-analyzer")
+grep_search(pattern="def analyze", include="*.py", path="{skills_dir}/data-analyzer")
 
 # Read the source file
-read_file(file_path="skills/data-analyzer/scripts/main.py")
+read_file(file_path="{skills_dir}/data-analyzer/scripts/main.py")
 ```
 
-## Working Directories
-- `glob`, `grep`, `read`, `write`, `edit` resolve relative paths from the **project root** ({working_dir})
-- `execute_code` and `bash` run in an **isolated workspace directory** (different from project root). The current working directory (cwd) IS the workspace.
-- **Saving output files:** Use relative paths directly (e.g., `open("output.png", "wb")`, `df.to_csv("result.csv")`). They will be saved to the workspace and auto-detected as downloadable output files. **NEVER use `/tmp/` for output files** — files in `/tmp/` cannot be detected or downloaded.
-- **Reading project files:** Use absolute paths: `bash(command="python {working_dir}/skills/my-skill/scripts/main.py")`
+## Working Directory
+Your workspace is `{workspace_dir}`. All tools share this directory — relative paths resolve here.
+- **Saving output files:** Use relative paths directly (e.g., `open("output.png", "wb")`, `df.to_csv("result.csv")`). They will be auto-detected as downloadable output files. **NEVER use `/tmp/` for output files**.
+- **Accessing project files:** Use absolute paths (e.g., `read(file_path="{skills_dir}/my-skill/SKILL.md")`, `bash(command="python {skills_dir}/my-skill/scripts/main.py")`).
+- `glob` and `grep` default to the skills directory when no path is specified.
 
 ## Important Notes
 - Always read skill documentation before writing code
@@ -512,7 +512,8 @@ class SkillsAgent:
             equipped_skills_section=skills_section,
             mcp_tools_section=mcp_section,
             custom_instructions=custom_instructions,
-            working_dir=WORKING_DIR
+            workspace_dir=str(self.workspace.workspace_dir),
+            skills_dir=_SKILLS_DIR,
         )
 
         # Ensure log directory exists

@@ -44,7 +44,6 @@ class Settings(BaseSettings):
 
     # Paths (can be overridden via environment variables for Docker)
     project_dir: str = "."
-    app_working_dir: str = ""  # Working dir for agent tools, defaults to project_dir if empty
     skills_dir: str = ""  # SKILLS_DIR env var, defaults to custom_skills_dir if empty
     custom_skills_dir: str = "./skills"  # Fallback for skills_dir
     data_dir: str = "./data"  # DATA_DIR env var

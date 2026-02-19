@@ -69,7 +69,6 @@ async def _execute_with_subprocess(request: CodeExecuteRequest) -> CodeExecuteRe
     """Execute code using subprocess."""
     try:
         executor = get_code_executor(
-            working_dir=settings.upload_dir,
             timeout=request.timeout,
         )
         result = executor.execute(request.code)
@@ -151,7 +150,6 @@ async def execute_command(request: CommandExecuteRequest):
     """
     try:
         executor = get_code_executor(
-            working_dir=settings.upload_dir,
             timeout=request.timeout,
         )
         result = executor.execute_command(request.command)
