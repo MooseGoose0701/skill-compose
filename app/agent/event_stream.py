@@ -2,11 +2,17 @@
 
 Inspired by Pi Agent's EventStream — a CSP-style push/pull channel using asyncio.Queue.
 Supports bidirectional communication: agent pushes events, API injects steering messages.
+Includes heartbeat: if no event is pushed within HEARTBEAT_INTERVAL seconds, a heartbeat
+event is yielded to keep the SSE connection alive through proxies/load balancers.
 """
 import asyncio
 from typing import Optional
 
 from app.agent.agent import StreamEvent
+
+# Heartbeat interval in seconds.  Most proxies (nginx, AWS ALB) drop idle
+# connections after 60-120s.  15s keeps us well within that window.
+HEARTBEAT_INTERVAL = 15
 
 
 class EventStream:
@@ -15,12 +21,14 @@ class EventStream:
     Producer (agent): calls push() / close()
     Consumer (API endpoint): async iterates over the stream
     Steering (API endpoint → agent): inject() / has_injection() / get_injection()
+    Heartbeat: auto-yields heartbeat events when idle > HEARTBEAT_INTERVAL seconds
     """
 
-    def __init__(self):
+    def __init__(self, heartbeat_interval: float = HEARTBEAT_INTERVAL):
         self._queue: asyncio.Queue[Optional[StreamEvent]] = asyncio.Queue()
         self._injection_queue: asyncio.Queue[str] = asyncio.Queue()
         self._closed = False
+        self._heartbeat_interval = heartbeat_interval
 
     async def push(self, event: StreamEvent):
         """Push an event into the stream. No-op if already closed."""
@@ -55,9 +63,25 @@ class EventStream:
             return None
 
     async def __aiter__(self):
-        """Async iterate over events until the stream is closed."""
+        """Async iterate over events until the stream is closed.
+
+        Yields heartbeat events when no real event arrives within
+        ``_heartbeat_interval`` seconds, keeping the SSE connection alive
+        through proxies and load balancers that kill idle connections.
+        """
         while True:
-            event = await self._queue.get()
-            if event is None:
-                break
-            yield event
+            try:
+                event = await asyncio.wait_for(
+                    self._queue.get(),
+                    timeout=self._heartbeat_interval,
+                )
+                if event is None:
+                    break
+                yield event
+            except asyncio.TimeoutError:
+                # No event within heartbeat interval — yield keepalive
+                yield StreamEvent(
+                    event_type="heartbeat",
+                    turn=0,
+                    data={},
+                )

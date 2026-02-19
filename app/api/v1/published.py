@@ -464,6 +464,11 @@ async def published_chat(agent_id: str, request: PublishedChatRequest):
 
         try:
             async for event in event_stream:
+                # Heartbeat — SSE comment to keep connection alive through proxies
+                if event.event_type == "heartbeat":
+                    yield ": heartbeat\n\n"
+                    continue
+
                 # Intercept turn_complete for incremental session save (not forwarded to client)
                 if event.event_type == "turn_complete":
                     last_messages_snapshot = event.data.get("messages_snapshot")
