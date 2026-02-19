@@ -15,7 +15,7 @@ from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agent import SkillsAgent, EventStream, write_steering_message, poll_steering_messages, cleanup_steering_dir
-from app.api.v1.sessions import load_or_create_session, save_session_messages, save_session_checkpoint, pre_compress_if_needed, CHAT_SENTINEL_AGENT_ID
+from app.api.v1.sessions import load_or_create_session, save_session_messages, save_session_checkpoint, save_session_checkpoint_sync, pre_compress_if_needed, CHAT_SENTINEL_AGENT_ID
 from app.db.database import get_db, AsyncSessionLocal, SyncSessionLocal
 from app.db.models import AgentTraceDB, AgentPresetDB
 
@@ -27,19 +27,8 @@ router = APIRouter(prefix="/agent", tags=["Agent"])
 _active_streams: Dict[str, EventStream] = {}
 
 
-async def _update_trace_async(trace_id: str, values: dict):
-    """Update trace record via async session."""
-    async with AsyncSessionLocal() as trace_db:
-        await trace_db.execute(
-            update(AgentTraceDB)
-            .where(AgentTraceDB.id == trace_id)
-            .values(**values)
-        )
-        await trace_db.commit()
-
-
 def _update_trace_sync(trace_id: str, values: dict):
-    """Update trace record via sync session (fallback when async is cancelled)."""
+    """Update trace record via sync session — immune to async cancellation."""
     with SyncSessionLocal() as sync_db:
         sync_db.execute(
             update(AgentTraceDB)
@@ -50,19 +39,16 @@ def _update_trace_sync(trace_id: str, values: dict):
 
 
 async def _finalize_trace(trace_id: str, values: dict):
-    """Update trace with final status, resilient to task cancellation.
+    """Update trace with final status. Uses sync DB to be resilient to task cancellation.
 
-    Uses asyncio.shield() to protect the DB update from CancelledError.
-    Falls back to sync DB if async fails (e.g. event loop shutting down).
+    SSE generator finally-blocks run in a context where ASGI may cancel async operations
+    at any time. Using sync DB (psycopg2) avoids orphaned asyncpg connections that
+    asyncio.shield() would create.
     """
     try:
-        await asyncio.shield(_update_trace_async(trace_id, values))
-    except (asyncio.CancelledError, Exception) as e:
-        logger.warning(f"Async trace update failed for {trace_id}, trying sync fallback: {e}")
-        try:
-            _update_trace_sync(trace_id, values)
-        except Exception as e2:
-            logger.error(f"Sync trace update also failed for {trace_id}: {e2}")
+        _update_trace_sync(trace_id, values)
+    except Exception as e:
+        logger.error(f"Trace update failed for {trace_id}: {e}")
 
 
 class UploadedFile(BaseModel):
@@ -681,8 +667,9 @@ async def run_agent_stream(request: AgentRequest, db: AsyncSession = Depends(get
                     )
                 elif last_messages_snapshot:
                     # Cancelled or interrupted — save last checkpoint (agent_context only)
+                    # Use sync DB to avoid orphaned async connections in cancelled context
                     try:
-                        await save_session_checkpoint(session_id, last_messages_snapshot)
+                        save_session_checkpoint_sync(session_id, last_messages_snapshot)
                     except Exception:
                         pass
 
