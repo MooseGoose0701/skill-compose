@@ -323,8 +323,36 @@ services:
         limits:
           memory: 4G
 
-
-
+  # Custom executor - Remotion (video rendering with Node.js + Chromium + ffmpeg)
+  executor-remotion:
+    build:
+      context: ./executor
+      dockerfile: Dockerfile.remotion
+    image: skillcompose/executor-remotion:latest
+    container_name: skills-executor-remotion
+    restart: unless-stopped
+    profiles:
+      - remotion
+    volumes:
+      - workspaces:/app/workspaces
+      - skills:/app/skills:ro
+      - uploads:/app/uploads:ro
+    environment:
+      - EXECUTOR_NAME=remotion
+      - EXECUTOR_PORT=62680
+      - TZ=${TZ:-UTC}
+    networks:
+      - skills-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:62680/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 8G
 
 
 
