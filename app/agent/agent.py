@@ -34,7 +34,7 @@ if TYPE_CHECKING:
 
 # Context window compression constants
 COMPRESSION_THRESHOLD_RATIO = 0.7  # Trigger compression when input tokens exceed 70% of limit
-MAX_RECENT_TURNS = 3               # Keep at most 3 recent logical turns
+MAX_RECENT_TURNS = 5               # Keep at most 5 recent logical turns
 RECENT_TURNS_TOKEN_BUDGET = 0.25   # Recent turns can use up to 25% of context limit
 CHARS_PER_TOKEN = 3.5              # Conservative estimate for mixed CJK/English text
 
@@ -103,7 +103,7 @@ Specific files read, created, or modified, with brief notes on what was done. In
 Completed troubleshooting efforts — what was tried, what worked, what failed and why. Include exact error messages if relevant.
 
 ## All User Messages
-Every non-tool-use user statement, summarized chronologically. Capture feedback, course corrections, and preferences.
+List every non-tool-use user statement **verbatim** (or near-verbatim for very long messages >500 chars). Number them chronologically. This is the most critical section — user intent must be preserved precisely, not paraphrased.
 
 ## Current State
 What was just completed immediately before this summary. Be specific about the last action taken and its result.
@@ -112,7 +112,150 @@ What was just completed immediately before this summary. Be specific about the l
 Outstanding work items and next steps, in priority order. Include any blockers.
 </summary>
 
-Be concise but thorough. Preserve exact file paths, variable names, model names, API parameters, and configuration values. Do not omit details that would be needed to continue the work."""
+Be concise but thorough. Preserve exact file paths, variable names, model names, API parameters, and configuration values. Do not omit details that would be needed to continue the work.
+
+Note: File tracking sections (<read-files> and <modified-files>) will be appended automatically — do not duplicate them in your summary.
+
+{file_tracking_section}"""
+
+
+SUMMARY_UPDATE_PROMPT = """You have been given NEW conversation messages that occurred after a previous summary. Update the existing summary with the new information.
+
+<previous-summary>
+{previous_summary}
+</previous-summary>
+
+Rules:
+- PRESERVE all existing information from the previous summary
+- ADD new progress, decisions, user messages, and context from the new messages
+- UPDATE "Current State" and "Pending Tasks" based on what was accomplished
+- APPEND new user statements to "All User Messages" (preserve existing entries verbatim)
+- PRESERVE exact file paths, function names, error messages, and configuration values
+- If something is no longer relevant, you may remove it
+- Use the same <summary> section structure as the original
+
+Note: File tracking sections (<read-files> and <modified-files>) will be appended automatically — do not duplicate them in your summary.
+
+{file_tracking_section}"""
+
+
+TURN_PREFIX_SUMMARY_PROMPT = """This is the PREFIX of a conversation turn that was too large to keep in full. The SUFFIX (recent work) is retained verbatim. Summarize the prefix to provide context for the retained suffix.
+
+Write a brief summary with these sections:
+## Original Request
+What did the user ask for in this turn?
+
+## Early Progress
+Key decisions and work done in the prefix
+
+## Context for Suffix
+Information needed to understand the retained recent work"""
+
+
+def _extract_file_operations(messages: List[Dict]) -> tuple:
+    """Extract file read and modify operations from messages.
+
+    Scans tool_use and tool_result blocks for file operations.
+
+    Returns:
+        (read_files: set, modified_files: set)
+    """
+    read_files: set = set()
+    modified_files: set = set()
+
+    for msg in messages:
+        content = msg.get("content", "")
+        if not isinstance(content, list):
+            continue
+
+        for block in content:
+            if not isinstance(block, dict):
+                continue
+
+            if block.get("type") == "tool_use":
+                tool_name = block.get("name", "")
+                tool_input = block.get("input", {})
+
+                if tool_name in ("read", "read_file"):
+                    fp = tool_input.get("file_path", "")
+                    if fp:
+                        read_files.add(fp)
+                elif tool_name in ("glob", "glob_files"):
+                    # glob is a read-like operation
+                    path = tool_input.get("path", "")
+                    pattern = tool_input.get("pattern", "")
+                    if path:
+                        read_files.add(f"{path}/{pattern}" if pattern else path)
+                elif tool_name in ("grep", "grep_search"):
+                    path = tool_input.get("path", "")
+                    if path:
+                        read_files.add(path)
+                elif tool_name in ("write", "write_file"):
+                    fp = tool_input.get("file_path", "")
+                    if fp:
+                        modified_files.add(fp)
+                elif tool_name in ("edit", "edit_file"):
+                    fp = tool_input.get("file_path", "")
+                    if fp:
+                        modified_files.add(fp)
+                elif tool_name in ("execute_code", "bash", "execute_command"):
+                    # For code execution, check new_files in the result later
+                    pass
+
+            elif block.get("type") == "tool_result":
+                # Check for new_files in tool results (from execute_code/bash/write)
+                result_content = block.get("content", "")
+                if isinstance(result_content, str):
+                    try:
+                        parsed = json.loads(result_content)
+                        if isinstance(parsed, dict):
+                            for nf in parsed.get("new_files", []):
+                                filename = nf.get("filename", "")
+                                if filename:
+                                    modified_files.add(filename)
+                    except (json.JSONDecodeError, TypeError):
+                        pass
+
+    return read_files, modified_files
+
+
+def _build_file_tracking_section(read_files: set, modified_files: set) -> str:
+    """Build the file tracking XML section for appending to summaries."""
+    parts = []
+    if read_files:
+        files_list = "\n".join(sorted(read_files))
+        parts.append(f"<read-files>\n{files_list}\n</read-files>")
+    if modified_files:
+        files_list = "\n".join(sorted(modified_files))
+        parts.append(f"<modified-files>\n{files_list}\n</modified-files>")
+    return "\n".join(parts)
+
+
+def _extract_previous_file_tracking(summary_text: str) -> tuple:
+    """Extract existing file tracking from a previous summary.
+
+    Returns:
+        (read_files: set, modified_files: set)
+    """
+    import re
+    read_files: set = set()
+    modified_files: set = set()
+
+    read_match = re.search(r"<read-files>\s*(.*?)\s*</read-files>", summary_text, re.DOTALL)
+    if read_match:
+        for line in read_match.group(1).strip().split("\n"):
+            line = line.strip()
+            if line:
+                read_files.add(line)
+
+    mod_match = re.search(r"<modified-files>\s*(.*?)\s*</modified-files>", summary_text, re.DOTALL)
+    if mod_match:
+        for line in mod_match.group(1).strip().split("\n"):
+            line = line.strip()
+            if line:
+                modified_files.add(line)
+
+    return read_files, modified_files
 
 
 def _serialize_messages_for_summary(messages: List[Dict]) -> str:
@@ -170,9 +313,14 @@ async def compress_messages_standalone(
     Standalone version that doesn't require a SkillsAgent instance.
     Used for pre-compressing session context before starting the agent.
 
+    Supports iterative summaries and cumulative file tracking (same as
+    SkillsAgent._compress_messages).
+
     Returns:
         (compressed_messages, summary_input_tokens, summary_output_tokens)
     """
+    import re as _re
+
     context_limit = get_context_limit(model_provider, model_name)
 
     # Find logical turn boundaries: indices of real user messages (not tool_result).
@@ -234,20 +382,57 @@ async def compress_messages_standalone(
     if verbose:
         print(f"[Pre-Compress] Compressing {len(old_messages)} old messages, keeping {len(recent_messages)} recent messages")
 
-    # Serialize old messages for summarization
-    serialized = _serialize_messages_for_summary(old_messages)
+    # Extract file operations for cumulative tracking
+    read_files, modified_files = _extract_file_operations(old_messages)
+
+    # Check if this is an iterative compression
+    has_previous_summary = False
+    previous_summary_text = ""
+    if old_messages and old_messages[0].get("role") == "user":
+        first_content = old_messages[0].get("content", "")
+        if isinstance(first_content, str) and "<summary>" in first_content:
+            has_previous_summary = True
+            match = _re.search(r"<summary>(.*?)</summary>", first_content, _re.DOTALL)
+            if match:
+                previous_summary_text = match.group(1).strip()
+            prev_read, prev_mod = _extract_previous_file_tracking(first_content)
+            read_files |= prev_read
+            modified_files |= prev_mod
+
+    file_tracking = _build_file_tracking_section(read_files, modified_files)
 
     # Call LLM to generate a structured summary
     client = LLMClient(provider=model_provider, model=model_name)
     summary_input_tokens = 0
     summary_output_tokens = 0
     try:
+        if has_previous_summary and previous_summary_text:
+            new_messages_only = [m for m in old_messages[1:] if not (
+                m.get("role") == "assistant" and isinstance(m.get("content"), list)
+                and any(isinstance(b, dict) and b.get("type") == "text"
+                       and "I understand the context" in b.get("text", "")
+                       for b in m["content"])
+            )]
+            serialized = _serialize_messages_for_summary(new_messages_only) if new_messages_only else ""
+            system_prompt = SUMMARY_UPDATE_PROMPT.format(
+                previous_summary=previous_summary_text,
+                file_tracking_section=file_tracking,
+            )
+            user_content = f"Please update the summary with these new conversation messages:\n\n{serialized}" if serialized else "No new messages to add."
+
+            if verbose:
+                print("[Pre-Compress] Using iterative summary update (previous summary detected)")
+        else:
+            serialized = _serialize_messages_for_summary(old_messages)
+            system_prompt = SUMMARY_SYSTEM_PROMPT.format(file_tracking_section=file_tracking)
+            user_content = f"Please summarize the following conversation:\n\n{serialized}"
+
         summary_response = await client.acreate(
             messages=[{
                 "role": "user",
-                "content": f"Please summarize the following conversation:\n\n{serialized}"
+                "content": user_content,
             }],
-            system=SUMMARY_SYSTEM_PROMPT,
+            system=system_prompt,
             max_tokens=4096,
         )
         summary_input_tokens = summary_response.usage.input_tokens
@@ -260,13 +445,25 @@ async def compress_messages_standalone(
         # Fallback: use truncated serialized text as summary
         if verbose:
             print(f"[Pre-Compress] Summary API call failed: {e}, using fallback")
-        summary_text = serialized
+        if has_previous_summary and previous_summary_text:
+            summary_text = previous_summary_text
+        else:
+            serialized = _serialize_messages_for_summary(old_messages)
+            summary_text = serialized
         if len(summary_text) > 10000:
             summary_text = summary_text[:5000] + "\n\n[... truncated ...]\n\n" + summary_text[-5000:]
 
     # Build the compression message.
     if "<summary>" not in summary_text:
         summary_text = f"<summary>\n{summary_text}\n</summary>"
+
+    # Append file tracking to summary if not already present
+    if file_tracking and "<read-files>" not in summary_text and "<modified-files>" not in summary_text:
+        summary_text = summary_text.rstrip()
+        if summary_text.endswith("</summary>"):
+            summary_text = summary_text[:-len("</summary>")] + f"\n\n{file_tracking}\n</summary>"
+        else:
+            summary_text += f"\n\n{file_tracking}"
 
     compression_content = (
         "This session is being continued from a previous conversation that ran out of context. "
@@ -607,6 +804,13 @@ class SkillsAgent:
     async def _compress_messages(self, messages: List[Dict]) -> tuple:
         """Compress old messages into a structured summary, keeping recent turns.
 
+        Supports:
+        - Iterative summaries: if old_messages starts with a previous summary, uses
+          SUMMARY_UPDATE_PROMPT to merge new info into the existing summary.
+        - Split turn handling: if the budget only allows 1 oversized turn, splits it
+          at assistant message boundaries and summarizes the prefix.
+        - Cumulative file tracking: extracts read/modified files and appends XML tags.
+
         Returns:
             (compressed_messages, summary_input_tokens, summary_output_tokens)
         """
@@ -666,22 +870,134 @@ class SkillsAgent:
         old_messages = messages[:split_point]
         recent_messages = messages[split_point:]
 
+        # Split turn handling: if only 1 turn kept and it's oversized, try to split it
+        turn_prefix_summary = None
+        if keep_turns == 1:
+            turn_start = turn_boundaries[-1]
+            turn_end = len(messages)
+            turn_chars = sum(
+                len(json.dumps(messages[i].get("content", ""), ensure_ascii=False))
+                for i in range(turn_start, turn_end)
+            )
+            turn_tokens = turn_chars / CHARS_PER_TOKEN
+            if turn_tokens > max_recent_tokens * 0.5:
+                # Try to find valid cut points within the turn (assistant message boundaries)
+                cut_points = []
+                for i in range(turn_start + 1, turn_end):
+                    msg = messages[i]
+                    if msg.get("role") == "assistant":
+                        content = msg.get("content", "")
+                        # Don't cut right before a tool_result (keep tool_use/tool_result pairs)
+                        if i + 1 < turn_end:
+                            next_msg = messages[i + 1]
+                            next_content = next_msg.get("content", "")
+                            if isinstance(next_content, list) and any(
+                                isinstance(b, dict) and b.get("type") == "tool_result"
+                                for b in next_content
+                            ):
+                                continue
+                        cut_points.append(i)
+
+                if cut_points:
+                    # Walk backwards from end, accumulating tokens until budget
+                    best_cut = None
+                    acc = 0
+                    for i in range(turn_end - 1, turn_start, -1):
+                        msg_chars = len(json.dumps(messages[i].get("content", ""), ensure_ascii=False))
+                        acc += msg_chars / CHARS_PER_TOKEN
+                        if acc > max_recent_tokens and i in cut_points:
+                            best_cut = i
+                            break
+                        elif i in cut_points:
+                            best_cut = i  # Keep updating as we go back
+
+                    if best_cut and best_cut > turn_start:
+                        # Split: prefix goes to summarization, suffix kept verbatim
+                        turn_prefix = messages[turn_start:best_cut]
+                        recent_messages = messages[best_cut:]
+
+                        if self.verbose:
+                            print(f"[Context Compression] Split oversized turn: prefix={len(turn_prefix)} msgs, suffix={len(recent_messages)} msgs")
+
+                        # Generate turn prefix summary
+                        prefix_serialized = self._serialize_messages_for_summary(turn_prefix)
+                        try:
+                            prefix_response = await self.client.acreate(
+                                messages=[{
+                                    "role": "user",
+                                    "content": f"Summarize this turn prefix:\n\n{prefix_serialized}"
+                                }],
+                                system=TURN_PREFIX_SUMMARY_PROMPT,
+                                max_tokens=2048,
+                            )
+                            turn_prefix_summary = prefix_response.text_content
+                        except Exception:
+                            turn_prefix_summary = prefix_serialized
+                            if len(turn_prefix_summary) > 5000:
+                                turn_prefix_summary = turn_prefix_summary[:2500] + "\n...\n" + turn_prefix_summary[-2500:]
+
         if self.verbose:
             print(f"\n[Context Compression] Compressing {len(old_messages)} old messages, keeping {len(recent_messages)} recent messages")
 
-        # Serialize old messages for summarization
-        serialized = self._serialize_messages_for_summary(old_messages)
+        # Extract file operations for cumulative tracking
+        read_files, modified_files = _extract_file_operations(old_messages)
+
+        # Check if this is an iterative compression (old_messages starts with previous summary)
+        has_previous_summary = False
+        previous_summary_text = ""
+        if old_messages and old_messages[0].get("role") == "user":
+            first_content = old_messages[0].get("content", "")
+            if isinstance(first_content, str) and "<summary>" in first_content:
+                has_previous_summary = True
+                # Extract the summary text
+                import re
+                match = re.search(r"<summary>(.*?)</summary>", first_content, re.DOTALL)
+                if match:
+                    previous_summary_text = match.group(1).strip()
+                # Merge file tracking from previous summary
+                prev_read, prev_mod = _extract_previous_file_tracking(first_content)
+                read_files |= prev_read
+                modified_files |= prev_mod
+
+        # Also extract from recent messages (for completeness of tracking)
+        recent_read, recent_mod = _extract_file_operations(recent_messages)
+        # Don't add recent to the summary tracking — those will be in the raw messages
+
+        file_tracking = _build_file_tracking_section(read_files, modified_files)
 
         # Call LLM to generate a structured summary
         summary_input_tokens = 0
         summary_output_tokens = 0
         try:
+            if has_previous_summary and previous_summary_text:
+                # Iterative: update existing summary with new messages
+                new_messages_only = [m for m in old_messages[1:] if not (
+                    m.get("role") == "assistant" and isinstance(m.get("content"), list)
+                    and any(isinstance(b, dict) and b.get("type") == "text"
+                           and "I understand the context" in b.get("text", "")
+                           for b in m["content"])
+                )]
+                serialized = self._serialize_messages_for_summary(new_messages_only) if new_messages_only else ""
+                system_prompt = SUMMARY_UPDATE_PROMPT.format(
+                    previous_summary=previous_summary_text,
+                    file_tracking_section=file_tracking,
+                )
+                user_content = f"Please update the summary with these new conversation messages:\n\n{serialized}" if serialized else "No new messages to add."
+
+                if self.verbose:
+                    print("[Context Compression] Using iterative summary update (previous summary detected)")
+            else:
+                # First-time compression
+                serialized = self._serialize_messages_for_summary(old_messages)
+                system_prompt = SUMMARY_SYSTEM_PROMPT.format(file_tracking_section=file_tracking)
+                user_content = f"Please summarize the following conversation:\n\n{serialized}"
+
             summary_response = await self.client.acreate(
                 messages=[{
                     "role": "user",
-                    "content": f"Please summarize the following conversation:\n\n{serialized}"
+                    "content": user_content,
                 }],
-                system=SUMMARY_SYSTEM_PROMPT,
+                system=system_prompt,
                 max_tokens=4096,
             )
             summary_input_tokens = summary_response.usage.input_tokens
@@ -696,13 +1012,30 @@ class SkillsAgent:
             # Fallback: use truncated serialized text as summary
             if self.verbose:
                 print(f"[Context Compression] Summary API call failed: {e}, using fallback")
-            summary_text = serialized
+            if has_previous_summary and previous_summary_text:
+                summary_text = previous_summary_text
+            else:
+                serialized = self._serialize_messages_for_summary(old_messages)
+                summary_text = serialized
             if len(summary_text) > 10000:
                 summary_text = summary_text[:5000] + "\n\n[... truncated ...]\n\n" + summary_text[-5000:]
 
         # Build the compression message.
         if "<summary>" not in summary_text:
             summary_text = f"<summary>\n{summary_text}\n</summary>"
+
+        # Append file tracking to summary if not already present
+        if file_tracking and "<read-files>" not in summary_text and "<modified-files>" not in summary_text:
+            # Insert before </summary> closing tag
+            summary_text = summary_text.rstrip()
+            if summary_text.endswith("</summary>"):
+                summary_text = summary_text[:-len("</summary>")] + f"\n\n{file_tracking}\n</summary>"
+            else:
+                summary_text += f"\n\n{file_tracking}"
+
+        # Include turn prefix summary if we split an oversized turn
+        if turn_prefix_summary:
+            summary_text += f"\n\n[Recent turn prefix context]:\n{turn_prefix_summary}"
 
         compression_content = (
             "This session is being continued from a previous conversation that ran out of context. "

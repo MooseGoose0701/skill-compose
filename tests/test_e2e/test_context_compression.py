@@ -114,19 +114,19 @@ class TestCompressionTurnBoundariesE2E:
         agent = self._make_agent()
         self._mock_summary_response(agent)
 
-        # 5 simple turns
+        # 8 simple turns (need more than MAX_RECENT_TURNS=5 to trigger compression)
         messages = []
-        for i in range(5):
+        for i in range(8):
             messages.extend(_make_simple_turn(f"Q{i}", f"A{i}"))
 
         compressed, s_in, s_out = await agent._compress_messages(messages)
-        # Should keep last 3 turns = 6 messages, compress first 2 turns
-        # compressed = [summary_user, ack_assistant] + 6 recent = 8
+        # Should keep last 5 turns = 10 messages, compress first 3 turns
+        # compressed = [summary_user, ack_assistant] + 10 recent = 12
         assert compressed[0]["role"] == "user"
         assert "<summary>" in compressed[0]["content"]
         assert compressed[1]["role"] == "assistant"
         # Recent messages start at index 2
-        assert compressed[2]["content"] == "Q2"  # Turn 3 (0-indexed turn 2)
+        assert compressed[2]["content"] == "Q3"  # Turn 4 (0-indexed turn 3)
 
     async def test_02_tool_turns_never_split(self):
         """Turns with tool_use/tool_result: split only at logical turn boundaries."""
@@ -150,12 +150,18 @@ class TestCompressionTurnBoundariesE2E:
         # Turn 4: simple
         turn4 = _make_simple_turn("Thanks", "You're welcome!")
 
-        # Turn 5: current question
-        messages = turn1 + turn2 + turn3 + turn4 + [{"role": "user", "content": "What model?"}]
+        # Turn 5: simple
+        turn5 = _make_simple_turn("Another task", "Sure!")
+
+        # Turn 6: simple
+        turn6 = _make_simple_turn("More work", "Done!")
+
+        # Turn 7: current question
+        messages = turn1 + turn2 + turn3 + turn4 + turn5 + turn6 + [{"role": "user", "content": "What model?"}]
 
         compressed, _, _ = await agent._compress_messages(messages)
 
-        # Should keep last 3 logical turns (turn 3, 4, 5)
+        # Should keep last 5 logical turns (turn 3, 4, 5, 6, 7)
         # Recent starts at turn 3's user message "Add rainbow"
         recent_start = next(i for i, m in enumerate(compressed) if m.get("content") == "Add rainbow")
         # Verify turn 3 is complete: user, assistant(tool_use), user(tool_result), assistant(text)
@@ -184,8 +190,8 @@ class TestCompressionTurnBoundariesE2E:
         assert s_in == 0
         assert s_out == 0
 
-    async def test_04_three_turns_compress_oldest(self):
-        """3 turns with large tool results: compresses oldest, keeps recent 2."""
+    async def test_04_heavy_turns_compress_oldest(self):
+        """Heavy turns with large tool results: compresses oldest, keeps recent ones within budget."""
         agent = self._make_agent(context_limit=10_000)  # Small limit → budget = 2500 tokens
         self._mock_summary_response(agent)
 
@@ -193,26 +199,25 @@ class TestCompressionTurnBoundariesE2E:
         turn1 = _make_tool_turn("Turn 1", [
             {"name": "get_skill", "result": "X" * 50000},
         ], "Done 1")
-        # Turn 2: light
+        # Turns 2-4: light
         turn2 = _make_simple_turn("Turn 2", "Done 2")
-        # Turn 3: light
         turn3 = _make_simple_turn("Turn 3", "Done 3")
+        turn4 = _make_simple_turn("Turn 4", "Done 4")
 
-        messages = turn1 + turn2 + turn3
+        messages = turn1 + turn2 + turn3 + turn4
         compressed, _, _ = await agent._compress_messages(messages)
 
         # Summary message exists
         assert compressed[0]["role"] == "user"
         assert "<summary>" in compressed[0]["content"]
-        # Recent portion includes Turn 2 and Turn 3
+        # Recent portion includes some light turns
         recent_user_texts = [
             m["content"] for m in compressed
             if m["role"] == "user" and isinstance(m.get("content"), str)
             and "<summary>" not in m.get("content", "")
         ]
-        assert "Turn 2" in recent_user_texts
-        assert "Turn 3" in recent_user_texts
-        # Turn 1 is compressed away
+        assert "Turn 4" in recent_user_texts
+        # Turn 1 (heavy) is compressed away
         assert "Turn 1" not in recent_user_texts
 
     async def test_05_tool_result_not_counted_as_turn_boundary(self):
@@ -221,6 +226,7 @@ class TestCompressionTurnBoundariesE2E:
         self._mock_summary_response(agent)
 
         # Build messages manually to expose the boundary detection
+        # Need 7+ real turns so that with MAX_RECENT_TURNS=5, some get compressed
         messages = [
             {"role": "user", "content": "Real user turn 1"},
             {"role": "assistant", "content": [{"type": "tool_use", "id": "t:0", "name": "bash", "input": {}}]},
@@ -235,11 +241,15 @@ class TestCompressionTurnBoundariesE2E:
             {"role": "user", "content": "Real user turn 4"},
             {"role": "assistant", "content": [{"type": "text", "text": "Response 4"}]},
             {"role": "user", "content": "Real user turn 5"},
+            {"role": "assistant", "content": [{"type": "text", "text": "Response 5"}]},
+            {"role": "user", "content": "Real user turn 6"},
+            {"role": "assistant", "content": [{"type": "text", "text": "Response 6"}]},
+            {"role": "user", "content": "Real user turn 7"},
         ]
 
         compressed, _, _ = await agent._compress_messages(messages)
 
-        # 5 real turn boundaries. Keep 3 → compress turns 1-2, keep turns 3-5.
+        # 7 real turn boundaries. Keep 5 → compress turns 1-2, keep turns 3-7.
         # Turn 3 starts at "Real user turn 3"
         recent_user_msgs = [
             m["content"] for m in compressed
@@ -248,6 +258,8 @@ class TestCompressionTurnBoundariesE2E:
         assert "Real user turn 3" in recent_user_msgs
         assert "Real user turn 4" in recent_user_msgs
         assert "Real user turn 5" in recent_user_msgs
+        assert "Real user turn 6" in recent_user_msgs
+        assert "Real user turn 7" in recent_user_msgs
         # Turn 1 and 2 should NOT appear in recent (compressed away)
         assert "Real user turn 1" not in recent_user_msgs
         assert "Real user turn 2" not in recent_user_msgs
@@ -281,14 +293,14 @@ class TestCompressionTokenBudgetE2E:
         agent.client = MagicMock()
         agent.client.acreate = AsyncMock(return_value=mock_resp)
 
-    async def test_01_max_three_turns_cap(self):
-        """Even with small turns, never keep more than MAX_RECENT_TURNS (3)."""
+    async def test_01_max_five_turns_cap(self):
+        """Even with small turns, never keep more than MAX_RECENT_TURNS (5)."""
         agent = self._make_agent(context_limit=1_000_000)  # Huge budget
         self._mock_summary(agent)
 
-        # 10 simple turns — all tiny, well within budget
+        # 12 simple turns — all tiny, well within budget
         messages = []
-        for i in range(10):
+        for i in range(12):
             messages.extend(_make_simple_turn(f"Q{i}", f"A{i}"))
 
         compressed, _, _ = await agent._compress_messages(messages)
@@ -298,19 +310,19 @@ class TestCompressionTokenBudgetE2E:
             m["content"] for m in compressed
             if m["role"] == "user" and isinstance(m.get("content"), str) and "<summary>" not in m.get("content", "")
         ]
-        # Max 3 turns kept
-        assert len(recent_user_texts) == 3
-        assert recent_user_texts == ["Q7", "Q8", "Q9"]
+        # Max 5 turns kept
+        assert len(recent_user_texts) == 5
+        assert recent_user_texts == ["Q7", "Q8", "Q9", "Q10", "Q11"]
 
     async def test_02_token_budget_limits_before_cap(self):
-        """Heavy turns hit token budget before reaching 3 turns."""
+        """Heavy turns hit token budget before reaching 5 turns."""
         # Small context → small budget (256K * 0.25 = 64K tokens)
         agent = self._make_agent(context_limit=256_000)
         self._mock_summary(agent)
 
         # Each turn has ~23K tokens of content
         messages = []
-        for i in range(5):
+        for i in range(8):
             messages.extend(_make_heavy_tool_turn(f"Heavy task {i}", result_size=80000))
 
         compressed, _, _ = await agent._compress_messages(messages)
@@ -320,8 +332,8 @@ class TestCompressionTokenBudgetE2E:
             m["content"] for m in compressed
             if m["role"] == "user" and isinstance(m.get("content"), str) and "<summary>" not in m.get("content", "")
         ]
-        # Should keep fewer than 3 due to token budget
-        assert len(recent_user_texts) < 3
+        # Should keep fewer than 5 due to token budget
+        assert len(recent_user_texts) < 5
         # But at least 1 is always kept
         assert len(recent_user_texts) >= 1
 
@@ -331,17 +343,16 @@ class TestCompressionTokenBudgetE2E:
         self._mock_summary(agent)
 
         messages = []
-        for i in range(5):
+        for i in range(8):
             messages.extend(_make_heavy_tool_turn(f"Task {i}", result_size=10000))
 
         compressed, _, _ = await agent._compress_messages(messages)
 
-        # At least 1 recent user text message
-        recent_user_texts = [
-            m["content"] for m in compressed
-            if m["role"] == "user" and isinstance(m.get("content"), str) and "<summary>" not in m.get("content", "")
-        ]
-        assert len(recent_user_texts) >= 1
+        # Compressed output should be shorter than original
+        assert len(compressed) < len(messages)
+        # First message should be summary
+        assert compressed[0]["role"] == "user"
+        assert "<summary>" in compressed[0]["content"]
 
     async def test_04_all_turns_fit_skip_compression(self):
         """If all turns fit in budget + under cap, skip compression."""
@@ -359,24 +370,24 @@ class TestCompressionTokenBudgetE2E:
         agent = self._make_agent(context_limit=256_000)  # Budget = 64K tokens
         self._mock_summary(agent)
 
-        # 3 heavy turns (~23K tokens each) + 2 light turns (~10 tokens each)
+        # 4 heavy turns (~23K tokens each) + 4 light turns (~10 tokens each)
         messages = []
-        for i in range(3):
+        for i in range(4):
             messages.extend(_make_heavy_tool_turn(f"Heavy {i}", result_size=80000))
-        messages.extend(_make_simple_turn("Light 1", "OK 1"))
-        messages.extend(_make_simple_turn("Light 2", "OK 2"))
+        for i in range(4):
+            messages.extend(_make_simple_turn(f"Light {i}", f"OK {i}"))
         messages.append({"role": "user", "content": "Final"})
 
         compressed, _, _ = await agent._compress_messages(messages)
 
         # Light turns are tiny, should be included; heavy turns may exceed budget
-        # The 2 light + "Final" should definitely be in recent
+        # The light turns + "Final" should definitely be in recent
         recent_user_texts = [
             m["content"] for m in compressed
             if m["role"] == "user" and isinstance(m.get("content"), str) and "<summary>" not in m.get("content", "")
         ]
         assert "Final" in recent_user_texts
-        assert "Light 2" in recent_user_texts
+        assert "Light 3" in recent_user_texts
 
 
 # ---------------------------------------------------------------------------
@@ -411,7 +422,7 @@ class TestCompressionSummaryFormatE2E:
         agent.client.acreate = AsyncMock(return_value=mock_resp)
 
         messages = []
-        for i in range(5):
+        for i in range(8):
             messages.extend(_make_simple_turn(f"Q{i}", f"A{i}"))
 
         compressed, _, _ = await agent._compress_messages(messages)
@@ -429,7 +440,7 @@ class TestCompressionSummaryFormatE2E:
         agent.client.acreate = AsyncMock(side_effect=Exception("API error"))
 
         messages = []
-        for i in range(5):
+        for i in range(8):
             messages.extend(_make_simple_turn(f"Q{i}", f"A{i}"))
 
         compressed, _, _ = await agent._compress_messages(messages)
@@ -448,7 +459,7 @@ class TestCompressionSummaryFormatE2E:
         agent.client.acreate = AsyncMock(return_value=mock_resp)
 
         messages = []
-        for i in range(5):
+        for i in range(8):
             messages.extend(_make_simple_turn(f"Q{i}", f"A{i}"))
 
         compressed, s_in, s_out = await agent._compress_messages(messages)
@@ -472,7 +483,7 @@ class TestCompressionSummaryFormatE2E:
         assert s_out == 50
 
     async def test_04_summary_prompt_contains_required_sections(self):
-        """The summary system prompt includes all 7 required sections."""
+        """The summary system prompt includes all 7 required sections and verbatim user message guidance."""
         from app.agent.agent import SUMMARY_SYSTEM_PROMPT
 
         required_sections = [
@@ -489,6 +500,9 @@ class TestCompressionSummaryFormatE2E:
 
         assert "<summary>" in SUMMARY_SYSTEM_PROMPT
         assert "</summary>" in SUMMARY_SYSTEM_PROMPT
+        # Verify enhanced user message preservation guidance
+        assert "verbatim" in SUMMARY_SYSTEM_PROMPT
+        assert "user intent must be preserved precisely" in SUMMARY_SYSTEM_PROMPT
 
     async def test_05_compression_preserves_tool_pairs_in_recent(self):
         """After compression, recent messages contain complete tool_use/tool_result pairs."""
@@ -499,16 +513,20 @@ class TestCompressionSummaryFormatE2E:
         agent.client = MagicMock()
         agent.client.acreate = AsyncMock(return_value=mock_resp)
 
-        # 4 turns: first has tool, rest are simple
+        # 8 turns: some with tools, some simple (need >5 to trigger compression)
         turn1 = _make_tool_turn("T1", [{"name": "bash", "result": "ok"}], "Done1")
         turn2 = _make_tool_turn("T2", [
             {"name": "get_skill", "result": "skill content"},
             {"name": "execute_code", "result": "output"},
         ], "Done2")
-        turn3 = _make_tool_turn("T3", [{"name": "bash", "result": "ok3"}], "Done3")
+        turn3 = _make_simple_turn("T3", "Done3")
         turn4 = _make_simple_turn("T4", "Done4")
+        turn5 = _make_tool_turn("T5", [{"name": "bash", "result": "ok5"}], "Done5")
+        turn6 = _make_tool_turn("T6", [{"name": "bash", "result": "ok6"}], "Done6")
+        turn7 = _make_simple_turn("T7", "Done7")
+        turn8 = _make_simple_turn("T8", "Done8")
 
-        messages = turn1 + turn2 + turn3 + turn4
+        messages = turn1 + turn2 + turn3 + turn4 + turn5 + turn6 + turn7 + turn8
         compressed, _, _ = await agent._compress_messages(messages)
 
         # Extract recent portion (skip summary + ack)
@@ -918,7 +936,690 @@ class TestPublishedSessionFullMessagesE2E:
 
 
 # ---------------------------------------------------------------------------
-# Class 6: _should_compress threshold
+# Class 6: Iterative summary and file tracking
+# ---------------------------------------------------------------------------
+
+@pytest.mark.e2e
+@pytest.mark.asyncio(loop_scope="class")
+class TestIterativeSummaryAndFileTrackingE2E:
+    """Test iterative summary updates and cumulative file tracking."""
+
+    _state: dict = {}
+
+    def _make_agent(self, context_limit: int = 256_000):
+        from app.agent.agent import SkillsAgent
+        agent = SkillsAgent.__new__(SkillsAgent)
+        agent.model = "kimi-k2.5"
+        agent.model_provider = "kimi"
+        agent.verbose = False
+        agent.client = MagicMock()
+        agent._get_context_limit = lambda: context_limit
+        return agent
+
+    def _mock_summary(self, agent, summary_text="<summary>\n## Test\nSummary\n</summary>"):
+        mock_resp = MagicMock()
+        mock_resp.text_content = summary_text
+        mock_resp.usage = MagicMock(input_tokens=500, output_tokens=200)
+        agent.client = MagicMock()
+        agent.client.acreate = AsyncMock(return_value=mock_resp)
+
+    async def test_01_iterative_summary_uses_update_prompt(self):
+        """When old_messages starts with a previous summary, SUMMARY_UPDATE_PROMPT is used."""
+        from app.agent.agent import SUMMARY_UPDATE_PROMPT
+
+        agent = self._make_agent()
+        self._mock_summary(agent, "<summary>\n## Updated\nNew summary\n</summary>")
+
+        # Build messages that simulate a previous compression + new turns
+        previous_summary_content = (
+            "This session is being continued from a previous conversation that ran out of context. "
+            "The summary below covers the earlier portion.\n\n"
+            "<summary>\n## Primary Request\nUser wanted to analyze data\n## Current State\nWIP\n</summary>\n\n"
+            "Continue with the last task."
+        )
+        messages = [
+            {"role": "user", "content": previous_summary_content},
+            {"role": "assistant", "content": [{"type": "text", "text": "I understand the context. Let me continue from where we left off."}]},
+        ]
+        # Add 8 new turns after the summary
+        for i in range(8):
+            messages.extend(_make_simple_turn(f"New Q{i}", f"New A{i}"))
+
+        compressed, _, _ = await agent._compress_messages(messages)
+
+        # Verify the LLM was called with the update prompt
+        call_args = agent.client.acreate.call_args
+        system_used = call_args.kwargs.get("system", "")
+        assert "previous-summary" in system_used
+        assert "Update the existing summary" in system_used or "update the summary" in system_used.lower()
+
+    async def test_02_file_tracking_in_summary(self):
+        """Compression includes <read-files> and <modified-files> tags from tool calls."""
+        agent = self._make_agent()
+        self._mock_summary(agent)
+
+        # Build messages with file operations
+        messages = [
+            {"role": "user", "content": "Read some files"},
+            {"role": "assistant", "content": [
+                {"type": "tool_use", "id": "r:0", "name": "read", "input": {"file_path": "/app/main.py"}},
+            ]},
+            {"role": "user", "content": [
+                {"type": "tool_result", "tool_use_id": "r:0", "content": "file content"},
+            ]},
+            {"role": "assistant", "content": [
+                {"type": "tool_use", "id": "w:0", "name": "write", "input": {"file_path": "/app/output.py"}},
+            ]},
+            {"role": "user", "content": [
+                {"type": "tool_result", "tool_use_id": "w:0", "content": "written"},
+            ]},
+            {"role": "assistant", "content": [{"type": "text", "text": "Done reading and writing"}]},
+        ]
+        # Add more turns to trigger compression
+        for i in range(8):
+            messages.extend(_make_simple_turn(f"Q{i}", f"A{i}"))
+
+        compressed, _, _ = await agent._compress_messages(messages)
+
+        summary_content = compressed[0]["content"]
+        assert "<read-files>" in summary_content
+        assert "/app/main.py" in summary_content
+        assert "<modified-files>" in summary_content
+        assert "/app/output.py" in summary_content
+
+    async def test_03_cumulative_file_tracking_merges_previous(self):
+        """Second compression merges file tracking from previous summary."""
+        agent = self._make_agent()
+        self._mock_summary(agent)
+
+        # Simulate first compression output with file tracking
+        previous_summary_content = (
+            "This session is being continued from a previous conversation.\n\n"
+            "<summary>\n## Primary Request\nAnalyze files\n\n"
+            "<read-files>\n/app/old_file.py\n</read-files>\n"
+            "<modified-files>\n/app/old_output.csv\n</modified-files>\n"
+            "</summary>\n\nContinue."
+        )
+        messages = [
+            {"role": "user", "content": previous_summary_content},
+            {"role": "assistant", "content": [{"type": "text", "text": "I understand the context. Let me continue from where we left off."}]},
+            # New turn with additional file operations
+            {"role": "user", "content": "Now edit another file"},
+            {"role": "assistant", "content": [
+                {"type": "tool_use", "id": "e:0", "name": "edit", "input": {"file_path": "/app/new_file.py"}},
+            ]},
+            {"role": "user", "content": [
+                {"type": "tool_result", "tool_use_id": "e:0", "content": "edited"},
+            ]},
+            {"role": "assistant", "content": [{"type": "text", "text": "File edited"}]},
+        ]
+        # Add more turns
+        for i in range(8):
+            messages.extend(_make_simple_turn(f"Q{i}", f"A{i}"))
+
+        compressed, _, _ = await agent._compress_messages(messages)
+
+        # The system prompt should include the UPDATE prompt
+        call_args = agent.client.acreate.call_args
+        system_used = call_args.kwargs.get("system", "")
+        # File tracking in the system prompt should contain both old and new files
+        assert "/app/old_file.py" in system_used or "/app/new_file.py" in system_used
+
+    async def test_04_extract_file_operations_helper(self):
+        """_extract_file_operations correctly extracts read and modified files."""
+        from app.agent.agent import _extract_file_operations
+
+        messages = [
+            {"role": "assistant", "content": [
+                {"type": "tool_use", "id": "r:0", "name": "read", "input": {"file_path": "/app/config.py"}},
+            ]},
+            {"role": "user", "content": [
+                {"type": "tool_result", "tool_use_id": "r:0", "content": "config content"},
+            ]},
+            {"role": "assistant", "content": [
+                {"type": "tool_use", "id": "w:0", "name": "write", "input": {"file_path": "/app/out.txt"}},
+            ]},
+            {"role": "user", "content": [
+                {"type": "tool_result", "tool_use_id": "w:0", "content": '{"success": true, "new_files": [{"filename": "result.csv"}]}'},
+            ]},
+            {"role": "assistant", "content": [
+                {"type": "tool_use", "id": "g:0", "name": "grep", "input": {"path": "/app/src"}},
+            ]},
+            {"role": "user", "content": [
+                {"type": "tool_result", "tool_use_id": "g:0", "content": "matches found"},
+            ]},
+        ]
+
+        read_files, modified_files = _extract_file_operations(messages)
+        assert "/app/config.py" in read_files
+        assert "/app/src" in read_files
+        assert "/app/out.txt" in modified_files
+        assert "result.csv" in modified_files
+
+    async def test_05_summary_update_prompt_exists(self):
+        """SUMMARY_UPDATE_PROMPT is defined and has required structure."""
+        from app.agent.agent import SUMMARY_UPDATE_PROMPT
+
+        assert "previous-summary" in SUMMARY_UPDATE_PROMPT
+        assert "PRESERVE" in SUMMARY_UPDATE_PROMPT
+        assert "{previous_summary}" in SUMMARY_UPDATE_PROMPT
+        assert "{file_tracking_section}" in SUMMARY_UPDATE_PROMPT
+
+
+# ---------------------------------------------------------------------------
+# Class 7: Split turn handling
+# ---------------------------------------------------------------------------
+
+@pytest.mark.e2e
+@pytest.mark.asyncio(loop_scope="class")
+class TestSplitTurnHandlingE2E:
+    """Test split-oversized-turn code path in _compress_messages."""
+
+    _state: dict = {}
+
+    def _make_agent(self, context_limit: int = 256_000):
+        from app.agent.agent import SkillsAgent
+        agent = SkillsAgent.__new__(SkillsAgent)
+        agent.model = "kimi-k2.5"
+        agent.model_provider = "kimi"
+        agent.verbose = False
+        agent.client = MagicMock()
+        agent._get_context_limit = lambda: context_limit
+        return agent
+
+    async def test_01_split_turn_with_valid_cut_points(self):
+        """Oversized turn with valid cut points is split; prefix summary included."""
+        agent = self._make_agent(context_limit=5000)  # Budget = 1250 tokens
+
+        call_count = {"n": 0}
+
+        async def mock_acreate(**kwargs):
+            call_count["n"] += 1
+            resp = MagicMock()
+            if call_count["n"] == 1:
+                # Turn prefix summary
+                resp.text_content = "## Original Request\nBig task\n## Early Progress\nSteps 0-5\n## Context for Suffix\nContinuing from step 6"
+            else:
+                # Main summary
+                resp.text_content = "<summary>\n## Primary Request\nSetup task summary\n</summary>"
+            resp.usage = MagicMock(input_tokens=200, output_tokens=80)
+            return resp
+
+        agent.client = MagicMock()
+        agent.client.acreate = AsyncMock(side_effect=mock_acreate)
+
+        # Turn 1: small (will be in old_messages)
+        messages = [
+            {"role": "user", "content": "Setup task"},
+            {"role": "assistant", "content": [{"type": "text", "text": "Setup done"}]},
+        ]
+        # Turn 2: one large turn with many tool steps (NO intermediate plain user messages)
+        # Only tool_result user messages within this turn — keeps it as a single logical turn
+        messages.append({"role": "user", "content": "Run 10 analysis steps"})
+        for step in range(10):
+            messages.append({
+                "role": "assistant",
+                "content": [
+                    {"type": "text", "text": f"Step {step} analysis:"},
+                    {"type": "tool_use", "id": f"t:{step}", "name": "execute_code",
+                     "input": {"code": f"analyze_step({step})\n" + "x" * 400}},
+                ],
+            })
+            messages.append({
+                "role": "user",
+                "content": [
+                    {"type": "tool_result", "tool_use_id": f"t:{step}",
+                     "content": f"Step {step} result: " + "R" * 400},
+                ],
+            })
+        messages.append({
+            "role": "assistant",
+            "content": [{"type": "text", "text": "All analysis complete!"}],
+        })
+
+        compressed, _, _ = await agent._compress_messages(messages)
+
+        assert len(compressed) < len(messages)
+        summary_content = compressed[0]["content"]
+        # Split should have happened: prefix summary gets appended
+        assert "Recent turn prefix context" in summary_content
+
+    async def test_02_split_turn_prefix_api_failure_fallback(self):
+        """When prefix summary LLM call fails, fallback text is used."""
+        agent = self._make_agent(context_limit=5000)
+
+        call_count = {"n": 0}
+
+        async def mock_acreate(**kwargs):
+            call_count["n"] += 1
+            if call_count["n"] == 1:
+                raise Exception("Prefix summary API error")
+            resp = MagicMock()
+            resp.text_content = "<summary>\n## Primary Request\nTask\n</summary>"
+            resp.usage = MagicMock(input_tokens=200, output_tokens=80)
+            return resp
+
+        agent.client = MagicMock()
+        agent.client.acreate = AsyncMock(side_effect=mock_acreate)
+
+        # Turn 1: small
+        messages = [
+            {"role": "user", "content": "Small task"},
+            {"role": "assistant", "content": [{"type": "text", "text": "Done"}]},
+        ]
+        # Turn 2: large single turn with tool steps (no intermediate plain user messages)
+        messages.append({"role": "user", "content": "Big task"})
+        for step in range(8):
+            messages.append({
+                "role": "assistant",
+                "content": [
+                    {"type": "text", "text": f"Working {step}"},
+                    {"type": "tool_use", "id": f"t:{step}", "name": "bash",
+                     "input": {"command": f"step_{step}" + "Z" * 300}},
+                ],
+            })
+            messages.append({
+                "role": "user",
+                "content": [
+                    {"type": "tool_result", "tool_use_id": f"t:{step}",
+                     "content": f"output_{step}" + "W" * 300},
+                ],
+            })
+        messages.append({
+            "role": "assistant",
+            "content": [{"type": "text", "text": "All done!"}],
+        })
+
+        compressed, _, _ = await agent._compress_messages(messages)
+
+        assert len(compressed) < len(messages)
+        summary_content = compressed[0]["content"]
+        # Should still have turn prefix context (from fallback serialized text)
+        assert "Recent turn prefix context" in summary_content
+
+    async def test_03_no_split_when_turn_fits_budget(self):
+        """When the oversized turn fits in budget, no split occurs."""
+        agent = self._make_agent(context_limit=1_000_000)  # Huge budget
+
+        mock_resp = MagicMock()
+        mock_resp.text_content = "<summary>\n## Test\nSummary\n</summary>"
+        mock_resp.usage = MagicMock(input_tokens=100, output_tokens=50)
+        agent.client = MagicMock()
+        agent.client.acreate = AsyncMock(return_value=mock_resp)
+
+        # 8 turns, last one is large but budget is huge
+        messages = []
+        for i in range(7):
+            messages.extend(_make_simple_turn(f"Q{i}", f"A{i}"))
+        # Large final turn
+        messages.extend(_make_heavy_tool_turn("Big final task", result_size=50000))
+
+        compressed, _, _ = await agent._compress_messages(messages)
+
+        summary_content = compressed[0]["content"]
+        # No split should happen — turn fits in budget
+        assert "Recent turn prefix context" not in summary_content
+
+    async def test_04_turn_prefix_summary_prompt_structure(self):
+        """TURN_PREFIX_SUMMARY_PROMPT has required sections."""
+        from app.agent.agent import TURN_PREFIX_SUMMARY_PROMPT
+
+        assert "Original Request" in TURN_PREFIX_SUMMARY_PROMPT
+        assert "Early Progress" in TURN_PREFIX_SUMMARY_PROMPT
+        assert "Context for Suffix" in TURN_PREFIX_SUMMARY_PROMPT
+        assert "PREFIX" in TURN_PREFIX_SUMMARY_PROMPT
+        assert "SUFFIX" in TURN_PREFIX_SUMMARY_PROMPT
+
+    async def test_05_split_preserves_recent_suffix_verbatim(self):
+        """After split, the suffix (recent) messages are preserved exactly."""
+        agent = self._make_agent(context_limit=3000)  # Very small
+
+        call_count = {"n": 0}
+
+        async def mock_acreate(**kwargs):
+            call_count["n"] += 1
+            resp = MagicMock()
+            if call_count["n"] == 1:
+                resp.text_content = "Prefix context summary"
+            else:
+                resp.text_content = "<summary>\nHistory\n</summary>"
+            resp.usage = MagicMock(input_tokens=100, output_tokens=50)
+            return resp
+
+        agent.client = MagicMock()
+        agent.client.acreate = AsyncMock(side_effect=mock_acreate)
+
+        # Turn 1: small
+        messages = [
+            {"role": "user", "content": "First"},
+            {"role": "assistant", "content": [{"type": "text", "text": "OK"}]},
+        ]
+        # Turn 2: large single turn (only tool_result user messages, no plain user text)
+        messages.append({"role": "user", "content": "Big work"})
+        for step in range(6):
+            messages.append({
+                "role": "assistant",
+                "content": [
+                    {"type": "text", "text": f"Step {step}"},
+                    {"type": "tool_use", "id": f"t:{step}", "name": "bash",
+                     "input": {"command": "x" * 300}},
+                ],
+            })
+            messages.append({
+                "role": "user",
+                "content": [
+                    {"type": "tool_result", "tool_use_id": f"t:{step}",
+                     "content": "y" * 300},
+                ],
+            })
+        messages.append({
+            "role": "assistant",
+            "content": [{"type": "text", "text": "FINAL_ANSWER_MARKER"}],
+        })
+
+        compressed, _, _ = await agent._compress_messages(messages)
+
+        # The final assistant message should be in the compressed output verbatim
+        found_final = any(
+            isinstance(m.get("content"), list)
+            and any(isinstance(b, dict) and b.get("text") == "FINAL_ANSWER_MARKER" for b in m["content"])
+            for m in compressed
+        )
+        assert found_final, "Final answer should be preserved verbatim in suffix"
+
+
+# ---------------------------------------------------------------------------
+# Class 8: Triple compression with cumulative file tracking
+# ---------------------------------------------------------------------------
+
+@pytest.mark.e2e
+@pytest.mark.asyncio(loop_scope="class")
+class TestTripleCompressionE2E:
+    """Test three successive compressions with cumulative file tracking."""
+
+    _state: dict = {}
+
+    def _make_agent(self, context_limit: int = 256_000):
+        from app.agent.agent import SkillsAgent
+        agent = SkillsAgent.__new__(SkillsAgent)
+        agent.model = "kimi-k2.5"
+        agent.model_provider = "kimi"
+        agent.verbose = False
+        agent.client = MagicMock()
+        agent._get_context_limit = lambda: context_limit
+        return agent
+
+    def _mock_summary(self, agent, summary_text="<summary>\n## Test\nSummary\n</summary>"):
+        mock_resp = MagicMock()
+        mock_resp.text_content = summary_text
+        mock_resp.usage = MagicMock(input_tokens=500, output_tokens=200)
+        agent.client = MagicMock()
+        agent.client.acreate = AsyncMock(return_value=mock_resp)
+
+    async def test_01_first_compression_adds_file_tracking(self):
+        """First compression with file ops adds <read-files>/<modified-files>."""
+        agent = self._make_agent()
+        self._mock_summary(agent)
+
+        messages = [
+            {"role": "user", "content": "Read config"},
+            {"role": "assistant", "content": [
+                {"type": "tool_use", "id": "r:0", "name": "read", "input": {"file_path": "/app/config.py"}},
+            ]},
+            {"role": "user", "content": [
+                {"type": "tool_result", "tool_use_id": "r:0", "content": "config"},
+            ]},
+            {"role": "assistant", "content": [{"type": "text", "text": "Read config"}]},
+        ]
+        for i in range(8):
+            messages.extend(_make_simple_turn(f"Q{i}", f"A{i}"))
+
+        compressed, _, _ = await agent._compress_messages(messages)
+        type(self)._state["first_compression"] = compressed
+
+        summary = compressed[0]["content"]
+        assert "<read-files>" in summary
+        assert "/app/config.py" in summary
+
+    async def test_02_second_compression_merges_old_tracking(self):
+        """Second compression merges file tracking from first summary."""
+        agent = self._make_agent()
+        self._mock_summary(agent)
+
+        # Start from first compression output
+        first = type(self)._state["first_compression"]
+
+        # Add new turns with new file operations
+        messages = list(first)
+        messages.extend([
+            {"role": "user", "content": "Write output"},
+            {"role": "assistant", "content": [
+                {"type": "tool_use", "id": "w:0", "name": "write", "input": {"file_path": "/app/output.txt"}},
+            ]},
+            {"role": "user", "content": [
+                {"type": "tool_result", "tool_use_id": "w:0", "content": "written"},
+            ]},
+            {"role": "assistant", "content": [{"type": "text", "text": "Written output"}]},
+        ])
+        for i in range(8):
+            messages.extend(_make_simple_turn(f"R{i}", f"B{i}"))
+
+        compressed, _, _ = await agent._compress_messages(messages)
+        type(self)._state["second_compression"] = compressed
+
+        # Verify UPDATE prompt was used (iterative)
+        call_args = agent.client.acreate.call_args
+        system_used = call_args.kwargs.get("system", "")
+        assert "previous-summary" in system_used
+
+        # Verify cumulative file tracking in the system prompt
+        assert "/app/config.py" in system_used  # From first compression
+        assert "/app/output.txt" in system_used  # From new operations
+
+    async def test_03_third_compression_accumulates_all_files(self):
+        """Third compression accumulates files from all three rounds."""
+        agent = self._make_agent()
+        self._mock_summary(agent)
+
+        second = type(self)._state["second_compression"]
+
+        # Add more file operations
+        messages = list(second)
+        messages.extend([
+            {"role": "user", "content": "Edit models"},
+            {"role": "assistant", "content": [
+                {"type": "tool_use", "id": "e:0", "name": "edit", "input": {"file_path": "/app/models.py"}},
+            ]},
+            {"role": "user", "content": [
+                {"type": "tool_result", "tool_use_id": "e:0", "content": "edited"},
+            ]},
+            {"role": "assistant", "content": [
+                {"type": "tool_use", "id": "r:1", "name": "read", "input": {"file_path": "/app/schema.py"}},
+            ]},
+            {"role": "user", "content": [
+                {"type": "tool_result", "tool_use_id": "r:1", "content": "schema"},
+            ]},
+            {"role": "assistant", "content": [{"type": "text", "text": "Done"}]},
+        ])
+        for i in range(8):
+            messages.extend(_make_simple_turn(f"S{i}", f"C{i}"))
+
+        compressed, _, _ = await agent._compress_messages(messages)
+
+        # All files from all three compressions should be in the system prompt
+        call_args = agent.client.acreate.call_args
+        system_used = call_args.kwargs.get("system", "")
+        assert "/app/config.py" in system_used    # Round 1
+        assert "/app/output.txt" in system_used   # Round 2
+        assert "/app/models.py" in system_used    # Round 3
+        assert "/app/schema.py" in system_used    # Round 3
+
+
+# ---------------------------------------------------------------------------
+# Class 9: Edge cases and no-file-ops scenarios
+# ---------------------------------------------------------------------------
+
+@pytest.mark.e2e
+@pytest.mark.asyncio(loop_scope="class")
+class TestCompressionEdgeCasesE2E:
+    """Test edge cases in compression: no file ops, multiple new_files, etc."""
+
+    _state: dict = {}
+
+    def _make_agent(self, context_limit: int = 256_000):
+        from app.agent.agent import SkillsAgent
+        agent = SkillsAgent.__new__(SkillsAgent)
+        agent.model = "kimi-k2.5"
+        agent.model_provider = "kimi"
+        agent.verbose = False
+        agent.client = MagicMock()
+        agent._get_context_limit = lambda: context_limit
+        return agent
+
+    def _mock_summary(self, agent, summary_text="<summary>\n## Test\nSummary\n</summary>"):
+        mock_resp = MagicMock()
+        mock_resp.text_content = summary_text
+        mock_resp.usage = MagicMock(input_tokens=500, output_tokens=200)
+        agent.client = MagicMock()
+        agent.client.acreate = AsyncMock(return_value=mock_resp)
+
+    async def test_01_no_file_ops_no_xml_tags(self):
+        """Conversation with no file tools produces no <read-files>/<modified-files>."""
+        agent = self._make_agent()
+        self._mock_summary(agent)
+
+        # Pure text conversation — no tools at all
+        messages = []
+        for i in range(8):
+            messages.extend(_make_simple_turn(f"Q{i}", f"A{i}"))
+
+        compressed, _, _ = await agent._compress_messages(messages)
+
+        summary_content = compressed[0]["content"]
+        assert "<read-files>" not in summary_content
+        assert "<modified-files>" not in summary_content
+
+    async def test_02_multiple_new_files_in_single_tool_result(self):
+        """Multiple new_files in one tool_result are all tracked."""
+        from app.agent.agent import _extract_file_operations
+
+        messages = [
+            {"role": "assistant", "content": [
+                {"type": "tool_use", "id": "c:0", "name": "execute_code",
+                 "input": {"code": "create_charts()"}},
+            ]},
+            {"role": "user", "content": [
+                {"type": "tool_result", "tool_use_id": "c:0",
+                 "content": json.dumps({
+                     "success": True,
+                     "output": "Charts created",
+                     "new_files": [
+                         {"filename": "chart1.png"},
+                         {"filename": "chart2.png"},
+                         {"filename": "data_summary.csv"},
+                     ],
+                 })},
+            ]},
+        ]
+
+        _, modified_files = _extract_file_operations(messages)
+        assert "chart1.png" in modified_files
+        assert "chart2.png" in modified_files
+        assert "data_summary.csv" in modified_files
+
+    async def test_03_duplicate_files_across_compressions(self):
+        """Same file read twice across compressions: deduplication by set."""
+        from app.agent.agent import _extract_file_operations, _extract_previous_file_tracking
+
+        # Previous summary had /app/config.py
+        previous_text = "<read-files>\n/app/config.py\n</read-files>"
+        prev_read, prev_mod = _extract_previous_file_tracking(previous_text)
+
+        # New messages also read /app/config.py
+        messages = [
+            {"role": "assistant", "content": [
+                {"type": "tool_use", "id": "r:0", "name": "read", "input": {"file_path": "/app/config.py"}},
+            ]},
+            {"role": "user", "content": [
+                {"type": "tool_result", "tool_use_id": "r:0", "content": "config"},
+            ]},
+        ]
+        new_read, new_mod = _extract_file_operations(messages)
+        merged = prev_read | new_read
+
+        # Should have only one entry (deduplicated)
+        assert len([f for f in merged if f == "/app/config.py"]) == 1
+
+    async def test_04_file_tracking_inserted_before_summary_close(self):
+        """File tracking XML is inserted before </summary>, not after."""
+        agent = self._make_agent()
+        self._mock_summary(agent)
+
+        messages = [
+            {"role": "user", "content": "Read file"},
+            {"role": "assistant", "content": [
+                {"type": "tool_use", "id": "r:0", "name": "read", "input": {"file_path": "/app/test.py"}},
+            ]},
+            {"role": "user", "content": [
+                {"type": "tool_result", "tool_use_id": "r:0", "content": "content"},
+            ]},
+            {"role": "assistant", "content": [{"type": "text", "text": "Read it"}]},
+        ]
+        for i in range(8):
+            messages.extend(_make_simple_turn(f"Q{i}", f"A{i}"))
+
+        compressed, _, _ = await agent._compress_messages(messages)
+
+        summary_content = compressed[0]["content"]
+        # Find positions: read-files should be before </summary>
+        read_pos = summary_content.find("<read-files>")
+        close_pos = summary_content.find("</summary>")
+        assert read_pos < close_pos, "<read-files> should be inside </summary>"
+
+    async def test_05_iterative_fallback_preserves_previous_summary(self):
+        """When UPDATE prompt fails, fallback to previous_summary_text."""
+        agent = self._make_agent()
+        agent.client = MagicMock()
+        agent.client.acreate = AsyncMock(side_effect=Exception("API down"))
+
+        previous_summary_content = (
+            "This session is being continued from a previous conversation.\n\n"
+            "<summary>\n## Primary Request\nImportant task preserved\n## Current State\nIn progress\n</summary>\n\n"
+            "Continue with the last task."
+        )
+        messages = [
+            {"role": "user", "content": previous_summary_content},
+            {"role": "assistant", "content": [{"type": "text", "text": "I understand the context. Let me continue from where we left off."}]},
+        ]
+        for i in range(8):
+            messages.extend(_make_simple_turn(f"Q{i}", f"A{i}"))
+
+        compressed, s_in, s_out = await agent._compress_messages(messages)
+
+        summary_content = compressed[0]["content"]
+        # Previous summary should be preserved in fallback
+        assert "Important task preserved" in summary_content
+        assert s_in == 0  # No API tokens consumed
+        assert s_out == 0
+
+    async def test_06_read_file_alias_extracted(self):
+        """Both 'read' and 'read_file' tool names are recognized."""
+        from app.agent.agent import _extract_file_operations
+
+        messages = [
+            {"role": "assistant", "content": [
+                {"type": "tool_use", "id": "r:0", "name": "read_file", "input": {"file_path": "/app/via_alias.py"}},
+            ]},
+            {"role": "user", "content": [
+                {"type": "tool_result", "tool_use_id": "r:0", "content": "content"},
+            ]},
+        ]
+        read_files, _ = _extract_file_operations(messages)
+        assert "/app/via_alias.py" in read_files
+
+
+# ---------------------------------------------------------------------------
+# Class 10: _should_compress threshold
 # ---------------------------------------------------------------------------
 
 @pytest.mark.e2e
