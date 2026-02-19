@@ -15,7 +15,7 @@ from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agent import SkillsAgent, EventStream, write_steering_message, poll_steering_messages, cleanup_steering_dir
-from app.api.v1.sessions import load_or_create_session, save_session_messages, CHAT_SENTINEL_AGENT_ID
+from app.api.v1.sessions import load_or_create_session, save_session_messages, save_session_checkpoint, pre_compress_if_needed, CHAT_SENTINEL_AGENT_ID
 from app.db.database import get_db, AsyncSessionLocal, SyncSessionLocal
 from app.db.models import AgentTraceDB, AgentPresetDB
 
@@ -331,9 +331,18 @@ async def run_agent(request: AgentRequest, db: AsyncSession = Depends(get_db)):
     agent = _create_agent(config)
 
     try:
-        # Load session history from DB
+        # Load session history from DB (dual-store)
         agent_id = config.get("agent_id") or CHAT_SENTINEL_AGENT_ID
-        session_id, history = await load_or_create_session(request.session_id, agent_id)
+        session_data = await load_or_create_session(request.session_id, agent_id)
+        session_id = session_data.session_id
+        history = session_data.agent_context  # Use agent_context for the agent
+        history_len = len(history) if history else 0
+
+        # Pre-compress if context exceeds threshold
+        effective_provider = config.get("model_provider") or agent.model_provider
+        effective_model = config.get("model_name") or agent.model
+        if history:
+            history = await pre_compress_if_needed(history, effective_provider, effective_model)
 
         # Build the actual request with file info and image blocks
         actual_request, image_contents = _build_request_with_files(
@@ -368,12 +377,20 @@ async def run_agent(request: AgentRequest, db: AsyncSession = Depends(get_db)):
         db.add(trace)
         await db.commit()
 
-        # Save session messages
+        # Build display messages from new turns only
+        final_msgs = getattr(result, "final_messages", None)
+        if final_msgs and history_len is not None:
+            new_display = final_msgs[history_len:]
+        else:
+            new_display = None  # fallback to simple user+assistant pair
+
+        # Save session (dual-store)
         await save_session_messages(
             session_id,
             result.answer,
             request.request,
-            final_messages=getattr(result, "final_messages", None),
+            final_messages=final_msgs,
+            display_append_messages=new_display if new_display else None,
         )
 
         return AgentResponse(
@@ -424,9 +441,19 @@ async def run_agent_stream(request: AgentRequest, db: AsyncSession = Depends(get
         model_name=config.get("model_name"),
     )
 
-    # Load session history from DB
+    # Load session history from DB (dual-store)
     agent_id_for_session = config.get("agent_id") or CHAT_SENTINEL_AGENT_ID
-    session_id, history = await load_or_create_session(request.session_id, agent_id_for_session)
+    session_data = await load_or_create_session(request.session_id, agent_id_for_session)
+    session_id = session_data.session_id
+    history = session_data.agent_context  # Use agent_context for the agent
+    history_len = len(history) if history else 0
+
+    # Pre-compress if context exceeds threshold
+    from app.config import settings as app_settings_pre
+    pre_provider = config.get("model_provider") or app_settings_pre.default_model_provider
+    pre_model = config.get("model_name") or app_settings_pre.default_model_name
+    if history:
+        history = await pre_compress_if_needed(history, pre_provider, pre_model)
 
     async def event_generator():
         start_time = time.time()
@@ -497,6 +524,8 @@ async def run_agent_stream(request: AgentRequest, db: AsyncSession = Depends(get
 
         last_complete_event = None
         last_messages_snapshot = None  # Incremental checkpoint for resilient save
+        last_snapshot_for_display = None  # Last snapshot before compression (for display extraction)
+        compression_happened = False  # Track if context_compressed event was seen
         collected_steps = []  # Collect steps during streaming
         current_text_buffer = ""  # Accumulate text_delta chunks
         was_cancelled = False
@@ -508,15 +537,24 @@ async def run_agent_stream(request: AgentRequest, db: AsyncSession = Depends(get
                     yield ": heartbeat\n\n"
                     continue
 
-                # Intercept turn_complete for incremental session save (not forwarded to client)
+                # Intercept turn_complete for incremental checkpoint (not forwarded to client)
                 if event.event_type == "turn_complete":
-                    last_messages_snapshot = event.data.get("messages_snapshot")
-                    if session_id and last_messages_snapshot:
+                    snapshot = event.data.get("messages_snapshot")
+                    last_messages_snapshot = snapshot
+                    # Track pre-compression snapshot for display extraction
+                    if not compression_happened and snapshot:
+                        last_snapshot_for_display = snapshot
+                    # Save checkpoint: only updates agent_context, not display messages
+                    if session_id and snapshot:
                         try:
-                            await save_session_messages(session_id, "", request.request, final_messages=last_messages_snapshot)
+                            await save_session_checkpoint(session_id, snapshot)
                         except Exception:
                             pass  # fire-and-forget
                     continue
+
+                # Intercept context_compressed to set flag (still forward to client)
+                if event.event_type == "context_compressed":
+                    compression_happened = True
 
                 event_data = {
                     "event_type": event.event_type,
@@ -614,21 +652,33 @@ async def run_agent_stream(request: AgentRequest, db: AsyncSession = Depends(get
                 "duration_ms": duration_ms,
             })
 
-            # Save full conversation messages to session
+            # Save full conversation messages to session (dual-store)
             if session_id:
                 if not was_cancelled and last_complete_event:
-                    # Normal completion — definitive save with final answer
+                    # Normal completion — definitive save
                     final_answer = last_complete_event.get("answer", "")
+                    final_msgs = last_complete_event.get("final_messages")
+
+                    # Compute new display messages (only the new turns from this request)
+                    new_display = None
+                    if last_snapshot_for_display and history_len is not None:
+                        # Use pre-compression snapshot for accurate display extraction
+                        new_display = last_snapshot_for_display[history_len:]
+                    elif final_msgs and not compression_happened and history_len is not None:
+                        new_display = final_msgs[history_len:]
+                    # else: fallback to simple user+assistant pair (handled by save_session_messages)
+
                     await save_session_messages(
                         session_id,
                         final_answer,
                         request.request,
-                        final_messages=last_complete_event.get("final_messages"),
+                        final_messages=final_msgs,
+                        display_append_messages=new_display if new_display else None,
                     )
                 elif last_messages_snapshot:
-                    # Cancelled or interrupted — save last checkpoint (best effort)
+                    # Cancelled or interrupted — save last checkpoint (agent_context only)
                     try:
-                        await save_session_messages(session_id, "", request.request, final_messages=last_messages_snapshot)
+                        await save_session_checkpoint(session_id, last_messages_snapshot)
                     except Exception:
                         pass
 

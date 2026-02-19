@@ -19,7 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agent import SkillsAgent, EventStream, write_steering_message, poll_steering_messages, cleanup_steering_dir
 from app.api.v1.agent import _finalize_trace
-from app.api.v1.sessions import load_or_create_session, save_session_messages
+from app.api.v1.sessions import load_or_create_session, save_session_messages, save_session_checkpoint, pre_compress_if_needed
 from app.config import get_settings
 from app.db.database import AsyncSessionLocal, get_db
 from app.db.models import AgentPresetDB, AgentTraceDB, PublishedSessionDB, ExecutorDB
@@ -376,12 +376,22 @@ async def published_chat(agent_id: str, request: PublishedChatRequest):
 
     # Session management — published agents may omit session_id for auto-creation
     if request.session_id:
-        session_id, history = await load_or_create_session(request.session_id, agent_id)
+        session_data = await load_or_create_session(request.session_id, agent_id)
     else:
         # Auto-generate a session for published agents
         from app.db.models import generate_uuid
         auto_sid = generate_uuid()
-        session_id, history = await load_or_create_session(auto_sid, agent_id)
+        session_data = await load_or_create_session(auto_sid, agent_id)
+
+    session_id = session_data.session_id
+    history = session_data.agent_context  # Use agent_context for the agent
+    history_len = len(history) if history else 0
+
+    # Pre-compress if context exceeds threshold
+    pre_provider = config.get("model_provider") or settings.default_model_provider
+    pre_model = config.get("model_name") or settings.default_model_name
+    if history:
+        history = await pre_compress_if_needed(history, pre_provider, pre_model)
 
     # Build actual request with file info and image blocks
     from app.api.v1.agent import _build_request_with_files
@@ -458,6 +468,8 @@ async def published_chat(agent_id: str, request: PublishedChatRequest):
 
         last_complete_event = None
         last_messages_snapshot = None  # Incremental checkpoint for resilient save
+        last_snapshot_for_display = None  # Last snapshot before compression (for display extraction)
+        compression_happened = False  # Track if context_compressed event was seen
         collected_steps = []
         current_text_buffer = ""
         was_cancelled = False
@@ -469,15 +481,24 @@ async def published_chat(agent_id: str, request: PublishedChatRequest):
                     yield ": heartbeat\n\n"
                     continue
 
-                # Intercept turn_complete for incremental session save (not forwarded to client)
+                # Intercept turn_complete for incremental checkpoint (not forwarded to client)
                 if event.event_type == "turn_complete":
-                    last_messages_snapshot = event.data.get("messages_snapshot")
-                    if session_id and last_messages_snapshot:
+                    snapshot = event.data.get("messages_snapshot")
+                    last_messages_snapshot = snapshot
+                    # Track pre-compression snapshot for display extraction
+                    if not compression_happened and snapshot:
+                        last_snapshot_for_display = snapshot
+                    # Save checkpoint: only updates agent_context, not display messages
+                    if session_id and snapshot:
                         try:
-                            await save_session_messages(session_id, "", request.request, final_messages=last_messages_snapshot)
+                            await save_session_checkpoint(session_id, snapshot)
                         except Exception:
                             pass  # fire-and-forget
                     continue
+
+                # Intercept context_compressed to set flag (still forward to client)
+                if event.event_type == "context_compressed":
+                    compression_happened = True
 
                 event_data = {
                     "event_type": event.event_type,
@@ -570,20 +591,32 @@ async def published_chat(agent_id: str, request: PublishedChatRequest):
                 "duration_ms": duration_ms,
             })
 
-            # Save full conversation messages to session
+            # Save full conversation messages to session (dual-store)
             if session_id:
                 if not was_cancelled and last_complete_event:
-                    # Normal completion — definitive save with final answer
+                    # Normal completion — definitive save
+                    final_msgs = last_complete_event.get("final_messages")
+
+                    # Compute new display messages (only the new turns from this request)
+                    new_display = None
+                    if last_snapshot_for_display and history_len is not None:
+                        # Use pre-compression snapshot for accurate display extraction
+                        new_display = last_snapshot_for_display[history_len:]
+                    elif final_msgs and not compression_happened and history_len is not None:
+                        new_display = final_msgs[history_len:]
+                    # else: fallback to simple user+assistant pair (handled by save_session_messages)
+
                     await save_session_messages(
                         session_id,
                         final_answer,
                         request.request,
-                        final_messages=last_complete_event.get("final_messages"),
+                        final_messages=final_msgs,
+                        display_append_messages=new_display if new_display else None,
                     )
                 elif last_messages_snapshot:
-                    # Cancelled or interrupted — save last checkpoint (best effort)
+                    # Cancelled or interrupted — save last checkpoint (agent_context only)
                     try:
-                        await save_session_messages(session_id, "", request.request, final_messages=last_messages_snapshot)
+                        await save_session_checkpoint(session_id, last_messages_snapshot)
                     except Exception:
                         pass
 
@@ -627,11 +660,21 @@ async def published_chat_sync(agent_id: str, request: PublishedChatRequest):
 
     # Session management — published agents may omit session_id for auto-creation
     if request.session_id:
-        session_id, history = await load_or_create_session(request.session_id, agent_id)
+        session_data = await load_or_create_session(request.session_id, agent_id)
     else:
         from app.db.models import generate_uuid
         auto_sid = generate_uuid()
-        session_id, history = await load_or_create_session(auto_sid, agent_id)
+        session_data = await load_or_create_session(auto_sid, agent_id)
+
+    session_id = session_data.session_id
+    history = session_data.agent_context  # Use agent_context for the agent
+    history_len = len(history) if history else 0
+
+    # Pre-compress if context exceeds threshold
+    sync_provider = config.get("model_provider") or settings.default_model_provider
+    sync_model = config.get("model_name") or settings.default_model_name
+    if history:
+        history = await pre_compress_if_needed(history, sync_provider, sync_model)
 
     # Build actual request with file info and image blocks
     from app.api.v1.agent import _build_request_with_files
@@ -738,13 +781,20 @@ async def published_chat_sync(agent_id: str, request: PublishedChatRequest):
         )
         await trace_db.commit()
 
-    # Save full conversation messages to session
+    # Save full conversation messages to session (dual-store)
     if session_id and result_data.get("success"):
+        final_msgs = result_data.get("final_messages")
+        # Compute new display messages (only the new turns from this request)
+        new_display = None
+        if final_msgs and history_len is not None:
+            new_display = final_msgs[history_len:]
+
         await save_session_messages(
             session_id,
             result_data.get("answer", ""),
             request.request,
-            final_messages=result_data.get("final_messages"),
+            final_messages=final_msgs,
+            display_append_messages=new_display if new_display else None,
         )
 
     return PublishedChatResponse(
