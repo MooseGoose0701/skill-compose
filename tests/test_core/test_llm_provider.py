@@ -46,8 +46,8 @@ class TestLLMClientInit:
         assert client.api_key == "explicit-key"
 
     def test_api_key_from_env(self):
-        """API key is read from environment variables."""
-        with patch.dict(os.environ, {"OPENAI_API_KEY": "env-key"}):
+        """API key is read from .env file."""
+        with patch("app.llm.provider.read_env_value", return_value="env-key"):
             client = LLMClient(provider="openai")
             assert client.api_key == "env-key"
 
@@ -61,7 +61,9 @@ class TestLLMClientInit:
             ("kimi", "MOONSHOT_API_KEY", "key5"),
         ]
         for provider, env_var, key_value in test_cases:
-            with patch.dict(os.environ, {env_var: key_value}, clear=False):
+            def _mock_read(key, expected_var=env_var, val=key_value):
+                return val if key == expected_var else ""
+            with patch("app.llm.provider.read_env_value", side_effect=_mock_read):
                 client = LLMClient(provider=provider)
                 assert client.api_key == key_value, f"Failed for {provider}"
 
