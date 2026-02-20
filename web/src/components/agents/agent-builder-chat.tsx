@@ -3,34 +3,41 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
-import { Loader2, Bot, CheckCircle2, Settings2, Square } from 'lucide-react';
+import { Bot, CheckCircle2, Settings2, Square, Paperclip, X, Navigation } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
-import { Card } from '@/components/ui/card';
-import { agentApi, agentPresetsApi, modelsApi, type StreamEvent, type OutputFileInfo } from '@/lib/api';
+import { agentApi, modelsApi, type StreamEvent, type UploadedFile } from '@/lib/api';
 import { ChatMessageItem } from '@/components/chat/chat-message';
 import { ModelSelect } from '@/components/chat/selects';
 import type { ChatMessage } from '@/stores/chat-store';
-import type { StreamEventRecord } from '@/types/stream-events';
-import { handleStreamEvent, serializeEventsToText } from '@/lib/stream-utils';
-import { generateUUID } from '@/lib/utils';
+import { useChatEngine } from '@/hooks/use-chat-engine';
+import { useTranslation } from '@/i18n/client';
 
-export function AgentBuilderChat() {
+interface AgentBuilderChatProps {
+  agentBuilderId: string;
+  sessionId: string;
+  messages: ChatMessage[];
+  setMessages: React.Dispatch<React.SetStateAction<ChatMessage[]>>;
+  isRunning: boolean;
+  setIsRunning: React.Dispatch<React.SetStateAction<boolean>>;
+}
+
+export function AgentBuilderChat({
+  agentBuilderId,
+  sessionId,
+  messages,
+  setMessages,
+  isRunning,
+  setIsRunning,
+}: AgentBuilderChatProps) {
   const router = useRouter();
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [input, setInput] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [agentBuilderId, setAgentBuilderId] = useState<string | null>(null);
-  const [loadError, setLoadError] = useState<string | null>(null);
-  const [createdAgentId, setCreatedAgentId] = useState<string | null>(null);
+  const { t } = useTranslation('agents');
+  const { t: tc } = useTranslation('chat');
 
-  // Streaming state
-  const [streamingContent, setStreamingContent] = useState<string | null>(null);
-  const [streamingMessageId, setStreamingMessageId] = useState<string | null>(null);
-  const [currentOutputFiles, setCurrentOutputFiles] = useState<OutputFileInfo[]>([]);
-  const [streamingEvents, setStreamingEvents] = useState<StreamEventRecord[]>([]);
+  const [createdAgentId, setCreatedAgentId] = useState<string | null>(null);
+  const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
 
   // Configuration
   const [showConfig, setShowConfig] = useState(true);
@@ -38,245 +45,93 @@ export function AgentBuilderChat() {
   const [selectedModelProvider, setSelectedModelProvider] = useState<string | null>('kimi');
   const [selectedModelName, setSelectedModelName] = useState<string | null>('kimi-k2.5');
 
-  // Session ID for server-side session management
-  const [sessionId] = useState(() => generateUUID());
-
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-
-  // For stop functionality
-  const abortControllerRef = useRef<AbortController | null>(null);
-  const currentRequestMessagesRef = useRef<string[]>([]);
-
-  // Fetch agent-builder preset ID
-  useEffect(() => {
-    const fetchAgentBuilder = async () => {
-      try {
-        setLoadError(null);
-        const preset = await agentPresetsApi.getByName('agent-builder');
-        setAgentBuilderId(preset.id);
-      } catch (error) {
-        console.error('Failed to fetch agent-builder:', error);
-        setLoadError(error instanceof Error ? error.message : 'Failed to load agent-builder preset');
-      }
-    };
-    fetchAgentBuilder();
-  }, []);
+  // Stable refs
+  const sessionIdRef = useRef(sessionId);
+  sessionIdRef.current = sessionId;
+  const isRunningRef = useRef(isRunning);
+  isRunningRef.current = isRunning;
+  const uploadedFilesRef = useRef(uploadedFiles);
+  uploadedFilesRef.current = uploadedFiles;
+  const messagesRef = useRef(messages);
+  messagesRef.current = messages;
 
   // Fetch available models
   const { data: modelsData } = useQuery({
     queryKey: ['models-providers'],
     queryFn: () => modelsApi.listProviders(),
   });
-
   const modelProviders = modelsData?.providers || [];
 
-  // Auto-scroll to bottom
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, streamingContent]);
+  // Stable callbacks for messageAdapter
+  const addMessage = useCallback((msg: ChatMessage) => {
+    setMessages(prev => [...prev, msg]);
+  }, [setMessages]);
 
-  // Helper to remove messages by IDs
+  const updateMessage = useCallback((id: string, updates: Partial<ChatMessage>) => {
+    setMessages(prev => prev.map(m => (m.id === id ? { ...m, ...updates } : m)));
+  }, [setMessages]);
+
   const removeMessages = useCallback((ids: string[]) => {
     setMessages(prev => prev.filter(m => !ids.includes(m.id)));
-  }, []);
+  }, [setMessages]);
 
-  const handleSubmit = async (e?: React.FormEvent) => {
-    e?.preventDefault();
-    if (!input.trim() || isLoading || !agentBuilderId) return;
-
-    // Create abort controller for this request
-    const abortController = new AbortController();
-    abortControllerRef.current = abortController;
-
-    const now = Date.now();
-    const userMessage: ChatMessage = {
-      id: `user-${now}`,
-      role: 'user',
-      content: input.trim(),
-      timestamp: now,
-    };
-
-    const assistantMessageId = `assistant-${now}`;
-    const assistantMessage: ChatMessage = {
-      id: assistantMessageId,
-      role: 'assistant',
-      content: '',
-      timestamp: now,
-      isLoading: true,
-    };
-
-    // Track current request messages for potential removal on stop
-    currentRequestMessagesRef.current = [userMessage.id, assistantMessageId];
-
-    setMessages(prev => [...prev, userMessage, assistantMessage]);
-    setInput('');
-    setIsLoading(true);
-    setStreamingContent('');
-    setStreamingMessageId(assistantMessageId);
-    setCurrentOutputFiles([]);
-
-    const events: StreamEventRecord[] = [];
-    let traceId: string | undefined;
-
-    try {
-      await agentApi.runStream(
-        {
-          request: userMessage.content,
-          session_id: sessionId,
-          agent_id: agentBuilderId,
-          max_turns: maxTurns,
-          model_provider: selectedModelProvider || undefined,
-          model_name: selectedModelName || undefined,
-        },
-        (event: StreamEvent) => {
-          // Accumulate text_delta into assistant records, or map other events
-          handleStreamEvent(event, events);
-
-          switch (event.event_type) {
-            case 'run_started':
-              traceId = event.trace_id;
-              setMessages(prev => prev.map(m =>
-                m.id === assistantMessageId
-                  ? { ...m, traceId }
-                  : m
-              ));
-              break;
-            case 'output_file':
-              if (event.file_id && event.filename) {
-                const outputFile: OutputFileInfo = {
-                  file_id: event.file_id,
-                  filename: event.filename,
-                  size: event.size || 0,
-                  content_type: event.content_type || 'application/octet-stream',
-                  download_url: event.download_url || '',
-                  description: event.description,
-                };
-                setCurrentOutputFiles(prev => [...prev, outputFile]);
-              }
-              break;
-            case 'complete':
-              // Check if an agent was created
-              const agentIdMatch = event.answer?.match(/Agent.*?ID[:\s]+([a-f0-9-]{36})/i);
+  // Chat engine
+  const engine = useChatEngine({
+    messageAdapter: {
+      getMessages: () => messagesRef.current,
+      addMessage,
+      updateMessage,
+      removeMessages,
+      getIsRunning: () => isRunningRef.current,
+      setIsRunning,
+      getUploadedFiles: () => uploadedFilesRef.current,
+      clearUploadedFiles: () => setUploadedFiles([]),
+      addUploadedFile: (file) => setUploadedFiles(prev => [...prev, file]),
+      removeUploadedFile: (fileId) => setUploadedFiles(prev => prev.filter(f => f.file_id !== fileId)),
+    },
+    streamAdapter: {
+      runStream: async (request, agentFiles, onEvent, signal) => {
+        await agentApi.runStream(
+          {
+            request,
+            session_id: sessionIdRef.current,
+            agent_id: agentBuilderId,
+            max_turns: maxTurns,
+            model_provider: selectedModelProvider || undefined,
+            model_name: selectedModelName || undefined,
+            uploaded_files: agentFiles,
+          },
+          (event: StreamEvent) => {
+            // Check for created agent
+            if (event.event_type === 'complete' && event.answer) {
+              const agentIdMatch = event.answer.match(/Agent.*?ID[:\s]+([a-f0-9-]{36})/i);
               if (agentIdMatch) {
                 setCreatedAgentId(agentIdMatch[1]);
               }
-              break;
-          }
-
-          setStreamingEvents([...events]);
-          setStreamingContent(serializeEventsToText(events));
-        },
-        abortController.signal
-      );
-
-      // Mark as complete
-      setMessages(prev => prev.map(m =>
-        m.id === assistantMessageId
-          ? {
-              ...m,
-              content: serializeEventsToText(events),
-              streamEvents: events,
-              isLoading: false,
-              traceId,
-              outputFiles: currentOutputFiles,
             }
-          : m
-      ));
-    } catch (error) {
-      // Check if this was an abort (user clicked stop)
-      if (error instanceof Error && error.name === 'AbortError') {
-        // Request was stopped by user - messages already removed by handleStop
-        return;
-      }
-      const errMsg = error instanceof Error ? error.message : 'Unknown error';
-      setMessages(prev => prev.map(m =>
-        m.id === assistantMessageId
-          ? {
-              ...m,
-              content: serializeEventsToText(events),
-              streamEvents: events,
-              isLoading: false,
-              error: errMsg,
-              traceId,
-            }
-          : m
-      ));
-    } finally {
-      setIsLoading(false);
-      setStreamingContent(null);
-      setStreamingMessageId(null);
-      setStreamingEvents([]);
-      setCurrentOutputFiles([]);
-      abortControllerRef.current = null;
-      currentRequestMessagesRef.current = [];
-    }
-  };
+            onEvent(event);
+          },
+          signal
+        );
+      },
+      steer: async (traceId, message) => {
+        await agentApi.steerAgent(traceId, message);
+      },
+    },
+  });
 
-  const handleStop = () => {
-    if (!isLoading || !abortControllerRef.current) return;
-
-    // Abort the fetch request
-    abortControllerRef.current.abort();
-
-    // Remove the messages from this request (user message + loading message)
-    if (currentRequestMessagesRef.current.length > 0) {
-      removeMessages(currentRequestMessagesRef.current);
-    }
-
-    // Reset state
-    setIsLoading(false);
-    setStreamingMessageId(null);
-    setStreamingContent(null);
-    setCurrentOutputFiles([]);
-    abortControllerRef.current = null;
-    currentRequestMessagesRef.current = [];
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSubmit();
-    }
-  };
-
-  if (loadError) {
-    return (
-      <Card className="p-8 text-center">
-        <div className="h-8 w-8 mx-auto mb-4 text-destructive">✕</div>
-        <p className="text-destructive font-medium">Failed to load agent-builder</p>
-        <p className="text-xs text-muted-foreground mt-2">{loadError}</p>
-        <Button
-          variant="outline"
-          size="sm"
-          className="mt-4"
-          onClick={() => window.location.reload()}
-        >
-          Retry
-        </Button>
-      </Card>
-    );
-  }
-
-  if (!agentBuilderId) {
-    return (
-      <Card className="p-8 text-center">
-        <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-muted-foreground" />
-        <p className="text-muted-foreground">Loading agent-builder...</p>
-        <p className="text-xs text-muted-foreground mt-2">
-          Make sure the &quot;agent-builder&quot; Agent exists
-        </p>
-      </Card>
-    );
-  }
+  // Auto-scroll to bottom
+  useEffect(() => {
+    engine.messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages, engine.streamingContent]);
 
   return (
-    <div className="flex flex-col h-[700px]">
+    <div className="flex flex-col flex-1 min-h-0">
       {/* Configuration Toggle */}
-      <div className="flex items-center justify-between px-4 py-2 border-b bg-muted/30">
+      <div className="flex items-center justify-between px-4 py-2 border-b bg-muted/30 shrink-0">
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <Bot className="h-4 w-4" />
-          <span>Agent Builder</span>
+          <span>{t('create.builderTitle')}</span>
         </div>
         <Button
           variant="ghost"
@@ -285,31 +140,28 @@ export function AgentBuilderChat() {
           className="gap-1"
         >
           <Settings2 className="h-4 w-4" />
-          {showConfig ? 'Hide Config' : 'Config'}
+          {showConfig ? t('create.hideConfig') : t('create.showConfig')}
         </Button>
       </div>
 
       {/* Configuration Panel */}
       {showConfig && (
-        <div className="px-4 py-3 border-b bg-muted/20 space-y-3">
+        <div className="px-4 py-3 border-b bg-muted/20 space-y-3 shrink-0">
           <div className="grid grid-cols-2 gap-4">
-            {/* Model Selection */}
             <div className="space-y-1">
-              <Label htmlFor="model" className="text-xs">Model</Label>
+              <Label htmlFor="model" className="text-xs">{t('create.modelLabel')}</Label>
               <ModelSelect
                 value={null}
                 modelProvider={selectedModelProvider}
                 modelName={selectedModelName}
                 onChange={(p, m) => { setSelectedModelProvider(p); setSelectedModelName(m); }}
                 providers={modelProviders}
-                placeholder="Default (Kimi 2.5)"
-                aria-label="Model"
+                placeholder={t('create.modelDefault')}
+                aria-label={t('create.modelLabel')}
               />
             </div>
-
-            {/* Max Turns */}
             <div className="space-y-1">
-              <Label htmlFor="max-turns" className="text-xs">Max Turns</Label>
+              <Label htmlFor="max-turns" className="text-xs">{t('create.maxTurns')}</Label>
               <Input
                 id="max-turns"
                 type="number"
@@ -329,70 +181,92 @@ export function AgentBuilderChat() {
         {messages.length === 0 ? (
           <div className="text-center py-12 text-muted-foreground">
             <Bot className="h-12 w-12 mx-auto mb-4 opacity-50" />
-            <p className="font-medium">Describe the Agent you want to create</p>
-            <p className="text-sm mt-2">
-              For example: &quot;I need an agent that can analyze CSV files and generate reports&quot;
-            </p>
+            <p className="font-medium">{t('create.describeAgent')}</p>
+            <p className="text-sm mt-2">{t('create.describeAgentHint')}</p>
           </div>
         ) : (
           messages.map((message) => (
-            <ChatMessageItem
-              key={message.id}
-              message={message}
-              streamingContent={streamingMessageId === message.id ? streamingContent : undefined}
-              streamingEvents={streamingMessageId === message.id ? streamingEvents : undefined}
-              streamingOutputFiles={streamingMessageId === message.id ? currentOutputFiles : undefined}
-            />
+            <div key={message.id} className="max-w-4xl mx-auto">
+              <ChatMessageItem
+                message={message}
+                streamingContent={engine.streamingMessageId === message.id ? engine.streamingContent : undefined}
+                streamingEvents={engine.streamingMessageId === message.id ? engine.streamingEvents : undefined}
+                streamingOutputFiles={engine.streamingMessageId === message.id ? engine.currentOutputFiles : undefined}
+              />
+            </div>
           ))
         )}
-        <div ref={messagesEndRef} />
+        <div ref={engine.messagesEndRef} />
       </div>
 
       {/* Created Agent Banner */}
       {createdAgentId && (
-        <div className="bg-green-50 dark:bg-green-950/30 border-t border-green-200 dark:border-green-800 p-3 flex items-center justify-between">
+        <div className="bg-green-50 dark:bg-green-950/30 border-t border-green-200 dark:border-green-800 p-3 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2">
             <CheckCircle2 className="h-5 w-5 text-green-600" />
             <span className="text-sm font-medium text-green-700 dark:text-green-400">
-              Agent created successfully!
+              {t('create.agentCreated')}
             </span>
           </div>
           <Button
             size="sm"
             onClick={() => router.push(`/agents/${createdAgentId}`)}
           >
-            View Agent
+            {t('create.viewAgent')}
           </Button>
         </div>
       )}
 
       {/* Input Area */}
-      <div className="p-4 border-t">
-        <div className="flex gap-2">
-          <Textarea
-            ref={textareaRef}
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="Describe your agent requirements..."
-            className="min-h-[80px] resize-none"
-            disabled={isLoading}
-          />
-        </div>
-        <div className="flex justify-between items-center mt-2">
-          <span className="text-xs text-muted-foreground">
-            Enter to send
-          </span>
-          {isLoading ? (
-            <Button onClick={handleStop} variant="destructive">
-              <Square className="h-4 w-4 mr-1" />
-              Stop
-            </Button>
-          ) : (
-            <Button onClick={() => handleSubmit()} disabled={!input.trim()}>
-              Send
-            </Button>
+      <div className="p-4 border-t shrink-0">
+        <div className="max-w-4xl mx-auto">
+          {uploadedFiles.length > 0 && (
+            <div className="mb-3 flex flex-wrap gap-2">
+              {uploadedFiles.map((file) => (
+                <div key={file.file_id} className="flex items-center gap-1 bg-muted rounded px-2 py-1 text-xs">
+                  <Paperclip className="h-3 w-3" />
+                  <span className="max-w-[150px] truncate" title={file.filename}>{file.filename}</span>
+                  <button onClick={() => engine.handleRemoveFile(file.file_id)} className="hover:text-destructive ml-1">
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              ))}
+            </div>
           )}
+          <div className="flex gap-2">
+            <Textarea
+              value={engine.input}
+              onChange={(e) => engine.setInput(e.target.value)}
+              onKeyDown={engine.handleKeyDown}
+              placeholder={isRunning ? tc('steering.placeholder') : tc('placeholder')}
+              className="min-h-[80px] resize-none"
+              aria-label={tc('placeholder')}
+            />
+          </div>
+          <div className="flex justify-between items-center mt-2">
+            <div className="flex items-center gap-2">
+              <input ref={engine.fileInputRef} type="file" multiple onChange={engine.handleFileUpload} className="hidden" disabled={isRunning || engine.isUploading} />
+              <Button variant="outline" size="sm" onClick={() => engine.fileInputRef.current?.click()} disabled={isRunning || engine.isUploading}>
+                <Paperclip className="h-4 w-4 mr-1" />
+                {engine.isUploading ? tc('files.uploading') : tc('attach')}
+              </Button>
+              <span className="text-xs text-muted-foreground hidden sm:inline">{tc('enterToSend')}</span>
+            </div>
+            {isRunning ? (
+              <div className="flex items-center gap-2">
+                <Button onClick={engine.handleStop} variant="destructive" size="sm">
+                  <Square className="h-4 w-4 mr-1" />{tc('stop')}
+                </Button>
+                <Button onClick={engine.handleSubmit} disabled={!engine.input.trim()} size="sm">
+                  <Navigation className="h-4 w-4 mr-1" />{tc('steering.button')}
+                </Button>
+              </div>
+            ) : (
+              <Button onClick={engine.handleSubmit} disabled={!engine.input.trim()}>
+                {tc('send')}
+              </Button>
+            )}
+          </div>
         </div>
       </div>
     </div>

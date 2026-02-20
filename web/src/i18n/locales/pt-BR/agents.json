@@ -118,7 +118,18 @@
     "success": "Agente criado com sucesso",
     "error": "Falha ao criar agente",
     "useBuilder": "Usar Construtor de Agentes",
-    "builderDescription": "Deixe a IA ajudá-lo a configurar seu agente"
+    "builderDescription": "Deixe a IA ajudá-lo a configurar seu agente",
+    "builderTitle": "Construtor de Agentes",
+    "describeAgent": "Descreva o Agente que você quer criar",
+    "describeAgentHint": "Por exemplo: \"Preciso de um agente que possa analisar arquivos CSV e gerar relatórios\"",
+    "loadingBuilder": "Carregando construtor de agentes...",
+    "loadingBuilderHint": "Certifique-se de que o Agente \"agent-builder\" existe",
+    "loadError": "Falha ao carregar o construtor de agentes",
+    "agentCreated": "Agente criado com sucesso!",
+    "viewAgent": "Ver Agente",
+    "hideConfig": "Ocultar Config",
+    "showConfig": "Config",
+    "retry": "Tentar novamente"
   },
   "edit": {
     "title": "Editar Agente",
