@@ -12,6 +12,8 @@ import {
   MessageSquare,
   CheckCircle2,
   Send,
+  PanelLeft,
+  History,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -39,6 +41,10 @@ import { handleStreamEvent, serializeEventsToText } from "@/lib/stream-utils";
 import { useTranslation } from "@/i18n/client";
 import { generateUUID } from "@/lib/utils";
 import { toast } from "sonner";
+import { SessionSidebar } from "@/components/published/session-sidebar";
+import { useQueryClient } from "@tanstack/react-query";
+import { publishedSessionKeys } from "@/hooks/use-published-sessions";
+import { sessionMessagesToChatMessages } from "@/lib/session-utils";
 
 interface LocalMessage extends ChatMessage {}
 
@@ -49,6 +55,7 @@ export default function SkillEvolvePage() {
   const { t: tc } = useTranslation("common");
   const searchParams = useSearchParams();
   const { data, isLoading } = useSkills();
+  const queryClient = useQueryClient();
 
   // Phase state
   const [phase, setPhase] = useState<Phase>("select");
@@ -79,6 +86,7 @@ export default function SkillEvolvePage() {
   >([]);
   const [agentPreset, setAgentPreset] = useState<AgentPreset | null>(null);
   const [agentLoadError, setAgentLoadError] = useState<string | null>(null);
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [evolutionComplete, setEvolutionComplete] = useState(false);
   const [syncResult, setSyncResult] = useState<{
     synced: boolean;
@@ -140,6 +148,15 @@ export default function SkillEvolvePage() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, streamingContent]);
 
+  // Auto-refresh session list when chat completes
+  const prevIsRunning = useRef(isRunning);
+  useEffect(() => {
+    if (prevIsRunning.current && !isRunning) {
+      queryClient.invalidateQueries({ queryKey: publishedSessionKeys.lists() });
+    }
+    prevIsRunning.current = isRunning;
+  }, [isRunning, queryClient]);
+
   // Auto-send initial message when entering chat phase
   useEffect(() => {
     if (phase === "chat" && agentPreset && !initialMessageSentRef.current) {
@@ -192,6 +209,9 @@ export default function SkillEvolvePage() {
     try {
       const preset = await agentPresetsApi.getByName("skill-evolve-helper");
       setAgentPreset(preset);
+      const newSessionId = generateUUID();
+      setEvolveSessionId(newSessionId);
+      sessionStorage.setItem("evolve-session-id", newSessionId);
       setPhase("chat");
     } catch {
       setAgentLoadError(t("evolve.agentNotFound"));
@@ -205,8 +225,62 @@ export default function SkillEvolvePage() {
     setEvolutionComplete(false);
     setSyncResult(null);
     initialMessageSentRef.current = false;
-    setAgentPreset(null);
-    setEvolveSessionId(generateUUID());
+  };
+
+  const handleNewChat = useCallback(() => {
+    if (isRunning) return;
+    setPhase("select");
+    setMessages([]);
+    setEvolutionComplete(false);
+    setSyncResult(null);
+    initialMessageSentRef.current = false;
+    setMobileSidebarOpen(false);
+  }, [isRunning]);
+
+  const handleSessionSwitch = useCallback(async (newSessionId: string) => {
+    if (newSessionId === sessionId || isRunning) return;
+
+    setEvolveSessionId(newSessionId);
+    setMessages([]);
+    setEvolutionComplete(false);
+    setSyncResult(null);
+    setMobileSidebarOpen(false);
+    // Prevent auto-send of initial message when loading an existing session
+    initialMessageSentRef.current = true;
+
+    sessionStorage.setItem("evolve-session-id", newSessionId);
+
+    try {
+      const data = await agentApi.getSession(newSessionId);
+      if (data.messages.length > 0) {
+        const restoredMessages = sessionMessagesToChatMessages(data.messages);
+        setMessages(restoredMessages);
+
+        // Extract skill name from first user message
+        const firstUserMsg = restoredMessages.find(m => m.role === "user");
+        if (firstUserMsg?.content) {
+          const match = firstUserMsg.content.match(/evolve the skill "([^"]+)"/);
+          if (match) {
+            setSelectedSkill(match[1]);
+          }
+        }
+      }
+    } catch {
+      // Session not found or empty
+    }
+  }, [sessionId, isRunning]);
+
+  const handleViewHistory = async () => {
+    setAgentLoadError(null);
+    try {
+      const preset = agentPreset || await agentPresetsApi.getByName("skill-evolve-helper");
+      setAgentPreset(preset);
+      // Don't auto-send initial message — just show the sidebar with past sessions
+      initialMessageSentRef.current = true;
+      setPhase("chat");
+    } catch {
+      setAgentLoadError(t("evolve.agentNotFound"));
+    }
   };
 
   const buildInitialMessageText = (): string => {
@@ -425,7 +499,7 @@ export default function SkillEvolvePage() {
               <ArrowLeft className="h-5 w-5" />
             </Button>
           </Link>
-          <div>
+          <div className="flex-1">
             <h1 className="text-2xl font-bold tracking-tight">
               {t("evolve.title")}
             </h1>
@@ -433,6 +507,10 @@ export default function SkillEvolvePage() {
               {t("evolve.description")}
             </p>
           </div>
+          <Button variant="outline" size="sm" onClick={handleViewHistory}>
+            <History className="h-4 w-4 mr-1.5" />
+            {t("evolve.history")}
+          </Button>
         </div>
 
         {/* Skill selector */}
@@ -615,126 +693,170 @@ export default function SkillEvolvePage() {
   // ─── Phase 2: Chat ────────────────────────────────────────────────
 
   return (
-    <div className="flex flex-col h-screen">
-      {/* Header */}
-      <div className="border-b px-6 py-3 flex items-center gap-3 shrink-0">
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={handleBackToSelection}
-          disabled={isRunning}
-          title={t("evolve.backToSelection")}
-        >
-          <ArrowLeft className="h-5 w-5" />
-        </Button>
-        <Zap className="h-5 w-5 text-primary" />
-        <div className="flex-1 min-w-0">
-          <h1 className="font-semibold text-base truncate">
-            {t("evolve.evolving")}: {selectedSkill}
-          </h1>
+    <div className="flex h-screen">
+      {/* Desktop sidebar */}
+      {agentPreset && (
+        <div className="w-[260px] shrink-0 hidden md:flex flex-col border-r bg-muted/30">
+          <SessionSidebar
+            agentId={agentPreset.id}
+            activeSessionId={sessionId}
+            onSessionSelect={handleSessionSwitch}
+            onNewChat={handleNewChat}
+            isRunning={isRunning}
+          />
         </div>
-        <Link href={`/skills/${encodeURIComponent(selectedSkill)}`} target="_blank">
-          <Button variant="outline" size="sm">
-            {t("evolve.viewSkill")}
-            <ExternalLink className="ml-1.5 h-3.5 w-3.5" />
-          </Button>
-        </Link>
-      </div>
+      )}
 
-      {/* Evolution complete banner */}
-      {evolutionComplete && syncResult?.synced && (
-        <div className="mx-6 mt-3 p-3 bg-green-50 border border-green-200 rounded-md dark:bg-green-950 dark:border-green-800">
-          <div className="flex items-center gap-2">
-            <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400" />
-            <p className="text-green-800 text-sm font-medium dark:text-green-200">
-              {t("evolve.evolutionComplete")}
-              {syncResult.new_version && (
-                <span className="font-normal ml-1">
-                  (v{syncResult.new_version})
-                </span>
-              )}
-            </p>
-          </div>
-          <div className="mt-2">
-            <Link
-              href={`/skills/${encodeURIComponent(selectedSkill)}?tab=resources`}
-              target="_blank"
-            >
-              <Button variant="outline" size="sm">
-                {t("evolve.viewSkill")}
-                <ExternalLink className="ml-1.5 h-3.5 w-3.5" />
-              </Button>
-            </Link>
+      {/* Mobile sidebar overlay */}
+      {mobileSidebarOpen && agentPreset && (
+        <div className="fixed inset-0 z-50 md:hidden">
+          <div
+            className="absolute inset-0 bg-black/50"
+            onClick={() => setMobileSidebarOpen(false)}
+          />
+          <div className="absolute inset-y-0 left-0 w-[280px] bg-background border-r shadow-xl flex flex-col animate-in slide-in-from-left duration-200">
+            <SessionSidebar
+              agentId={agentPreset.id}
+              activeSessionId={sessionId}
+              onSessionSelect={handleSessionSwitch}
+              onNewChat={handleNewChat}
+              isRunning={isRunning}
+            />
           </div>
         </div>
       )}
 
-      {/* Messages */}
-      <div className="flex-1 overflow-auto p-6 space-y-4">
-        {messages.length === 0 ? (
-          <div className="text-center text-muted-foreground py-16">
-            <Zap className="h-12 w-12 mx-auto mb-4 opacity-50" />
-            <p className="text-lg">{t("evolve.startConversation")}</p>
+      {/* Chat area */}
+      <div className="flex-1 flex flex-col min-w-0">
+        {/* Header */}
+        <div className="border-b px-4 sm:px-6 py-3 flex items-center gap-3 shrink-0">
+          {/* Mobile sidebar toggle */}
+          <Button
+            variant="ghost"
+            size="sm"
+            className="md:hidden p-1.5"
+            onClick={() => setMobileSidebarOpen(true)}
+          >
+            <PanelLeft className="h-5 w-5" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={handleBackToSelection}
+            disabled={isRunning}
+            title={t("evolve.backToSelection")}
+          >
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
+          <Zap className="h-5 w-5 text-primary" />
+          <div className="flex-1 min-w-0">
+            <h1 className="font-semibold text-base truncate">
+              {t("evolve.evolving")}: {selectedSkill}
+            </h1>
           </div>
-        ) : (
-          messages.map((message) => (
-            <div key={message.id} className="max-w-4xl mx-auto">
-              <ChatMessageItem
-                message={message}
-                streamingContent={
-                  message.id === streamingMessageId
-                    ? streamingContent
-                    : null
-                }
-                streamingEvents={
-                  message.id === streamingMessageId
-                    ? streamingEvents
-                    : undefined
-                }
-                streamingOutputFiles={
-                  message.id === streamingMessageId
-                    ? currentOutputFiles
-                    : undefined
-                }
+          <Link href={`/skills/${encodeURIComponent(selectedSkill)}`} target="_blank">
+            <Button variant="outline" size="sm">
+              {t("evolve.viewSkill")}
+              <ExternalLink className="ml-1.5 h-3.5 w-3.5" />
+            </Button>
+          </Link>
+        </div>
+
+        {/* Evolution complete banner */}
+        {evolutionComplete && syncResult?.synced && (
+          <div className="mx-4 sm:mx-6 mt-3 p-3 bg-green-50 border border-green-200 rounded-md dark:bg-green-950 dark:border-green-800">
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400" />
+              <p className="text-green-800 text-sm font-medium dark:text-green-200">
+                {t("evolve.evolutionComplete")}
+                {syncResult.new_version && (
+                  <span className="font-normal ml-1">
+                    (v{syncResult.new_version})
+                  </span>
+                )}
+              </p>
+            </div>
+            <div className="mt-2">
+              <Link
+                href={`/skills/${encodeURIComponent(selectedSkill)}?tab=resources`}
+                target="_blank"
+              >
+                <Button variant="outline" size="sm">
+                  {t("evolve.viewSkill")}
+                  <ExternalLink className="ml-1.5 h-3.5 w-3.5" />
+                </Button>
+              </Link>
+            </div>
+          </div>
+        )}
+
+        {/* Messages */}
+        <div className="flex-1 overflow-auto p-4 sm:p-6 space-y-4">
+          {messages.length === 0 ? (
+            <div className="text-center text-muted-foreground py-16">
+              <Zap className="h-12 w-12 mx-auto mb-4 opacity-50" />
+              <p className="text-lg">{t("evolve.startConversation")}</p>
+            </div>
+          ) : (
+            messages.map((message) => (
+              <div key={message.id} className="max-w-4xl mx-auto">
+                <ChatMessageItem
+                  message={message}
+                  streamingContent={
+                    message.id === streamingMessageId
+                      ? streamingContent
+                      : null
+                  }
+                  streamingEvents={
+                    message.id === streamingMessageId
+                      ? streamingEvents
+                      : undefined
+                  }
+                  streamingOutputFiles={
+                    message.id === streamingMessageId
+                      ? currentOutputFiles
+                      : undefined
+                  }
+                />
+              </div>
+            ))
+          )}
+          <div ref={messagesEndRef} />
+        </div>
+
+        {/* Input */}
+        <div className="border-t px-4 sm:px-6 py-4 shrink-0">
+          <div className="max-w-4xl mx-auto">
+            <div className="flex gap-2">
+              <Textarea
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder={t("evolve.guidePlaceholder")}
+                className="min-h-[60px] resize-none"
+                disabled={isRunning}
               />
             </div>
-          ))
-        )}
-        <div ref={messagesEndRef} />
-      </div>
-
-      {/* Input */}
-      <div className="border-t px-6 py-4 shrink-0">
-        <div className="max-w-4xl mx-auto">
-          <div className="flex gap-2">
-            <Textarea
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder={t("evolve.guidePlaceholder")}
-              className="min-h-[60px] resize-none"
-              disabled={isRunning}
-            />
-          </div>
-          <div className="flex justify-between items-center mt-2">
-            <span className="text-xs text-muted-foreground">
-              {t("evolve.enterToSend")}
-            </span>
-            {isRunning ? (
-              <Button onClick={handleStop} variant="destructive" size="sm">
-                <Square className="h-4 w-4 mr-1" />
-                {tc("actions.stop")}
-              </Button>
-            ) : (
-              <Button
-                onClick={handleSubmit}
-                disabled={!input.trim()}
-                size="sm"
-              >
-                <Send className="h-4 w-4 mr-1" />
-                {t("evolve.send")}
-              </Button>
-            )}
+            <div className="flex justify-between items-center mt-2">
+              <span className="text-xs text-muted-foreground">
+                {t("evolve.enterToSend")}
+              </span>
+              {isRunning ? (
+                <Button onClick={handleStop} variant="destructive" size="sm">
+                  <Square className="h-4 w-4 mr-1" />
+                  {tc("actions.stop")}
+                </Button>
+              ) : (
+                <Button
+                  onClick={handleSubmit}
+                  disabled={!input.trim()}
+                  size="sm"
+                >
+                  <Send className="h-4 w-4 mr-1" />
+                  {t("evolve.send")}
+                </Button>
+              )}
+            </div>
           </div>
         </div>
       </div>

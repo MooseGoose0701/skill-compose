@@ -236,7 +236,9 @@
       "turns": "ターン数: {{count}}",
       "tokens": "トークン数: {{count}}",
       "duration": "所要時間: {{duration}}秒"
-    }
+    },
+    "newChat": "新しいチャット",
+    "history": "履歴"
   },
   "sync": {
     "title": "ファイルシステム同期",
