@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ErrorBanner } from '@/components/ui/error-banner';
 import { SkillList } from '@/components/skill/skill-list';
+import { CategoryFilterChips } from '@/components/skill/category-filter-chips';
 import { UnregisteredSkillsBanner } from '@/components/skill/unregistered-skills-banner';
 import { useSkills, useCategories } from '@/hooks/use-skills';
 import { useTranslation } from '@/i18n/client';
@@ -27,7 +28,7 @@ export default function SkillsPage() {
 
   const [searchQuery, setSearchQuery] = useState('');
   const [sortIndex, setSortIndex] = useState('0');
-  const [selectedCategory, setSelectedCategory] = useState<string>('');
+  const [selectedCategories, setSelectedCategories] = useState<Set<string>>(new Set());
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
 
   // Load viewMode from localStorage on mount (avoid SSR hydration mismatch)
@@ -53,18 +54,32 @@ export default function SkillsPage() {
 
   const sort = SORT_OPTIONS[Number(sortIndex)] || SORT_OPTIONS[0];
 
+  // Fetch all skills (no server-side category filter), filter client-side
   const { data, isLoading, error } = useSkills({
-    category: selectedCategory || undefined,
     sort_by: sort.sort_by,
     sort_order: sort.sort_order,
   });
   const { data: allCategories } = useCategories();
 
-  const filteredSkills = data?.skills.filter(
-    (skill) =>
+  // Client-side filtering: search + category
+  const filteredSkills = data?.skills.filter((skill) => {
+    // Search filter
+    const matchesSearch =
+      !searchQuery ||
       skill.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      skill.description?.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+      skill.description?.toLowerCase().includes(searchQuery.toLowerCase());
+
+    if (!matchesSearch) return false;
+
+    // Category filter: meta and pinned skills always pass
+    if (skill.skill_type === 'meta' || skill.is_pinned) return true;
+
+    // If no categories selected (= "All"), pass all
+    if (selectedCategories.size === 0) return true;
+
+    // Check if skill's category is in selected set
+    return skill.category ? selectedCategories.has(skill.category) : false;
+  });
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -94,7 +109,7 @@ export default function SkillsPage() {
           </div>
         </div>
 
-        {/* Search, Sort, Category, and View Toggle */}
+        {/* Search, Sort, and View Toggle */}
         <div className="flex flex-col gap-4 mb-6">
           <div className="flex flex-col sm:flex-row gap-4">
             <div className="relative flex-1 max-w-sm">
@@ -106,23 +121,6 @@ export default function SkillsPage() {
                 className="pl-9"
               />
             </div>
-            {/* Category Filter */}
-            <Select
-              value={selectedCategory || '__all__'}
-              onValueChange={(val) => setSelectedCategory(val === '__all__' ? '' : val)}
-            >
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder={t('list.allCategories')} />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__all__">{t('list.allCategories')}</SelectItem>
-                {(allCategories || []).map((cat) => (
-                  <SelectItem key={cat} value={cat}>
-                    {cat}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
             <Select value={sortIndex} onValueChange={setSortIndex}>
               <SelectTrigger className="w-[180px]">
                 <ArrowUpDown className="mr-2 h-4 w-4" />
@@ -158,6 +156,15 @@ export default function SkillsPage() {
               </Button>
             </div>
           </div>
+
+          {/* Category Filter Chips */}
+          {allCategories && allCategories.length > 0 && (
+            <CategoryFilterChips
+              categories={allCategories}
+              selectedCategories={selectedCategories}
+              onChange={setSelectedCategories}
+            />
+          )}
         </div>
 
         {/* Unregistered Skills Banner */}
@@ -169,7 +176,13 @@ export default function SkillsPage() {
         )}
 
         {/* Skills Grid/List */}
-        <SkillList skills={filteredSkills || []} isLoading={isLoading} viewMode={viewMode} />
+        <SkillList
+          skills={filteredSkills || []}
+          isLoading={isLoading}
+          viewMode={viewMode}
+          groupByCategory={!searchQuery}
+          allCategories={allCategories || []}
+        />
 
         {/* Stats */}
         {data && (

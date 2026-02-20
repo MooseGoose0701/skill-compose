@@ -52,7 +52,8 @@
     "viewList": "リスト表示",
     "pinned": "ピン留め",
     "metaSkills": "メタスキル",
-    "userSkills": "ユーザースキル"
+    "userSkills": "ユーザースキル",
+    "uncategorized": "その他"
   },
   "card": {
     "version": "v{{version}}",
