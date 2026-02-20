@@ -103,6 +103,22 @@ docker compose down
 ```
 
 <details>
+<summary>Compilar desde el código fuente (para desarrolladores)</summary>
+
+```bash
+cd skill-compose/docker
+cp .env.example .env
+# Usar docker-compose.dev.yaml para compilar imágenes localmente
+docker compose -f docker-compose.dev.yaml up -d
+# Después de cambios en el código, redesplegar (detener, compilar, reiniciar):
+./redeploy.sh          # todos los servicios
+./redeploy.sh api      # solo API
+./redeploy.sh web      # solo Web
+```
+
+</details>
+
+<details>
 <summary>Limpieza (restablecer al estado inicial)</summary>
 
 ```bash

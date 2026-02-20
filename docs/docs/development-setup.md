@@ -5,15 +5,15 @@ slug: /development-setup
 
 # Development Setup
 
-## Rebuild After Code Changes
+## Redeploy After Code Changes
 
-When running with Docker, rebuild after modifying source code:
+When running with Docker, redeploy after modifying source code:
 
 ```bash
 cd docker
-./rebuild.sh          # Rebuild all services
-./rebuild.sh api      # Backend only
-./rebuild.sh web      # Frontend only
+./redeploy.sh          # Redeploy all services
+./redeploy.sh api      # Backend only
+./redeploy.sh web      # Frontend only
 ```
 
 ## Troubleshooting

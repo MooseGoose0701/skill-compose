@@ -103,6 +103,22 @@ docker compose down
 ```
 
 <details>
+<summary>从源码构建（开发者）</summary>
+
+```bash
+cd skill-compose/docker
+cp .env.example .env
+# 使用 docker-compose.dev.yaml 在本地构建镜像
+docker compose -f docker-compose.dev.yaml up -d
+# 修改代码后，重新部署（停止、构建、重启）：
+./redeploy.sh          # 全部服务
+./redeploy.sh api      # 仅 API
+./redeploy.sh web      # 仅 Web
+```
+
+</details>
+
+<details>
 <summary>清理（重置为初始状态）</summary>
 
 ```bash
