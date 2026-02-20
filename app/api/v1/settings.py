@@ -1,5 +1,4 @@
 """Settings API endpoints - Environment variable configuration."""
-import os
 from pathlib import Path
 from typing import Optional
 
@@ -240,9 +239,6 @@ async def create_env_variable(create: EnvVariableCreate):
     # Mark as user-added custom variable
     _add_custom_key(create.key)
 
-    # Update runtime environment
-    os.environ[create.key] = create.value
-
     return {"success": True, "key": create.key, "message": f"Created {create.key}"}
 
 
@@ -251,8 +247,7 @@ async def update_env_variable(update: EnvVariableUpdate):
     """
     Update an environment variable.
 
-    Updates the value in both the .env file and current process environment.
-    Creates the variable if it doesn't exist.
+    Updates the value in the .env file. All workers read from .env directly.
     """
     # Validate key format
     if not update.key or not update.key.replace("_", "").isalnum():
@@ -269,9 +264,6 @@ async def update_env_variable(update: EnvVariableUpdate):
 
     # Write back to file
     _write_env_file(current_values)
-
-    # Update runtime environment
-    os.environ[update.key] = update.value
 
     return {"success": True, "key": update.key, "message": f"Updated {update.key}"}
 
@@ -298,10 +290,6 @@ async def delete_env_variable(key: str):
     # Remove from custom keys if present
     _remove_custom_key(key)
 
-    # Remove from runtime environment
-    if key in os.environ:
-        del os.environ[key]
-
     return {"success": True, "key": key, "message": f"Deleted {key}"}
 
 
@@ -319,7 +307,6 @@ async def update_env_variables_batch(updates: list[EnvVariableUpdate]):
                 detail=f"Invalid key format for '{update.key}'"
             )
         current_values[update.key] = update.value
-        os.environ[update.key] = update.value
 
     _write_env_file(current_values)
 

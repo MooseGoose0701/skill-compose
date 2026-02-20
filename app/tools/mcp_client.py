@@ -71,8 +71,9 @@ def get_secret(server_name: str, key_name: str) -> Tuple[Optional[str], str]:
     if server_name in secrets and key_name in secrets[server_name]:
         return secrets[server_name][key_name], "secrets"
 
-    # Fallback to environment variable
-    env_value = os.environ.get(key_name)
+    # Fallback to .env file (multi-worker safe)
+    from app.config import read_env_value
+    env_value = read_env_value(key_name)
     if env_value:
         return env_value, "env"
 

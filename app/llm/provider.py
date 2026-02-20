@@ -15,6 +15,7 @@ import os
 from dataclasses import dataclass, field
 from typing import Any, AsyncGenerator, Dict, Generator, List, Optional
 
+from app.config import read_env_value
 from app.llm.models import get_context_limit
 
 
@@ -108,7 +109,11 @@ class LLMClient:
         self._async_client = None
 
     def _get_api_key(self, provider: str) -> str:
-        """Get API key from environment based on provider."""
+        """Get API key from .env file directly.
+
+        Always reads from .env on disk so that all uvicorn workers
+        see keys set via the Settings UI (multi-worker safe).
+        """
         key_map = {
             "anthropic": "ANTHROPIC_API_KEY",
             "openai": "OPENAI_API_KEY",
@@ -118,7 +123,7 @@ class LLMClient:
             "openrouter": "OPENROUTER_API_KEY",
         }
         env_var = key_map.get(provider, f"{provider.upper()}_API_KEY")
-        return os.environ.get(env_var, "")
+        return read_env_value(env_var)
 
     def _get_openai_client(self):
         """Get or create OpenAI client for OpenAI-compatible providers."""
