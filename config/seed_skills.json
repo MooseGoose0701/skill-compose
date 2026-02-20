@@ -6,14 +6,35 @@
     "storyboard-to-slides": {
       "category": "Content Creation"
     },
+    "pdf": {
+      "category": "Document Processing",
+      "source": "https://github.com/openai/skills/tree/main/skills/.curated/pdf",
+      "author": "openai"
+    },
     "doc": {
-      "category": "Document Processing"
+      "category": "Document Processing",
+      "source": "https://github.com/openai/skills/tree/main/skills/.curated/doc",
+      "author": "openai"
     },
     "speech": {
-      "category": "Content Creation"
+      "category": "Content Creation",
+      "source": "https://github.com/openai/skills/tree/main/skills/.curated/speech",
+      "author": "openai"
     },
     "spreadsheet": {
-      "category": "Document Processing"
+      "category": "Document Processing",
+      "source": "https://github.com/openai/skills/tree/main/skills/.curated/spreadsheet",
+      "author": "openai"
+    },
+    "sora": {
+      "category": "Media & Design",
+      "source": "https://github.com/openai/skills/tree/main/skills/.curated/sora",
+      "author": "openai"
+    },
+    "imagegen": {
+      "category": "Media & Design",
+      "source": "https://github.com/openai/skills/tree/main/skills/.curated/imagegen",
+      "author": "openai"
     },
     "pubmed-database": {
       "category": "Research & Knowledge",
@@ -42,12 +63,6 @@
       "category": "Media & Design"
     },
     "audio-extractor": {
-      "category": "Media & Design"
-    },
-    "sora": {
-      "category": "Media & Design"
-    },
-    "imagegen": {
       "category": "Media & Design"
     },
     "remotion-best-practices": {
