@@ -93,6 +93,8 @@ export function useChatEngine(options: ChatEngineOptions): ChatEngineReturn {
   const abortControllerRef = React.useRef<AbortController | null>(null);
   const currentRequestMessagesRef = React.useRef<string[]>([]);
   const currentTraceIdRef = React.useRef<string | null>(null);
+  // Ref to the active events array during streaming, so handleSteer can inject into it
+  const currentEventsRef = React.useRef<StreamEventRecord[] | null>(null);
 
   // Stable refs to avoid stale closures in callbacks
   const adapterRef = React.useRef(options);
@@ -101,9 +103,25 @@ export function useChatEngine(options: ChatEngineOptions): ChatEngineReturn {
   const handleSteer = React.useCallback(async (message: string) => {
     const traceId = currentTraceIdRef.current;
     if (!traceId) return;
+
+    // Optimistically show the steering message immediately
+    const events = currentEventsRef.current;
+    if (events) {
+      events.push({
+        id: `steering-local-${Date.now()}`,
+        timestamp: Date.now(),
+        type: 'steering_received',
+        data: { message },
+      } as StreamEventRecord);
+      flushSync(() => {
+        setStreamingEvents([...events]);
+        setStreamingContent(serializeEventsToText(events));
+      });
+    }
+    setInput("");
+
     try {
       await adapterRef.current.streamAdapter.steer(traceId, message);
-      setInput("");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to send steering message");
     }
@@ -245,6 +263,7 @@ export function useChatEngine(options: ChatEngineOptions): ChatEngineReturn {
       } else {
         // ── Streaming mode ──
         const events: StreamEventRecord[] = [];
+        currentEventsRef.current = events;  // Allow handleSteer to inject into this array
         partialEvents = events;  // Same reference — accumulates automatically
         let finalAnswer = "";
         let traceId: string | undefined;
@@ -378,6 +397,7 @@ export function useChatEngine(options: ChatEngineOptions): ChatEngineReturn {
       abortControllerRef.current = null;
       currentRequestMessagesRef.current = [];
       currentTraceIdRef.current = null;
+      currentEventsRef.current = null;
     }
   }, [input, handleSteer]);
 
