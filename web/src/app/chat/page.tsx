@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import {
   RotateCcw, Paperclip, X, Wrench, Plug, ChevronDown, ChevronUp, Square, Bot, Cpu, Server,
-  MessageSquare, Home, Settings, Navigation, Plus,
+  MessageSquare, Home, Settings, Plus,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -403,7 +403,7 @@ export default function FullscreenChatPage() {
               value={engine.input}
               onChange={(e) => engine.setInput(e.target.value)}
               onKeyDown={engine.handleKeyDown}
-              placeholder={isRunning ? t('steering.placeholder') : t('placeholder')}
+              placeholder={t('placeholder')}
               className="min-h-[80px] resize-none"
               aria-label={t('placeholder')}
             />
@@ -423,7 +423,7 @@ export default function FullscreenChatPage() {
                   <Square className="h-4 w-4 mr-1" />{t('stop')}
                 </Button>
                 <Button onClick={engine.handleSubmit} disabled={!engine.input.trim()} size="sm">
-                  <Navigation className="h-4 w-4 mr-1" />{t('steering.button')}
+                  {t('send')}
                 </Button>
               </div>
             ) : (

@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import { useParams } from "next/navigation";
-import { Paperclip, X, Square, Bot, Loader2, MessageSquarePlus, Navigation, PanelLeft, Copy, Check } from "lucide-react";
+import { Paperclip, X, Square, Bot, Loader2, MessageSquarePlus, PanelLeft, Copy, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { publishedAgentApi } from "@/lib/api";
@@ -342,7 +342,7 @@ export default function PublishedChatPage() {
                 value={engine.input}
                 onChange={(e) => engine.setInput(e.target.value)}
                 onKeyDown={engine.handleKeyDown}
-                placeholder={isRunning ? t('steering.placeholder') : t('placeholder')}
+                placeholder={t('placeholder')}
                 className="min-h-[80px] resize-none"
                 aria-label={t('placeholder')}
               />
@@ -362,7 +362,7 @@ export default function PublishedChatPage() {
                     <Square className="h-4 w-4 mr-1" />{t('stop')}
                   </Button>
                   <Button onClick={engine.handleSubmit} disabled={!engine.input.trim()} size="sm">
-                    <Navigation className="h-4 w-4 mr-1" />{t('steering.button')}
+                    {t('send')}
                   </Button>
                 </div>
               ) : (

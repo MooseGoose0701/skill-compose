@@ -1360,12 +1360,6 @@ class SkillsAgent:
                             "role": "user",
                             "content": f"[User Steering Message]: {steering_msg}"
                         })
-                        if streaming:
-                            await event_stream.push(StreamEvent(
-                                event_type="steering_received",
-                                turn=turns,
-                                data={"message": steering_msg}
-                            ))
                         continue  # Don't finish, loop back to LLM with steering message
 
                 final_answer = response.text_content
@@ -1501,12 +1495,6 @@ class SkillsAgent:
                         "role": "user",
                         "content": f"[User Steering Message]: {steering_msg}"
                     })
-                    if streaming:
-                        await event_stream.push(StreamEvent(
-                            event_type="steering_received",
-                            turn=turns,
-                            data={"message": steering_msg}
-                        ))
 
             # Emit turn_complete checkpoint (all tool_use/tool_result pairs matched)
             if streaming:

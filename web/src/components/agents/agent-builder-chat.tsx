@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
-import { Bot, CheckCircle2, Settings2, Square, Paperclip, X, Navigation } from 'lucide-react';
+import { Bot, CheckCircle2, Settings2, Square, Paperclip, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
@@ -238,7 +238,7 @@ export function AgentBuilderChat({
               value={engine.input}
               onChange={(e) => engine.setInput(e.target.value)}
               onKeyDown={engine.handleKeyDown}
-              placeholder={isRunning ? tc('steering.placeholder') : tc('placeholder')}
+              placeholder={tc('placeholder')}
               className="min-h-[80px] resize-none"
               aria-label={tc('placeholder')}
             />
@@ -258,7 +258,7 @@ export function AgentBuilderChat({
                   <Square className="h-4 w-4 mr-1" />{tc('stop')}
                 </Button>
                 <Button onClick={engine.handleSubmit} disabled={!engine.input.trim()} size="sm">
-                  <Navigation className="h-4 w-4 mr-1" />{tc('steering.button')}
+                  {tc('send')}
                 </Button>
               </div>
             ) : (
