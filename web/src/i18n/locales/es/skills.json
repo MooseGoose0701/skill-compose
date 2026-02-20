@@ -236,7 +236,9 @@
       "turns": "Turnos: {{count}}",
       "tokens": "Tokens: {{count}}",
       "duration": "Duración: {{duration}}s"
-    }
+    },
+    "newChat": "Nuevo Chat",
+    "history": "Historial"
   },
   "sync": {
     "title": "Sincronización del Sistema de Archivos",
