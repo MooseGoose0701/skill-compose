@@ -52,7 +52,8 @@
     "viewList": "列表视图",
     "pinned": "已置顶",
     "metaSkills": "元技能",
-    "userSkills": "用户技能"
+    "userSkills": "用户技能",
+    "uncategorized": "其他"
   },
   "card": {
     "version": "v{{version}}",

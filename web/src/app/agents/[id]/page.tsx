@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useRouter, useParams, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
@@ -80,6 +80,25 @@ export default function AgentDetailPage() {
     setSessionId,
   } = useChatStore();
   const chatPanel = useChatPanel();
+
+  // Memoize initialValues so the form's sync-useEffect doesn't reset user edits
+  // on every parent re-render. Only recompute when the preset actually changes.
+  const formInitialValues = useMemo(() => {
+    if (!preset) return null;
+    return {
+      name: preset.name,
+      description: preset.description || '',
+      system_prompt: preset.system_prompt || '',
+      skill_ids: preset.skill_ids || [],
+      builtin_tools: preset.builtin_tools ?? undefined,
+      mcp_servers: preset.mcp_servers || [],
+      max_turns: preset.max_turns,
+      model_provider: preset.model_provider || null,
+      model_name: preset.model_name || null,
+      executor_id: preset.executor_id || null,
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [preset?.id, preset?.updated_at]);
 
   // ─── Handlers ──────────────────────────────────────────
 
@@ -314,18 +333,7 @@ export default function AgentDetailPage() {
             <CardContent>
               <AgentConfigForm
                 mode="edit"
-                initialValues={{
-                  name: preset.name,
-                  description: preset.description || '',
-                  system_prompt: preset.system_prompt || '',
-                  skill_ids: preset.skill_ids || [],
-                  builtin_tools: preset.builtin_tools ?? undefined,
-                  mcp_servers: preset.mcp_servers || [],
-                  max_turns: preset.max_turns,
-                  model_provider: preset.model_provider || null,
-                  model_name: preset.model_name || null,
-                  executor_id: preset.executor_id || null,
-                }}
+                initialValues={formInitialValues!}
                 isSystem={preset.is_system}
                 isProcessing={isProcessing}
                 isSaving={updatePreset.isPending}
