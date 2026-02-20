@@ -80,6 +80,17 @@ class LLMResponse:
         return [b for b in self.content if isinstance(b, LLMToolCall)]
 
 
+# Provider name → environment variable name for the API key
+PROVIDER_API_KEY_MAP = {
+    "anthropic": "ANTHROPIC_API_KEY",
+    "openai": "OPENAI_API_KEY",
+    "google": "GOOGLE_API_KEY",
+    "deepseek": "DEEPSEEK_API_KEY",
+    "kimi": "MOONSHOT_API_KEY",
+    "openrouter": "OPENROUTER_API_KEY",
+}
+
+
 class LLMClient:
     """
     Unified LLM client using native SDKs.
@@ -114,15 +125,7 @@ class LLMClient:
         Always reads from .env on disk so that all uvicorn workers
         see keys set via the Settings UI (multi-worker safe).
         """
-        key_map = {
-            "anthropic": "ANTHROPIC_API_KEY",
-            "openai": "OPENAI_API_KEY",
-            "google": "GOOGLE_API_KEY",
-            "deepseek": "DEEPSEEK_API_KEY",
-            "kimi": "MOONSHOT_API_KEY",
-            "openrouter": "OPENROUTER_API_KEY",
-        }
-        env_var = key_map.get(provider, f"{provider.upper()}_API_KEY")
+        env_var = PROVIDER_API_KEY_MAP.get(provider, f"{provider.upper()}_API_KEY")
         return read_env_value(env_var)
 
     def _get_openai_client(self):

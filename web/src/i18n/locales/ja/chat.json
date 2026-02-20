@@ -89,7 +89,8 @@
     "uploadFailed": "ファイルのアップロードに失敗しました",
     "runFailed": "エージェントの実行に失敗しました",
     "connectionLost": "接続が切断されました",
-    "tryAgain": "再試行"
+    "tryAgain": "再試行",
+    "apiKeyNotSet": "{{provider}} の API キーが設定されていません。設定 > 環境変数 で設定してください。"
   },
   "history": {
     "title": "履歴",

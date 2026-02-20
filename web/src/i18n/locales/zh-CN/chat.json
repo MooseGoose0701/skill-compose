@@ -89,7 +89,8 @@
     "uploadFailed": "文件上传失败",
     "runFailed": "运行 Agent 失败",
     "connectionLost": "连接已断开",
-    "tryAgain": "重试"
+    "tryAgain": "重试",
+    "apiKeyNotSet": "{{provider}} 的 API Key 未配置，请在 设置 > 环境变量 中设置。"
   },
   "history": {
     "title": "历史记录",

@@ -89,7 +89,8 @@
     "uploadFailed": "File upload failed",
     "runFailed": "Failed to run agent",
     "connectionLost": "Connection lost",
-    "tryAgain": "Try again"
+    "tryAgain": "Try again",
+    "apiKeyNotSet": "API key for {{provider}} is not configured. Please set it in Settings > Environment."
   },
   "history": {
     "title": "History",

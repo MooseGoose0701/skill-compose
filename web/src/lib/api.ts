@@ -1743,6 +1743,7 @@ export interface ModelInfo {
 
 export interface ProviderInfo {
   name: string;
+  api_key_set: boolean;
   models: ModelInfo[];
 }
 
