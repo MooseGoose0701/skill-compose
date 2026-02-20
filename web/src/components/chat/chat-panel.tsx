@@ -151,6 +151,18 @@ export function ChatPanel({ isOpen, onClose, defaultSkills = [] }: ChatPanelProp
       },
     },
     onSessionId: (id) => setSessionId(id),
+    validateBeforeRun: () => {
+      const state = useChatStore.getState();
+      const effectiveProvider = state.selectedModelProvider || 'kimi';
+      const providers = modelsData?.providers;
+      if (!providers) return null;
+      const providerInfo = providers.find(p => p.name === effectiveProvider);
+      if (providerInfo && !providerInfo.api_key_set) {
+        const label = effectiveProvider.charAt(0).toUpperCase() + effectiveProvider.slice(1);
+        return t('error.apiKeyNotSet', { provider: label });
+      }
+      return null;
+    },
   });
 
   // Fetch available data

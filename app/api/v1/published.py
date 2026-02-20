@@ -374,6 +374,10 @@ async def published_chat(agent_id: str, request: PublishedChatRequest):
 
         config = await _resolve_published_config(preset)
 
+    # Validate API key before proceeding
+    from app.api.v1.agent import _validate_api_key
+    _validate_api_key(config)
+
     # Session management — published agents may omit session_id for auto-creation
     if request.session_id:
         session_data = await load_or_create_session(request.session_id, agent_id)
@@ -659,6 +663,10 @@ async def published_chat_sync(agent_id: str, request: PublishedChatRequest):
             )
 
         config = await _resolve_published_config(preset)
+
+    # Validate API key before proceeding
+    from app.api.v1.agent import _validate_api_key
+    _validate_api_key(config)
 
     # Session management — published agents may omit session_id for auto-creation
     if request.session_id:

@@ -89,7 +89,8 @@
     "uploadFailed": "Error al subir archivo",
     "runFailed": "Error al ejecutar el agente",
     "connectionLost": "Conexión perdida",
-    "tryAgain": "Intentar de nuevo"
+    "tryAgain": "Intentar de nuevo",
+    "apiKeyNotSet": "La clave API de {{provider}} no está configurada. Configúrela en Ajustes > Entorno."
   },
   "history": {
     "title": "Historial",

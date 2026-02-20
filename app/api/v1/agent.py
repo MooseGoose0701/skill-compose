@@ -281,6 +281,26 @@ IMPORTANT: Use the absolute file paths shown above when reading or processing fi
     return actual_request, image_contents
 
 
+def _validate_api_key(config: dict):
+    """Validate that the API key for the selected provider is configured.
+
+    Raises HTTPException(400) if the key is missing or empty.
+    """
+    from app.config import get_settings, read_env_value
+    from app.llm.provider import PROVIDER_API_KEY_MAP
+
+    settings_obj = get_settings()
+    provider = config.get("model_provider") or settings_obj.default_model_provider
+    env_var = PROVIDER_API_KEY_MAP.get(provider, f"{provider.upper()}_API_KEY")
+    key_value = read_env_value(env_var)
+    if not key_value or not key_value.strip():
+        raise HTTPException(
+            status_code=400,
+            detail=f"API key for provider '{provider}' is not configured. "
+                   f"Please set {env_var} in Settings > Environment.",
+        )
+
+
 def _create_agent(config: dict, workspace_id: Optional[str] = None) -> SkillsAgent:
     """Create a SkillsAgent from resolved config."""
     return SkillsAgent(
@@ -312,6 +332,7 @@ async def run_agent(request: AgentRequest, db: AsyncSession = Depends(get_db)):
     """
     # Resolve config from agent_id or individual fields
     config = await _resolve_agent_config(request, db)
+    _validate_api_key(config)
 
     start_time = time.time()
 
@@ -421,6 +442,7 @@ async def run_agent_stream(request: AgentRequest, db: AsyncSession = Depends(get
     """
     # Resolve config from agent_id or individual fields
     config = await _resolve_agent_config(request, db)
+    _validate_api_key(config)
 
     # Build the actual request with file info and image blocks
     actual_request, image_contents = _build_request_with_files(
