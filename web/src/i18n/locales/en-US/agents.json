@@ -118,7 +118,18 @@
     "success": "Agent created successfully",
     "error": "Failed to create agent",
     "useBuilder": "Use Agent Builder",
-    "builderDescription": "Let AI help you configure your agent"
+    "builderDescription": "Let AI help you configure your agent",
+    "builderTitle": "Agent Builder",
+    "describeAgent": "Describe the Agent you want to create",
+    "describeAgentHint": "For example: \"I need an agent that can analyze CSV files and generate reports\"",
+    "loadingBuilder": "Loading agent-builder...",
+    "loadingBuilderHint": "Make sure the \"agent-builder\" Agent exists",
+    "loadError": "Failed to load agent-builder",
+    "agentCreated": "Agent created successfully!",
+    "viewAgent": "View Agent",
+    "hideConfig": "Hide Config",
+    "showConfig": "Config",
+    "retry": "Retry"
   },
   "edit": {
     "title": "Edit Agent",

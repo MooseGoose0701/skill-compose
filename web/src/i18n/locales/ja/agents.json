@@ -118,7 +118,18 @@
     "success": "エージェントが正常に作成されました",
     "error": "エージェントの作成に失敗しました",
     "useBuilder": "エージェントビルダーを使用",
-    "builderDescription": "AIにエージェントの設定を手伝ってもらう"
+    "builderDescription": "AIにエージェントの設定を手伝ってもらう",
+    "builderTitle": "エージェントビルダー",
+    "describeAgent": "作成したいエージェントを説明してください",
+    "describeAgentHint": "例：「CSVファイルを分析してレポートを生成できるエージェントが必要です」",
+    "loadingBuilder": "エージェントビルダーを読み込み中...",
+    "loadingBuilderHint": "\"agent-builder\" エージェントが存在することを確認してください",
+    "loadError": "エージェントビルダーの読み込みに失敗しました",
+    "agentCreated": "エージェントが正常に作成されました！",
+    "viewAgent": "エージェントを表示",
+    "hideConfig": "設定を隠す",
+    "showConfig": "設定",
+    "retry": "リトライ"
   },
   "edit": {
     "title": "エージェントを編集",
