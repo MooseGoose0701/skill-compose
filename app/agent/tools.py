@@ -14,6 +14,7 @@ import os
 import re
 import subprocess
 import fnmatch
+import time
 from pathlib import Path
 from typing import Any, Dict, List, Callable, Optional
 
@@ -199,11 +200,14 @@ def execute_code(code: str, workspace: Optional[AgentWorkspace] = None) -> Dict[
     if workspace is None:
         return {"success": False, "output": "", "error": "No workspace available"}
 
+    start = time.time()
     result = workspace.execute(code)
+    elapsed = round(time.time() - start, 2)
     return {
         "success": result.success,
         "output": result.output,
         "error": result.error,
+        "duration_seconds": elapsed,
     }
 
 
@@ -212,11 +216,14 @@ def bash(command: str, workspace: Optional[AgentWorkspace] = None, timeout: Opti
     if workspace is None:
         return {"success": False, "output": "", "error": "No workspace available"}
 
+    start = time.time()
     result = workspace.execute_command(command, timeout=timeout)
+    elapsed = round(time.time() - start, 2)
     return {
         "success": result.success,
         "output": result.output,
         "error": result.error,
+        "duration_seconds": elapsed,
     }
 
 
@@ -537,6 +544,33 @@ def write(file_path: str, content: str) -> Dict[str, Any]:
         return {"error": f"Failed to write file: {str(e)}"}
 
 
+# Unicode normalization table: each replacement is 1:1 character mapping
+# so string positions are preserved after normalization.
+_UNICODE_CHAR_MAP = str.maketrans({
+    # Smart/curly quotes → ASCII
+    '\u2018': "'",   # '
+    '\u2019': "'",   # '
+    '\u201C': '"',   # "
+    '\u201D': '"',   # "
+    '\u2032': "'",   # ′ (prime)
+    '\u2033': '"',   # ″ (double prime)
+    # Dashes → ASCII hyphen
+    '\u2014': '-',   # — (em dash)
+    '\u2013': '-',   # – (en dash)
+    '\u2015': '-',   # ― (horizontal bar)
+    # Special spaces → regular space
+    '\u00A0': ' ',   # NBSP
+    '\u3000': ' ',   # fullwidth space
+    '\u202F': ' ',   # narrow no-break space
+    '\u2009': ' ',   # thin space
+})
+
+
+def _normalize_unicode(text: str) -> str:
+    """Normalize Unicode characters to ASCII equivalents (1:1 char mapping)."""
+    return text.translate(_UNICODE_CHAR_MAP)
+
+
 def edit(file_path: str, old_string: str, new_string: str, replace_all: bool = False) -> Dict[str, Any]:
     """
     Edit a file by replacing exact string matches.
@@ -576,28 +610,62 @@ def edit(file_path: str, old_string: str, new_string: str, replace_all: bool = F
     except Exception as e:
         return {"error": f"Failed to read file: {str(e)}"}
 
-    # Check if old_string exists
+    # Check if old_string exists (exact match first)
+    fuzzy_matched = False
     if old_string not in content:
-        return {
-            "error": f"String not found in file. The old_string must match exactly (including whitespace and indentation).",
-            "hint": "Use read_file first to see the exact content, then copy the exact string to replace."
-        }
+        # Try fuzzy match with Unicode normalization (1:1 char mapping preserves positions)
+        norm_content = _normalize_unicode(content)
+        norm_old = _normalize_unicode(old_string)
+        if norm_old in norm_content:
+            norm_count = norm_content.count(norm_old)
+            if not replace_all and norm_count > 1:
+                return {
+                    "error": f"The old_string (after Unicode normalization) appears {norm_count} times in the file. Either provide a larger unique string with more context, or set replace_all=true to replace all occurrences.",
+                    "occurrences": norm_count
+                }
+            # Since all replacements are 1:1 char mapping, positions map directly
+            # Find position(s) in normalized space and extract original text
+            fuzzy_matched = True
+        else:
+            return {
+                "error": f"String not found in file. The old_string must match exactly (including whitespace and indentation).",
+                "hint": "Use read_file first to see the exact content, then copy the exact string to replace."
+            }
 
-    # Check uniqueness if not replace_all
-    count = content.count(old_string)
-    if not replace_all and count > 1:
-        return {
-            "error": f"The old_string appears {count} times in the file. Either provide a larger unique string with more context, or set replace_all=true to replace all occurrences.",
-            "occurrences": count
-        }
-
-    # Perform replacement
-    if replace_all:
-        new_content = content.replace(old_string, new_string)
-        replacements = count
+    if fuzzy_matched:
+        # Perform replacement using normalized position mapping
+        norm_content = _normalize_unicode(content)
+        norm_old = _normalize_unicode(old_string)
+        new_content = content
+        replacements = 0
+        offset = 0
+        while True:
+            idx = _normalize_unicode(new_content).find(norm_old, offset)
+            if idx == -1:
+                break
+            # Extract the original text at this position and replace it
+            original_fragment = new_content[idx:idx + len(old_string)]
+            new_content = new_content[:idx] + new_string + new_content[idx + len(original_fragment):]
+            replacements += 1
+            offset = idx + len(new_string)
+            if not replace_all:
+                break
     else:
-        new_content = content.replace(old_string, new_string, 1)
-        replacements = 1
+        # Check uniqueness if not replace_all
+        count = content.count(old_string)
+        if not replace_all and count > 1:
+            return {
+                "error": f"The old_string appears {count} times in the file. Either provide a larger unique string with more context, or set replace_all=true to replace all occurrences.",
+                "occurrences": count
+            }
+
+        # Perform replacement
+        if replace_all:
+            new_content = content.replace(old_string, new_string)
+            replacements = count
+        else:
+            new_content = content.replace(old_string, new_string, 1)
+            replacements = 1
 
     # Check if anything changed
     if new_content == content:
@@ -609,12 +677,15 @@ def edit(file_path: str, old_string: str, new_string: str, replace_all: bool = F
         logger.error("Failed to write edited file %s: %s", filepath, e)
         return {"error": f"Failed to write file: {str(e)}"}
 
-    return {
+    result = {
         "success": True,
         "path": str(filepath),
         "replacements": replacements,
         "message": f"Successfully replaced {replacements} occurrence(s) in {filepath}"
     }
+    if fuzzy_matched:
+        result["message"] += " (matched via Unicode normalization: smart quotes, dashes, or special spaces were treated as ASCII equivalents)"
+    return result
 
 
 def read(file_path: str, offset: int = 0, limit: Optional[int] = None) -> Dict[str, Any]:
@@ -1203,7 +1274,10 @@ def create_workspace_bound_tools(workspace: AgentWorkspace) -> Dict[str, Callabl
 
     def execute_code_with_scan(code, **kwargs):
         before = snapshot_files(workspace.workspace_dir, recursive=True)
+        start = time.time()
         result = execute_code(code, workspace=workspace)
+        elapsed = round(time.time() - start, 2)
+        result["duration_seconds"] = elapsed
         after = snapshot_files(workspace.workspace_dir, recursive=True)
         new_files = diff_new_files(before, after)
         if new_files:
@@ -1212,7 +1286,10 @@ def create_workspace_bound_tools(workspace: AgentWorkspace) -> Dict[str, Callabl
 
     def bash_with_scan(command, timeout=None, **kwargs):
         before = snapshot_files(workspace.workspace_dir, recursive=True)
+        start = time.time()
         result = bash(command, workspace=workspace, timeout=timeout)
+        elapsed = round(time.time() - start, 2)
+        result["duration_seconds"] = elapsed
         after = snapshot_files(workspace.workspace_dir, recursive=True)
         new_files = diff_new_files(before, after)
         if new_files:
@@ -1329,6 +1406,7 @@ def create_executor_bound_tools(
     def execute_code_remote(code: str, **kwargs) -> Dict[str, Any]:
         """Execute Python code in remote executor container."""
         before = snapshot_files(wks_path, recursive=True) if wks_path.exists() else {}
+        start = time.time()
         try:
             # Use synchronous httpx client to avoid asyncio issues
             with httpx.Client(timeout=kwargs.get('timeout', 300) + 30) as client:
@@ -1346,10 +1424,12 @@ def create_executor_bound_tools(
                 response.raise_for_status()
                 result = response.json()
 
+            elapsed = round(time.time() - start, 2)
             output = {
                 "success": result.get("exit_code", -1) == 0,
                 "output": result.get("stdout", ""),
                 "error": result.get("stderr") if result.get("exit_code", -1) != 0 else None,
+                "duration_seconds": elapsed,
             }
         except httpx.TimeoutException:
             return {"success": False, "output": "", "error": "Execution timed out"}
@@ -1365,6 +1445,7 @@ def create_executor_bound_tools(
     def bash_remote(command: str, timeout: Optional[int] = None, **kwargs) -> Dict[str, Any]:
         """Execute shell command in remote executor container."""
         before = snapshot_files(wks_path, recursive=True) if wks_path.exists() else {}
+        start = time.time()
         try:
             effective_timeout = timeout or 300
             with httpx.Client(timeout=effective_timeout + 30) as client:
@@ -1382,10 +1463,12 @@ def create_executor_bound_tools(
                 response.raise_for_status()
                 result = response.json()
 
+            elapsed = round(time.time() - start, 2)
             output = {
                 "success": result.get("exit_code", -1) == 0,
                 "output": result.get("stdout", ""),
                 "error": result.get("stderr") if result.get("exit_code", -1) != 0 else None,
+                "duration_seconds": elapsed,
             }
         except httpx.TimeoutException:
             return {"success": False, "output": "", "error": "Execution timed out"}
