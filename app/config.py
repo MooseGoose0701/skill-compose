@@ -95,6 +95,58 @@ def get_settings() -> Settings:
 settings = get_settings()
 
 
+def _get_env_file_path() -> Path:
+    """Get the .env file path (config/.env or ./.env)."""
+    config_env = Path(os.environ.get("CONFIG_DIR", "./config")) / ".env"
+    if config_env.exists():
+        return config_env
+    project_env = Path(".env")
+    if project_env.exists():
+        return project_env
+    return config_env
+
+
+def read_env_value(key: str) -> str:
+    """Read a single key's value from the .env file.
+
+    Always reads from disk so all uvicorn workers and callsites
+    see the latest value written by the Settings API.
+    """
+    env_path = _get_env_file_path()
+    if not env_path.exists():
+        return ""
+    try:
+        for line in env_path.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if line and not line.startswith("#") and "=" in line:
+                k, _, v = line.partition("=")
+                if k.strip() == key:
+                    return v.strip()
+    except Exception:
+        pass
+    return ""
+
+
+def read_env_all() -> dict[str, str]:
+    """Read all key-value pairs from the .env file.
+
+    Returns a dict of all env vars. Always reads from disk.
+    """
+    env_path = _get_env_file_path()
+    if not env_path.exists():
+        return {}
+    result = {}
+    try:
+        for line in env_path.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if line and not line.startswith("#") and "=" in line:
+                k, _, v = line.partition("=")
+                result[k.strip()] = v.strip()
+    except Exception:
+        pass
+    return result
+
+
 def get_search_dirs(project_dir: str = ".") -> list[Path]:
     """
     Get all searchable skill directories in priority order.

@@ -1360,13 +1360,10 @@ def _collect_env_for_executor(skill_env_vars: Optional[Dict[str, str]] = None) -
     """
     env: Dict[str, str] = {}
 
-    # 1. User-configured env vars (API keys etc.) from .env file
+    # 1. User-configured env vars (API keys etc.) from .env file (multi-worker safe)
     try:
-        from app.api.v1.settings import _read_env_file
-        for key in _read_env_file():
-            val = os.environ.get(key)
-            if val:
-                env[key] = val
+        from app.config import read_env_all
+        env.update(read_env_all())
     except Exception:
         pass
 
