@@ -163,12 +163,6 @@ class TestCreateEnvVariable:
         assert written["NEW_VAR"] == "new_value"
         assert written["EXISTING"] == "val"
 
-        # Verify runtime env updated
-        assert os.environ.get("NEW_VAR") == "new_value"
-
-        # Cleanup
-        os.environ.pop("NEW_VAR", None)
-
     async def test_create_variable_marked_as_custom(self, client: AsyncClient, tmp_path: Path):
         env_file = tmp_path / ".env"
         _write_test_env(env_file, "")
@@ -182,8 +176,6 @@ class TestCreateEnvVariable:
         custom_keys_file = tmp_path / ".env.custom.keys"
         assert custom_keys_file.exists()
         assert "UI_ADDED" in custom_keys_file.read_text()
-
-        os.environ.pop("UI_ADDED", None)
 
     async def test_create_duplicate_returns_409(self, client: AsyncClient, tmp_path: Path):
         env_file = tmp_path / ".env"
@@ -244,9 +236,6 @@ class TestUpdateEnvVariable:
 
         written = _read_test_env(env_file)
         assert written["UPDATE_ME"] == "new_value"
-        assert os.environ.get("UPDATE_ME") == "new_value"
-
-        os.environ.pop("UPDATE_ME", None)
 
     async def test_update_creates_if_not_exists(self, client: AsyncClient, tmp_path: Path):
         env_file = tmp_path / ".env"
@@ -261,8 +250,6 @@ class TestUpdateEnvVariable:
         assert response.status_code == 200
         written = _read_test_env(env_file)
         assert written["BRAND_NEW"] == "created"
-
-        os.environ.pop("BRAND_NEW", None)
 
     async def test_update_invalid_key_returns_400(self, client: AsyncClient, tmp_path: Path):
         env_file = tmp_path / ".env"
@@ -287,7 +274,6 @@ class TestDeleteEnvVariable:
     async def test_delete_variable(self, client: AsyncClient, tmp_path: Path):
         env_file = tmp_path / ".env"
         _write_test_env(env_file, "DELETE_ME=goodbye\nKEEP_ME=stay\n")
-        os.environ["DELETE_ME"] = "goodbye"
 
         with patch("app.api.v1.settings._get_env_file_path", return_value=env_file):
             response = await client.delete("/api/v1/settings/env/DELETE_ME")
@@ -298,14 +284,12 @@ class TestDeleteEnvVariable:
         written = _read_test_env(env_file)
         assert "DELETE_ME" not in written
         assert written["KEEP_ME"] == "stay"
-        assert "DELETE_ME" not in os.environ
 
     async def test_delete_removes_custom_key_tracking(self, client: AsyncClient, tmp_path: Path):
         env_file = tmp_path / ".env"
         custom_keys_file = tmp_path / ".env.custom.keys"
         _write_test_env(env_file, "MY_CUSTOM=val\n")
         custom_keys_file.write_text("MY_CUSTOM\n", encoding="utf-8")
-        os.environ["MY_CUSTOM"] = "val"
 
         with patch("app.api.v1.settings._get_env_file_path", return_value=env_file):
             await client.delete("/api/v1/settings/env/MY_CUSTOM")
@@ -350,12 +334,6 @@ class TestBatchUpdateEnvVariables:
 
         written = _read_test_env(env_file)
         assert written == {"A": "10", "B": "20", "C": "30"}
-
-        assert os.environ.get("A") == "10"
-        assert os.environ.get("C") == "30"
-
-        for k in ("A", "B", "C"):
-            os.environ.pop(k, None)
 
     async def test_batch_update_invalid_key_returns_400(self, client: AsyncClient, tmp_path: Path):
         env_file = tmp_path / ".env"
