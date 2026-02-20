@@ -7,7 +7,7 @@ import {
   Sun,
   Moon,
   BookOpen,
-  MoreHorizontal,
+  Settings,
   Container,
   Folder,
   Terminal,
@@ -76,7 +76,7 @@ export function AppHeader() {
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="icon" aria-label={t('nav.more')}>
-                  <MoreHorizontal className="h-4 w-4" />
+                  <Settings className="h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
