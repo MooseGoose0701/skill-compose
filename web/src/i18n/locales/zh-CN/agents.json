@@ -118,7 +118,18 @@
     "success": "代理创建成功",
     "error": "创建代理失败",
     "useBuilder": "使用代理构建器",
-    "builderDescription": "让 AI 帮助你配置代理"
+    "builderDescription": "让 AI 帮助你配置代理",
+    "builderTitle": "代理构建器",
+    "describeAgent": "描述你想创建的 Agent",
+    "describeAgentHint": "例如：\"我需要一个可以分析 CSV 文件并生成报告的 Agent\"",
+    "loadingBuilder": "正在加载代理构建器...",
+    "loadingBuilderHint": "请确保 \"agent-builder\" Agent 存在",
+    "loadError": "加载代理构建器失败",
+    "agentCreated": "Agent 创建成功！",
+    "viewAgent": "查看 Agent",
+    "hideConfig": "隐藏配置",
+    "showConfig": "配置",
+    "retry": "重试"
   },
   "edit": {
     "title": "编辑代理",
