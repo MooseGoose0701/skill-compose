@@ -76,6 +76,13 @@ def load_executor_configs() -> Dict[str, dict]:
             "memory_limit": "4G",
             "gpu_required": False,
         },
+        "remotion": {
+            "description": "Video rendering environment with Node.js 20, Chromium, ffmpeg, yt-dlp for Remotion",
+            "image": "skillcompose/executor-remotion:latest",
+            "url": "http://executor-remotion:62680",
+            "memory_limit": "4G",
+            "gpu_required": False,
+        },
     }
     return _executor_configs
 
