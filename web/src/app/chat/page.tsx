@@ -104,6 +104,18 @@ export default function FullscreenChatPage() {
       steer: async (traceId, message) => { await agentApi.steerAgent(traceId, message); },
     },
     onSessionId: (id) => setSessionId(id),
+    validateBeforeRun: () => {
+      const state = useChatStore.getState();
+      const effectiveProvider = state.selectedModelProvider || 'kimi';
+      const providers = modelsData?.providers;
+      if (!providers) return null;
+      const providerInfo = providers.find(p => p.name === effectiveProvider);
+      if (providerInfo && !providerInfo.api_key_set) {
+        const label = effectiveProvider.charAt(0).toUpperCase() + effectiveProvider.slice(1);
+        return t('error.apiKeyNotSet', { provider: label });
+      }
+      return null;
+    },
   });
 
   // Fetch data — defer skills/tools/MCP until config panel is open

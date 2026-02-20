@@ -55,6 +55,8 @@ export interface ChatEngineOptions {
   responseMode?: 'streaming' | 'non_streaming';
   /** Called when session_id changes (e.g. from run_started event) */
   onSessionId?: (id: string) => void;
+  /** Pre-flight validation before running. Return error message to abort (shown as toast), or null to proceed. */
+  validateBeforeRun?: () => string | null;
 }
 
 export interface ChatEngineReturn {
@@ -119,6 +121,15 @@ export function useChatEngine(options: ChatEngineOptions): ChatEngineReturn {
 
     // Prevent concurrent runs
     if (ma.getIsRunning()) return;
+
+    // Pre-flight validation (e.g. API key check)
+    if (adapterRef.current.validateBeforeRun) {
+      const error = adapterRef.current.validateBeforeRun();
+      if (error) {
+        toast.error(error);
+        return;
+      }
+    }
 
     const abortController = new AbortController();
     abortControllerRef.current = abortController;

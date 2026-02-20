@@ -89,7 +89,8 @@
     "uploadFailed": "Falha ao enviar arquivo",
     "runFailed": "Falha ao executar o agente",
     "connectionLost": "Conexão perdida",
-    "tryAgain": "Tentar novamente"
+    "tryAgain": "Tentar novamente",
+    "apiKeyNotSet": "A chave de API do {{provider}} não está configurada. Configure em Configurações > Ambiente."
   },
   "history": {
     "title": "Histórico",

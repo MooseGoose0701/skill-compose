@@ -7,7 +7,9 @@ from typing import List, Optional
 from fastapi import APIRouter
 from pydantic import BaseModel
 
+from app.config import read_env_value
 from app.llm.models import SUPPORTED_MODELS, get_all_providers, get_provider_models
+from app.llm.provider import PROVIDER_API_KEY_MAP
 
 
 router = APIRouter(prefix="/models", tags=["Models"])
@@ -27,6 +29,7 @@ class ModelInfo(BaseModel):
 class ProviderInfo(BaseModel):
     """Information about a provider."""
     name: str
+    api_key_set: bool = False
     models: List[ModelInfo]
 
 
@@ -91,8 +94,12 @@ async def list_providers():
             )
             for m in provider_models
         ]
+        # Check if API key is configured for this provider
+        env_var = PROVIDER_API_KEY_MAP.get(provider_name, f"{provider_name.upper()}_API_KEY")
+        key_value = read_env_value(env_var)
         providers.append(ProviderInfo(
             name=provider_name,
+            api_key_set=bool(key_value and key_value.strip()),
             models=models,
         ))
 
