@@ -2317,6 +2317,21 @@ def _parse_github_url(url: str) -> tuple[str, str, Optional[str], str]:
     )
 
 
+
+def _get_github_token() -> Optional[str]:
+    """Get GitHub token from .env file (single source of truth).
+
+    In multi-worker deployments, os.environ is per-process and may hold stale
+    values from startup. The .env file is shared across all workers and always
+    reflects the latest value set via the Settings API.
+    """
+    try:
+        from app.api.v1.settings import _read_env_file
+        return _read_env_file().get("GITHUB_TOKEN") or None
+    except Exception:
+        return None
+
+
 async def _get_github_default_branch(owner: str, repo: str, token: Optional[str] = None) -> str:
     """Fetch the default branch of a GitHub repository."""
     url = f"https://api.github.com/repos/{owner}/{repo}"
@@ -2325,7 +2340,7 @@ async def _get_github_default_branch(owner: str, repo: str, token: Optional[str]
         "User-Agent": "Skills-API",
     }
     if token:
-        headers["Authorization"] = f"token {token}"
+        headers["Authorization"] = f"Bearer {token}"
 
     async with httpx.AsyncClient() as client:
         response = await client.get(url, headers=headers)
@@ -2500,8 +2515,7 @@ async def import_skill_from_github(
     """
     import json
 
-    # Get GitHub token from environment (optional, for higher rate limits)
-    github_token = os.environ.get("GITHUB_TOKEN")
+    github_token = _get_github_token()
 
     # Parse URL
     try:
@@ -2538,7 +2552,7 @@ async def import_skill_from_github(
     # Try to extract skill name from frontmatter
     name_match = re.search(r"^name:\s*(.+)$", skill_md_content, re.MULTILINE)
     if name_match:
-        original_skill_name = name_match.group(1).strip()
+        original_skill_name = name_match.group(1).strip().strip("\"'")
 
     # Fetch all files from GitHub
     try:
@@ -2760,7 +2774,7 @@ async def update_skill_from_github(
             detail=f"Skill '{name}' was not imported from GitHub. Cannot update from source."
         )
 
-    github_token = os.environ.get("GITHUB_TOKEN")
+    github_token = _get_github_token()
 
     try:
         owner, repo, branch, skill_path = _parse_github_url(skill.source)
@@ -2806,6 +2820,11 @@ async def update_skill_from_github(
         except (json.JSONDecodeError, UnicodeDecodeError):
             pass
 
+    # Update author from GitHub owner
+    if skill.author != owner:
+        skill.author = owner
+        await db.commit()
+
     return await _compare_and_create_version(
         skill=skill,
         new_skill_md=new_skill_md_content,
@@ -2837,7 +2856,7 @@ async def update_skill_from_source_github(
     if not skill:
         raise HTTPException(status_code=404, detail=f"Skill '{name}' not found")
 
-    github_token = os.environ.get("GITHUB_TOKEN")
+    github_token = _get_github_token()
 
     try:
         owner, repo, branch, skill_path = _parse_github_url(body.url)
