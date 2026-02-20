@@ -41,7 +41,7 @@ class IPythonKernel:
         self,
         startup_timeout: int = 30,
         execute_timeout: int = 300,
-        max_output_chars: int = 30000,
+        max_output_chars: int = 10000,
         working_dir: Optional[str] = None,
         env: Optional[dict] = None,
     ):
@@ -159,14 +159,24 @@ class IPythonKernel:
 
         output = "\n".join(output_parts).strip() if output_parts else ""
 
-        # Truncate if needed
+        # Truncate if needed (tail — keeps the most recent/useful output)
         if len(output) > self._max_output_chars:
-            output = output[: self._max_output_chars] + "\n... [OUTPUT TRUNCATED]"
+            omitted = len(output) - self._max_output_chars
+            output = (
+                f"[Output truncated: showing last {self._max_output_chars} of {len(output)} chars "
+                f"({omitted} omitted).]\n"
+                + output[-self._max_output_chars:]
+            )
 
         has_error = bool(error_parts)
         error_text = "\n".join(error_parts) if has_error else None
         if error_text and len(error_text) > self._max_output_chars:
-            error_text = error_text[: self._max_output_chars] + "\n... [ERROR TRUNCATED]"
+            omitted_err = len(error_text) - self._max_output_chars
+            error_text = (
+                f"[Error truncated: showing last {self._max_output_chars} of {len(error_text)} chars "
+                f"({omitted_err} omitted).]\n"
+                + error_text[-self._max_output_chars:]
+            )
 
         # Combine output and error for the full output field
         if has_error:

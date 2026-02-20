@@ -35,7 +35,7 @@ IGNORED_FILENAMES = {
 
 IGNORED_PREFIXES = ('_script_', '.', '__')
 
-IGNORED_DIRS = {'__pycache__', '.git', 'node_modules', '.ipynb_checkpoints'}
+IGNORED_DIRS = {'__pycache__', '.git', 'node_modules', '.ipynb_checkpoints', '.output_logs'}
 
 
 def _should_ignore(filepath: Path) -> bool:

@@ -38,52 +38,6 @@ MAX_RECENT_TURNS = 5               # Keep at most 5 recent logical turns
 RECENT_TURNS_TOKEN_BUDGET = 0.25   # Recent turns can use up to 25% of context limit
 CHARS_PER_TOKEN = 3.5              # Conservative estimate for mixed CJK/English text
 
-# Tool result truncation for LLM messages
-TOOL_RESULT_MAX_CHARS = 2000          # Max chars for tool results sent to LLM
-TOOL_RESULT_HEAD_CHARS = 1500         # Head portion to keep
-TOOL_RESULT_TAIL_CHARS = 500          # Tail portion to keep
-# Tools whose results should NOT be truncated (LLM needs full content)
-TOOL_RESULT_NO_TRUNCATE = {"list_skills", "get_skill"}
-
-
-def truncate_tool_result(tool_name: str, result: str) -> str:
-    """Truncate tool result for LLM messages. Preserves head + tail for error visibility.
-
-    For execute_code/bash/write, if the result contains ``new_files`` metadata,
-    the truncated output is re-serialised as valid JSON so the frontend can
-    parse ``new_files`` from session data on page refresh.
-    """
-    if tool_name in TOOL_RESULT_NO_TRUNCATE:
-        return result
-    if len(result) <= TOOL_RESULT_MAX_CHARS:
-        return result
-
-    # For code-execution tools, preserve new_files metadata as valid JSON
-    if tool_name in ("execute_code", "bash", "write"):
-        try:
-            parsed = json.loads(result)
-            if isinstance(parsed, dict) and parsed.get("new_files"):
-                output_text = str(parsed.get("output", ""))
-                max_output = TOOL_RESULT_MAX_CHARS - 300  # Reserve for JSON structure + new_files
-                if len(output_text) > max_output:
-                    output_text = output_text[:max_output] + "...(truncated)"
-                truncated = {
-                    "success": parsed.get("success"),
-                    "output": output_text,
-                    "new_files": parsed["new_files"],
-                }
-                if parsed.get("error"):
-                    truncated["error"] = str(parsed["error"])[:500]
-                return json.dumps(truncated, ensure_ascii=False)
-        except (json.JSONDecodeError, TypeError):
-            pass
-
-    return (
-        result[:TOOL_RESULT_HEAD_CHARS]
-        + f"\n\n... [truncated {len(result) - TOOL_RESULT_HEAD_CHARS - TOOL_RESULT_TAIL_CHARS} chars] ...\n\n"
-        + result[-TOOL_RESULT_TAIL_CHARS:]
-    )
-
 
 SUMMARY_SYSTEM_PROMPT = """You have been given a partial transcript of a conversation between a user and an AI assistant. Write a summary that provides continuity so the assistant can continue making progress in a future context where the raw history is replaced by this summary.
 
@@ -1480,13 +1434,10 @@ class SkillsAgent:
                     if len(tool_result) > 3000:
                         print('...(truncated)')
 
-                # Truncate tool result for LLM context (preserve full result for logs/steps)
-                llm_result = truncate_tool_result(tool_name, tool_result)
-
                 tool_results.append({
                     "type": "tool_result",
                     "tool_use_id": tool_call["id"],
-                    "content": llm_result,
+                    "content": tool_result,
                 })
 
                 steps.append(AgentStep(
