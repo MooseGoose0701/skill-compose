@@ -343,8 +343,6 @@ export function SkillOverview({ skill }: { skill: Skill }) {
           type: 'success',
           text: `Updated to v${result.new_version} (${result.changes?.length || 0} files changed)`,
         });
-        queryClient.invalidateQueries({ queryKey: ['skill', skill.name] });
-        queryClient.invalidateQueries({ queryKey: ['skills'] });
         queryClient.invalidateQueries({ queryKey: ['versions', skill.name] });
         queryClient.invalidateQueries({ queryKey: ['changelogs', skill.name] });
       } else {
@@ -353,6 +351,9 @@ export function SkillOverview({ skill }: { skill: Skill }) {
           text: result.message,
         });
       }
+      // Always refresh skill data (author may have changed even without file changes)
+      queryClient.invalidateQueries({ queryKey: ['skill', skill.name] });
+      queryClient.invalidateQueries({ queryKey: ['skills'] });
     } catch (e) {
       const message = e instanceof Error ? e.message : 'Update failed';
       setUpdateMessage({
