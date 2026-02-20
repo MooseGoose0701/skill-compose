@@ -236,7 +236,9 @@
       "turns": "轮次：{{count}}",
       "tokens": "Token：{{count}}",
       "duration": "耗时：{{duration}}秒"
-    }
+    },
+    "newChat": "新对话",
+    "history": "历史记录"
   },
   "sync": {
     "title": "文件系统同步",

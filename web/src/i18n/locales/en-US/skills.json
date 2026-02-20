@@ -236,7 +236,9 @@
       "turns": "Turns: {{count}}",
       "tokens": "Tokens: {{count}}",
       "duration": "Duration: {{duration}}s"
-    }
+    },
+    "newChat": "New Chat",
+    "history": "History"
   },
   "sync": {
     "title": "Filesystem Sync",
