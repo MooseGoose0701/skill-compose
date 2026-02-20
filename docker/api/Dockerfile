@@ -77,7 +77,7 @@ COPY app/ ./app/
 RUN mkdir -p /app/skills /app/data /app/logs /app/uploads /app/config
 
 # Copy default skills (will be overwritten by volume mount if exists)
-COPY skills/ ./default-skills/
+COPY seed_skills/ ./default-skills/
 
 # Copy default config
 COPY config/ ./default-config/
