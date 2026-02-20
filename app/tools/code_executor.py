@@ -25,7 +25,7 @@ from typing import Optional, Dict
 logger = logging.getLogger(__name__)
 
 # Constants
-MAX_OUTPUT_CHARS = 30000
+MAX_OUTPUT_CHARS = 10000
 DEFAULT_TIMEOUT = 300
 TEMP_SCRIPTS_BASE_DIR = "/tmp/agent_workspaces"
 WORKSPACES_BASE_DIR = Path(os.environ.get("WORKSPACES_DIR", "/app/workspaces"))
@@ -112,6 +112,10 @@ class AgentWorkspace:
         self.timeout = timeout
         self.max_output_chars = max_output_chars
         self._script_counter = 0
+        self._log_counter = 0
+
+        # Directory for saving full output when truncated
+        self._output_logs_dir = self.workspace_dir / ".output_logs"
 
         # IPython kernel state
         self._kernel = None
@@ -134,6 +138,53 @@ class AgentWorkspace:
         """
         if env_vars:
             self.env.update(env_vars)
+
+    def _truncate_output(self, output: str, tool_name: str = "output") -> str:
+        """Truncate output keeping the tail (most recent/useful part).
+
+        When output exceeds max_output_chars:
+        1. Save full output to .output_logs/{tool}_{counter}.log
+        2. Return the last max_output_chars characters with an actionable header
+
+        Args:
+            output: The full output string
+            tool_name: Tool name for the log filename (e.g. "python", "bash")
+
+        Returns:
+            Truncated output with informational header, or original if within limit
+        """
+        if len(output) <= self.max_output_chars:
+            return output
+
+        total = len(output)
+        kept = self.max_output_chars
+        omitted = total - kept
+
+        # Save full output to file
+        log_path = ""
+        try:
+            self._output_logs_dir.mkdir(parents=True, exist_ok=True)
+            self._log_counter += 1
+            log_file = self._output_logs_dir / f"{tool_name}_{self._log_counter}.log"
+            log_file.write_text(output, encoding="utf-8")
+            log_path = str(log_file)
+        except Exception as e:
+            logger.warning("Failed to save output log: %s", e)
+
+        # Build truncation header
+        if log_path:
+            header = (
+                f"[Output truncated: showing last {kept} of {total} chars "
+                f"({omitted} omitted). Full output saved to {log_path}. "
+                f"Use `read` tool to view.]"
+            )
+        else:
+            header = (
+                f"[Output truncated: showing last {kept} of {total} chars "
+                f"({omitted} omitted).]"
+            )
+
+        return header + "\n" + output[-kept:]
 
     def write_file(self, filename: str, content: str) -> Path:
         """
@@ -255,9 +306,8 @@ class AgentWorkspace:
             if result.stderr:
                 output = output + "\n" + result.stderr if output else result.stderr
 
-            # Truncate if too long
-            if len(output) > self.max_output_chars:
-                output = output[:self.max_output_chars] + "\n... [OUTPUT TRUNCATED]"
+            # Truncate if too long (tail — keeps the most recent/useful output)
+            output = self._truncate_output(output, "python")
 
             # Check for errors
             has_error = result.returncode != 0
@@ -308,9 +358,8 @@ class AgentWorkspace:
             if result.stderr:
                 output = output + "\n" + result.stderr if output else result.stderr
 
-            # Truncate if too long
-            if len(output) > self.max_output_chars:
-                output = output[:self.max_output_chars] + "\n... [OUTPUT TRUNCATED]"
+            # Truncate if too long (tail — keeps the most recent/useful output)
+            output = self._truncate_output(output, "bash")
 
             return ExecutionResult(
                 success=result.returncode == 0,
