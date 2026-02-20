@@ -52,7 +52,8 @@
     "viewList": "List view",
     "pinned": "Pinned",
     "metaSkills": "Meta Skills",
-    "userSkills": "User Skills"
+    "userSkills": "User Skills",
+    "uncategorized": "Other"
   },
   "card": {
     "version": "v{{version}}",
