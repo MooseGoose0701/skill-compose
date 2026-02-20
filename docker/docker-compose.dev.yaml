@@ -1,23 +1,20 @@
 # ==============================================================================
-# Skills API - Docker Compose
+# Skills API - Docker Compose (Development)
 # ==============================================================================
-# Quick Start:
+# For developers building from source. Includes build: sections.
+# End users should use docker-compose.yaml instead (pulls pre-built images).
+#
+# Usage:
 #   cd docker
 #   cp .env.example .env
-#   # Edit .env with your API keys
-#   docker compose up -d
+#   docker compose -f docker-compose.dev.yaml up -d
+#   ./redeploy.sh         # Redeploy after code changes
 #
 # Access:
 #   - Web UI: http://localhost:62600
 #   - API: http://localhost:62610
 #   - API Docs: http://localhost:62610/docs
 #   - Documentation: http://localhost:62630
-#
-# With Nginx (production):
-#   docker compose --profile nginx up -d
-#   - Access: http://localhost (or your domain)
-#
-# For developers building from source, use docker-compose.dev.yaml instead.
 # ==============================================================================
 
 name: skills-api
@@ -27,7 +24,7 @@ services:
   # Database Service - PostgreSQL + pgvector
   # ============================================================================
   db:
-    image: pgvector/pgvector:pg16
+    image: pgvector/pgvector:pg16  # PostgreSQL 16 with pgvector extension pre-installed
     container_name: skills-db
     restart: unless-stopped
     environment:
@@ -52,7 +49,10 @@ services:
   # API Service - FastAPI Backend
   # ============================================================================
   api:
-    image: skillcompose/api:0.0.2
+    build:
+      context: ..
+      dockerfile: docker/api/Dockerfile
+    image: skillcompose/api:latest
     container_name: skills-api
     restart: unless-stopped
     environment:
@@ -81,12 +81,15 @@ services:
       - CONFIG_DIR=/app/config
       - BACKUPS_DIR=/app/backups
     volumes:
+      # Persist data between container restarts (named volumes, no permission issues)
       - skills:/app/skills
       - logs:/app/logs
       - uploads:/app/uploads
       - config:/app/config
       - backups:/app/backups
+      # Shared workspaces with executors
       - workspaces:/app/workspaces
+      # Seed file for first-run initialization (read-only, never written by app)
       - ./.env:/app/.env.seed:ro
     ports:
       - "${API_PORT:-62610}:62610"
@@ -108,7 +111,15 @@ services:
   # Web Service - Next.js Frontend
   # ============================================================================
   web:
-    image: skillcompose/web:0.0.2
+    build:
+      context: ..
+      dockerfile: docker/web/Dockerfile
+      args:
+        # Note: NEXT_PUBLIC_* are for browser access, so use localhost
+        # The rewrites in next.config.js handle server-side proxying
+        - NEXT_PUBLIC_API_URL=http://localhost:62610
+        - NEXT_PUBLIC_DOCS_URL=http://localhost:${DOCS_PORT:-62630}
+    image: skillcompose/web:latest
     container_name: skills-web
     restart: unless-stopped
     environment:
@@ -133,7 +144,10 @@ services:
   # Docs Service - Docusaurus Documentation
   # ============================================================================
   docs:
-    image: skillcompose/docs:0.0.2
+    build:
+      context: ..
+      dockerfile: docker/docs/Dockerfile
+    image: skillcompose/docs:latest
     container_name: skills-docs
     restart: unless-stopped
     command: ["serve", "-s", "build", "-l", "62630"]
@@ -174,8 +188,20 @@ services:
   # ============================================================================
   # Executor Services - Code Execution Containers
   # ============================================================================
+  # These services provide isolated execution environments for Agent code.
+  # executor-base is always started, others are available via profiles.
+  #
+  # Usage:
+  #   docker compose up -d                    # Start with base executor only
+  #   docker compose --profile ml up -d       # Include ML executor
+  #   docker compose --profile gpu up -d      # Include GPU executor
+  # ============================================================================
+
   executor-base:
-    image: skillcompose/executor-base:0.0.2
+    build:
+      context: ./executor
+      dockerfile: Dockerfile.base
+    image: skillcompose/executor-base:latest
     container_name: skills-executor-base
     restart: unless-stopped
     volumes:
@@ -200,7 +226,10 @@ services:
           memory: 2G
 
   executor-ml:
-    image: skillcompose/executor-ml:0.0.2
+    build:
+      context: ./executor
+      dockerfile: Dockerfile.ml
+    image: skillcompose/executor-ml:latest
     container_name: skills-executor-ml
     restart: unless-stopped
     profiles:
@@ -227,7 +256,10 @@ services:
           memory: 8G
 
   executor-cuda:
-    image: skillcompose/executor-cuda:0.0.2
+    build:
+      context: ./executor
+      dockerfile: Dockerfile.cuda
+    image: skillcompose/executor-cuda:latest
     container_name: skills-executor-cuda
     restart: unless-stopped
     profiles:
@@ -259,6 +291,75 @@ services:
               count: 1
               capabilities: [gpu]
 
+  # Custom executor - ChemScout (chemistry & cheminformatics)
+  executor-chemscout:
+    build:
+      context: ./executor
+      dockerfile: Dockerfile.chemscout
+    image: skillcompose/executor-chemscout:latest
+    container_name: skills-executor-chemscout
+    restart: unless-stopped
+    profiles:
+      - chemscout
+    volumes:
+      - workspaces:/app/workspaces
+      - skills:/app/skills:ro
+      - uploads:/app/uploads:ro
+    environment:
+      - EXECUTOR_NAME=chemscout
+      - EXECUTOR_PORT=62680
+      - TZ=${TZ:-UTC}
+    networks:
+      - skills-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:62680/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+
+  # Custom executor - Remotion (video rendering with Node.js + Chromium + ffmpeg)
+  executor-remotion:
+    build:
+      context: ./executor
+      dockerfile: Dockerfile.remotion
+    image: skillcompose/executor-remotion:latest
+    container_name: skills-executor-remotion
+    restart: unless-stopped
+    profiles:
+      - remotion
+    volumes:
+      - workspaces:/app/workspaces
+      - skills:/app/skills:ro
+      - uploads:/app/uploads:ro
+    environment:
+      - EXECUTOR_NAME=remotion
+      - EXECUTOR_PORT=62680
+      - TZ=${TZ:-UTC}
+    networks:
+      - skills-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:62680/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 8G
+
+
+
+
+
+
+
+
 networks:
   skills-network:
     driver: bridge
@@ -278,3 +379,23 @@ volumes:
     driver: local
   backups:
     driver: local
+
+# ==============================================================================
+# Volume Notes:
+# ==============================================================================
+# All data is stored in Docker named volumes (no host bind mounts needed):
+#
+# db_data    - PostgreSQL data
+# skills     - Skill definitions (SKILL.md, scripts/, etc.)
+#              Pre-populated with defaults on first run
+# config     - Configuration files (mcp.json, seed_agents.json, etc.)
+#              Pre-populated with defaults on first run
+# logs       - Agent execution logs (JSON format)
+# uploads    - User uploaded files
+# backups    - Backup files
+# workspaces - Agent execution workspaces (ephemeral)
+#
+# To inspect volume data:  docker volume inspect skills-api_skills
+# To backup all volumes:   POST /api/v1/backup/create
+# WARNING: docker compose down -v deletes ALL volumes including database!
+# ==============================================================================
