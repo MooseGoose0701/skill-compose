@@ -316,10 +316,14 @@ class AgentTraceDB(Base):
     executor_name: Mapped[Optional[str]] = mapped_column(
         String(64), nullable=True
     )  # Executor used (e.g., "remotion", "base", None for local)
+    session_id: Mapped[Optional[str]] = mapped_column(
+        String(36), nullable=True
+    )  # Session ID linking this trace to a chat session
 
     __table_args__ = (
         Index("ix_agent_traces_created_at", "created_at"),
         Index("ix_agent_traces_success", "success"),
+        Index("ix_agent_traces_session_id", "session_id"),
     )
 
     def __repr__(self) -> str:

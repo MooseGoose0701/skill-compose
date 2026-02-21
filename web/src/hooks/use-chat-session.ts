@@ -8,6 +8,7 @@ import { sessionMessagesToChatMessages } from '@/lib/session-utils';
 /**
  * On mount, if the store has a sessionId but no messages,
  * fetch the session from the server and populate the message list.
+ * Also fetches trace IDs for the session and attaches them to assistant messages.
  */
 export function useChatSessionRestore() {
   const sessionId = useChatStore((s) => s.sessionId);
@@ -23,11 +24,28 @@ export function useChatSessionRestore() {
 
     (async () => {
       try {
-        const session = await agentApi.getSession(sessionId);
+        // Fetch session messages and trace IDs in parallel
+        const [session, traceIds] = await Promise.all([
+          agentApi.getSession(sessionId),
+          agentApi.getSessionTraceIds(sessionId),
+        ]);
+
         if (session && session.messages && session.messages.length > 0) {
           const chatMessages = sessionMessagesToChatMessages(
             session.messages as Array<{ role: string; content: string | Array<Record<string, unknown>> }>
           );
+
+          // Attach trace IDs to assistant messages (chronological order matches)
+          if (traceIds.length > 0) {
+            let traceIndex = 0;
+            for (const msg of chatMessages) {
+              if (msg.role === 'assistant' && traceIndex < traceIds.length) {
+                msg.traceId = traceIds[traceIndex];
+                traceIndex++;
+              }
+            }
+          }
+
           // Populate store
           const store = useChatStore.getState();
           for (const msg of chatMessages) {

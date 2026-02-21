@@ -83,6 +83,7 @@ class TraceListResponse(BaseModel):
 async def list_traces(
     success: Optional[bool] = Query(None, description="Filter by success status"),
     skill_name: Optional[str] = Query(None, description="Filter by skill name (in skills_used)"),
+    session_id: Optional[str] = Query(None, description="Filter by session ID"),
     offset: int = Query(0, ge=0, description="Pagination offset"),
     limit: int = Query(20, ge=1, le=100, description="Pagination limit"),
     db: AsyncSession = Depends(get_db),
@@ -105,6 +106,10 @@ async def list_traces(
             cast(AgentTraceDB.skills_used, String).like(f'%"{skill_name}"%')
         )
 
+    # Filter by session_id
+    if session_id is not None:
+        query = query.where(AgentTraceDB.session_id == session_id)
+
     # Get total count
     count_query = select(AgentTraceDB.id)
     if success is not None:
@@ -113,6 +118,8 @@ async def list_traces(
         count_query = count_query.where(
             cast(AgentTraceDB.skills_used, String).like(f'%"{skill_name}"%')
         )
+    if session_id is not None:
+        count_query = count_query.where(AgentTraceDB.session_id == session_id)
     count_result = await db.execute(count_query)
     total = len(count_result.all())
 
@@ -142,6 +149,36 @@ async def list_traces(
         total=total,
         offset=offset,
         limit=limit,
+    )
+
+
+class SessionTraceIds(BaseModel):
+    """Trace IDs for a session, ordered chronologically."""
+    session_id: str
+    trace_ids: List[str]
+
+
+@router.get("/by-session/{session_id}", response_model=SessionTraceIds)
+async def get_traces_by_session(
+    session_id: str,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Get trace IDs for a specific session, ordered chronologically (oldest first).
+
+    Used by the frontend to attach trace IDs to restored session messages.
+    """
+    from sqlalchemy import asc
+    result = await db.execute(
+        select(AgentTraceDB.id)
+        .where(AgentTraceDB.session_id == session_id)
+        .order_by(asc(AgentTraceDB.created_at))
+    )
+    trace_ids = [row[0] for row in result.all()]
+
+    return SessionTraceIds(
+        session_id=session_id,
+        trace_ids=trace_ids,
     )
 
 
@@ -224,6 +261,7 @@ def _trace_to_export_dict(trace: AgentTraceDB) -> dict:
         "created_at": trace.created_at.isoformat() if trace.created_at else None,
         "duration_ms": trace.duration_ms,
         "executor_name": trace.executor_name,
+        "session_id": trace.session_id,
     }
 
 

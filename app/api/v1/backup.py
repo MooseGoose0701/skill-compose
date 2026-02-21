@@ -281,6 +281,7 @@ async def _create_backup_zip(
                 "llm_calls": tr.llm_calls,
                 "created_at": _serialize_datetime(tr.created_at),
                 "duration_ms": tr.duration_ms,
+                "session_id": tr.session_id,
             })
         offset += TRACE_BATCH_SIZE
     stats.agent_traces = len(traces_data)
@@ -619,6 +620,7 @@ async def _restore_from_zip(
                 llm_calls=tr.get("llm_calls"),
                 created_at=datetime.fromisoformat(tr["created_at"]) if tr.get("created_at") else datetime.utcnow(),
                 duration_ms=tr.get("duration_ms"),
+                session_id=tr.get("session_id"),
             )
             db.add(trace)
             restored.agent_traces += 1
