@@ -230,6 +230,18 @@ async def _run_migrations():
             END $$
         """))
 
+    # Add session_id column to agent_traces table
+    async with engine.begin() as conn:
+        await conn.execute(text("""
+            DO $$ BEGIN
+                ALTER TABLE agent_traces ADD COLUMN session_id VARCHAR(36) DEFAULT NULL;
+            EXCEPTION WHEN duplicate_column THEN NULL;
+            END $$
+        """))
+        await conn.execute(text(
+            "CREATE INDEX IF NOT EXISTS ix_agent_traces_session_id ON agent_traces (session_id)"
+        ))
+
     # Ensure meta skills from filesystem are registered in the database
     await _ensure_meta_skills_registered()
 

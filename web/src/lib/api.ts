@@ -854,6 +854,17 @@ export const agentApi = {
     }
     return response.json();
   },
+
+  getSessionTraceIds: async (sessionId: string): Promise<string[]> => {
+    const response = await fetch(
+      `${AGENT_API_BASE}/traces/by-session/${encodeURIComponent(sessionId)}`
+    );
+    if (!response.ok) {
+      return [];
+    }
+    const data = await response.json();
+    return data.trace_ids || [];
+  },
 };
 
 // Traces API

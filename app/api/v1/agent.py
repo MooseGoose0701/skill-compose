@@ -383,6 +383,7 @@ async def run_agent(request: AgentRequest, db: AsyncSession = Depends(get_db)):
             llm_calls=[asdict(call) for call in result.llm_calls],
             duration_ms=duration_ms,
             executor_name=config.get("executor_name"),
+            session_id=session_id,
         )
         db.add(trace)
         await db.commit()
@@ -491,6 +492,7 @@ async def run_agent_stream(request: AgentRequest, db: AsyncSession = Depends(get
                 llm_calls=[],
                 duration_ms=0,
                 executor_name=config.get("executor_name"),
+                session_id=session_id,
             )
             trace_db.add(trace)
             await trace_db.commit()
