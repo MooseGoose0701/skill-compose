@@ -315,7 +315,7 @@ export function ChatPanel({ isOpen, onClose, defaultSkills = [] }: ChatPanelProp
 
       {/* Expanded Config Panel */}
       {showConfigPanel && (
-        <div className="px-4 py-3 border-b bg-muted/20 space-y-3 text-xs max-h-[40vh] overflow-y-auto">
+        <div className="px-4 py-3 border-b bg-muted/20 space-y-3 text-xs">
           {selectedAgentPreset && (
             <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
               <span>{t('configManagedByPreset')}</span>
@@ -377,7 +377,7 @@ export function ChatPanel({ isOpen, onClose, defaultSkills = [] }: ChatPanelProp
 
             {/* Tools/MCP Chips */}
             {showToolsPanel && (
-              <div className="mt-2 space-y-3">
+              <div className="mt-2 space-y-3 max-h-[30vh] overflow-y-auto">
                 <div>
                   <div className="flex items-center gap-2 mb-1.5">
                     <Wrench className="h-3 w-3 text-muted-foreground" />
