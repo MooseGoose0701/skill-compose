@@ -160,6 +160,14 @@ async def db_session():
         await engine.dispose()
 
 
+@pytest.fixture(autouse=True)
+def _bypass_api_key_validation():
+    """Skip API key validation in all tests (keys are not on disk)."""
+    from unittest.mock import patch
+    with patch("app.api.v1.agent._validate_api_key"):
+        yield
+
+
 @pytest_asyncio.fixture()
 async def app(db_session: AsyncSession):
     """Create a test FastAPI app with database override."""

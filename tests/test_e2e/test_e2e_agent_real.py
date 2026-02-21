@@ -436,10 +436,13 @@ class TestRealImportLifecycleE2E:
         assert body["name"] == name
         assert body["current_version"] == type(self)._state["initial_version"]
 
-    async def test_03_run_agent_with_skill(self, e2e_client: AsyncClient):
+    async def test_03_run_agent_with_skill(self, e2e_client: AsyncClient, e2e_session_factories):
         """Run Agent with qdrant skill and verify success."""
         name = type(self)._state["skill_name"]
-        with _patch_api_key():
+        with (
+            _patch_api_key(),
+            patch("app.api.v1.sessions.AsyncSessionLocal", e2e_session_factories["async"]),
+        ):
             resp = await e2e_client.post(
                 "/api/v1/agent/run",
                 json={

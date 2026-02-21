@@ -368,15 +368,18 @@ export default function EnvironmentPage() {
 
     await settingsApi.updateEnv(key, value);
     await queryClient.invalidateQueries({ queryKey: ["env-config"] });
+    await queryClient.invalidateQueries({ queryKey: ["models-providers"] });
   };
 
   const handleDelete = async (key: string) => {
     await settingsApi.deleteEnv(key);
     await queryClient.invalidateQueries({ queryKey: ["env-config"] });
+    await queryClient.invalidateQueries({ queryKey: ["models-providers"] });
   };
 
   const handleAdd = async () => {
     await queryClient.invalidateQueries({ queryKey: ["env-config"] });
+    await queryClient.invalidateQueries({ queryKey: ["models-providers"] });
   };
 
   const envVariables = data?.variables || [];

@@ -64,10 +64,15 @@ extract_key() {
 }
 
 setup_kimi_key() {
+    # Prefer already-set env var over .env file
+    if [ -n "$MOONSHOT_API_KEY_REAL" ]; then
+        echo -e "  Kimi API Key: ${GREEN}found (env)${NC} (${#MOONSHOT_API_KEY_REAL} chars)"
+        return 0
+    fi
     local key=$(extract_key "MOONSHOT_API_KEY")
     if [ -n "$key" ]; then
         export MOONSHOT_API_KEY_REAL="$key"
-        echo -e "  Kimi API Key: ${GREEN}found${NC} (${#key} chars)"
+        echo -e "  Kimi API Key: ${GREEN}found (.env)${NC} (${#key} chars)"
         return 0
     else
         echo -e "  Kimi API Key: ${YELLOW}not found${NC}"
