@@ -111,20 +111,22 @@ def read_env_value(key: str) -> str:
 
     Always reads from disk so all uvicorn workers and callsites
     see the latest value written by the Settings API.
+    Falls back to os.environ if not found on disk (e.g. in tests
+    or when vars are injected via docker-compose environment).
     """
     env_path = _get_env_file_path()
-    if not env_path.exists():
-        return ""
-    try:
-        for line in env_path.read_text(encoding="utf-8").splitlines():
-            line = line.strip()
-            if line and not line.startswith("#") and "=" in line:
-                k, _, v = line.partition("=")
-                if k.strip() == key:
-                    return v.strip()
-    except Exception:
-        pass
-    return ""
+    if env_path.exists():
+        try:
+            for line in env_path.read_text(encoding="utf-8").splitlines():
+                line = line.strip()
+                if line and not line.startswith("#") and "=" in line:
+                    k, _, v = line.partition("=")
+                    if k.strip() == key:
+                        return v.strip()
+        except Exception:
+            pass
+    # Fallback to os.environ (tests, docker-compose environment injection)
+    return os.environ.get(key, "")
 
 
 def read_env_all() -> dict[str, str]:
