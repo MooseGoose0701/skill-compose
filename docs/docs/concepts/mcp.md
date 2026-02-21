@@ -4,99 +4,118 @@ sidebar_position: 5
 
 # MCP (Model Context Protocol)
 
-MCP is an open standard for connecting AI models to external services. Skill Compose uses MCP to extend agent capabilities beyond built-in tools — adding web search, Git operations, image analysis, and more.
+MCP is an open standard for connecting AI models to external services. Skill Compose uses MCP to extend agent capabilities beyond built-in tools — adding web search, Git operations, URL fetching, and more.
 
 ## How MCP Works
 
 ```mermaid
 graph LR
-    Agent[SkillsAgent] -->|MCP Protocol| Server1[Tavily Server]
-    Agent -->|MCP Protocol| Server2[Git Server]
-    Agent -->|MCP Protocol| Server3[Gemini Server]
-    Agent -->|MCP Protocol| Server4[Time Server]
-    Server1 --> S1T[tavily_search, tavily_extract, tavily_crawl]
-    Server2 --> S2T[git_status, git_diff, git_commit, ...]
-    Server3 --> S3T[gemini_analyze_image, gemini_generate]
-    Server4 --> S4T[get_current_time, convert_time]
+    Agent[SkillsAgent] -->|MCP Protocol| Server1[Git Server]
+    Agent -->|MCP Protocol| Server2[Time Server]
+    Agent -->|MCP Protocol| Server3[Tavily Server]
+    Agent -->|MCP Protocol| Server4[Fetch Server]
+    Server1 --> S1T[git_status, git_diff, git_commit, ...]
+    Server2 --> S2T[get_current_time, convert_time]
+    Server3 --> S3T[tavily_search, tavily_extract, tavily_crawl]
+    Server4 --> S4T[fetch]
 ```
 
-Each MCP server is a separate process that exposes tools via the MCP protocol. The agent discovers available tools at runtime and calls them like built-in tools.
+Each MCP server runs as a separate subprocess that exposes tools via the MCP protocol. The agent discovers available tools at runtime and calls them like built-in tools.
+
+## Adding an MCP Server
+
+Click **Add Server** on the MCP page, then paste the JSON configuration from any MCP server's README:
+
+```json
+{
+  "server-name": {
+    "command": "npx",
+    "args": ["package-name"]
+  }
+}
+```
+
+The dialog accepts the standard MCP JSON format. If the config is wrapped in `"mcpServers": { ... }` (common in READMEs), it will be auto-unwrapped.
+
+After adding, Skill Compose automatically starts the server process, discovers its tools, and makes them available to agents — no manual schema definitions needed.
 
 ## Tool Auto-Discovery
 
-When you add a new MCP server, Skill Compose can automatically discover its tools by connecting to the server process and querying it via the MCP SDK.
+When you add a new MCP server, Skill Compose automatically discovers its tools by connecting to the server process and querying it via the MCP SDK.
 
 **How it works:**
 
-1. The system spawns the MCP server as a subprocess
+1. Spawns the MCP server as a subprocess
 2. Connects via stdio and calls `session.list_tools()`
 3. Saves discovered tool definitions (name, description, inputSchema) to `config/mcp.json`
 
 **When it triggers:**
 
-- **Automatically** after adding a server via the Web UI
-- **Manually** by clicking the refresh (↻) button on any server card in the MCP page
+- **Automatically** after adding a server via the Web UI (fire-and-forget)
+- **Manually** by clicking the refresh button on any server card
+- **Via API:** `POST /api/v1/mcp/servers/{name}/discover-tools`
 
-This means you no longer need to manually define tool schemas when adding a server — just provide the command and arguments, and Skill Compose will detect the tools for you.
+## API Key Management
 
-```bash
-# You can also trigger discovery via API
-curl -X POST http://localhost:62610/api/v1/mcp/servers/{name}/discover-tools
-```
+Some MCP servers require API keys (e.g. Tavily). The MCP page shows the status of each required key:
 
-## Available MCP Servers
+- **Configured** — key is set and ready to use
+- **From ENV** — key is resolved from your `.env` file
+- **Not Set** — key needs to be configured
 
-### Tavily
+Click on a key to set or update its value directly from the UI. Keys are saved to `.env` and take effect immediately.
 
-AI-optimized web search and content extraction.
+## Default Servers
 
-| Tool | Description |
-|------|-------------|
-| `tavily_search` | Search the web with AI-enhanced results |
-| `tavily_extract` | Extract structured data from URLs |
-| `tavily_crawl` | Crawl and analyze websites |
-
-**Requires:** `TAVILY_API_KEY`
-**Runtime:** `npx tavily-mcp`
-
-### Time
-
-Timezone utilities.
-
-| Tool | Description |
-|------|-------------|
-| `get_current_time` | Get current time in any timezone |
-| `convert_time` | Convert between timezones |
-
-**Runtime:** `uvx mcp-server-time`
+These servers are enabled by default and available out of the box:
 
 ### Git
 
-Version control operations.
+Version control operations via `uvx mcp-server-git`.
 
 | Tool | Description |
 |------|-------------|
 | `git_status` | Check repository status |
-| `git_diff` | View changes |
-| `git_log` | View commit history |
+| `git_diff_unstaged` | View unstaged changes |
+| `git_diff_staged` | View staged changes |
+| `git_diff` | Compare branches or commits |
 | `git_commit` | Create commits |
 | `git_add` | Stage files |
-| ...and 7 more | Full Git workflow |
+| `git_reset` | Unstage changes |
+| `git_log` | View commit history (with date filtering) |
+| `git_create_branch` | Create a new branch |
+| `git_checkout` | Switch branches |
+| `git_show` | Show commit contents |
+| `git_branch` | List branches (local/remote/all) |
 
-**Runtime:** `uvx mcp-server-git`
+### Time
 
-### Gemini
-
-Google's multimodal AI for image analysis and generation.
+Timezone utilities via `uvx mcp-server-time`.
 
 | Tool | Description |
 |------|-------------|
-| `gemini_analyze_image` | Analyze images with vision AI |
-| `gemini_generate` | Generate text with Gemini |
-| `gemini_generate_image` | Create images |
+| `get_current_time` | Get current time in any IANA timezone |
+| `convert_time` | Convert between timezones |
 
-**Requires:** `GEMINI_API_KEY`
-**Runtime:** Local Node.js server (`gemini-mcp-server/`)
+### Tavily
+
+AI-optimized web search and content extraction via `npx tavily-mcp`.
+
+| Tool | Description |
+|------|-------------|
+| `tavily_search` | Search the web with customizable depth and domain filtering |
+| `tavily_extract` | Extract and process content from URLs |
+| `tavily_crawl` | Crawl websites with configurable depth and page limits |
+
+**Requires:** `TAVILY_API_KEY`
+
+### Fetch
+
+URL fetching and content extraction via `uvx mcp-server-fetch`.
+
+| Tool | Description |
+|------|-------------|
+| `fetch` | Fetch a URL and extract its contents as markdown |
 
 ## MCP vs Built-in Tools
 
@@ -105,23 +124,23 @@ Google's multimodal AI for image analysis and generation.
 | **Availability** | Always present | Configurable per agent |
 | **Latency** | Fastest (in-process) | Slight overhead (subprocess) |
 | **Customization** | Fixed set | Add your own servers |
-| **Examples** | read, write, execute_code | Tavily, Git, Gemini |
+| **Examples** | read, write, execute_code | Git, Tavily, Fetch |
 
 :::tip
 `web_fetch` and `web_search` are built-in tools, not MCP. Use them for basic web access without enabling any MCP server.
 :::
 
-## Enabling MCP Servers
+## Enabling MCP Servers per Agent
 
 MCP servers are enabled per agent:
 
-1. Go to **Agents** > select an agent
+1. Go to **Agents** and select an agent
 2. Check the MCP servers you want in the **MCP Servers** section
 3. Save
 
-Default agents include **time** and **tavily**.
+Default agents include **git**, **time**, and **tavily**.
 
-## Configuration
+## Configuration File
 
 MCP servers are defined in `config/mcp.json`:
 
@@ -130,29 +149,27 @@ MCP servers are defined in `config/mcp.json`:
   "mcpServers": {
     "tavily": {
       "name": "Tavily Search",
-      "description": "AI-powered web search",
+      "description": "AI-optimized web search and content extraction",
       "command": "npx",
-      "args": ["tavily-mcp@latest"],
+      "args": ["-y", "tavily-mcp@latest"],
       "env": {
         "TAVILY_API_KEY": "${TAVILY_API_KEY}"
       },
-      "defaultEnabled": false,
+      "defaultEnabled": true,
       "tools": [...]
     }
   }
 }
 ```
 
-Environment variables use `${VAR_NAME}` syntax and resolve from your `.env` file.
+Environment variables use `${VAR_NAME}` syntax and resolve from your `.env` file. Multi-worker deployments stay in sync — `get_mcp_client()` detects `mcp.json` file changes and auto-reloads.
 
 ## Creating Custom MCP Servers
 
 Two approaches:
 
-1. **Ask the agent** — use the mcp-builder skill: *"Create an MCP server that queries my PostgreSQL database"*
-2. **Manual** — add an entry to `config/mcp.json` and implement the server
-
-See [How to: Configure MCP](/how-to/configure-mcp) for step-by-step instructions.
+1. **Ask the agent** — use the `mcp-builder` skill: *"Create an MCP server that queries my PostgreSQL database"*. The agent will scaffold the code, build it, and register it to `config/mcp.json` automatically.
+2. **Paste from README** — find any MCP server on npm/PyPI, copy its JSON config, and paste it into the Add Server dialog.
 
 ## Related
 

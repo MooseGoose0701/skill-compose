@@ -1,57 +1,81 @@
 import type {ReactNode} from 'react';
-import clsx from 'clsx';
-import Heading from '@theme/Heading';
 import styles from './styles.module.css';
 
 type FeatureItem = {
+  icon: string;
   title: string;
-  Svg: React.ComponentType<React.ComponentProps<'svg'>>;
   description: ReactNode;
 };
 
 const FeatureList: FeatureItem[] = [
   {
-    title: 'Easy to Use',
-    Svg: require('@site/static/img/undraw_docusaurus_mountain.svg').default,
+    icon: '\u{1F9E9}',
+    title: 'Skills as First-Class Artifacts',
     description: (
       <>
-        Docusaurus was designed from the ground up to be easily installed and
-        used to get your website up and running quickly.
+        Versioned, reviewable skill packages — contracts, references, rubrics,
+        and helpers — not brittle workflow graphs.
       </>
     ),
   },
   {
-    title: 'Focus on What Matters',
-    Svg: require('@site/static/img/undraw_docusaurus_tree.svg').default,
+    icon: '\u{1F4AC}',
+    title: 'Conversational Agent Builder',
     description: (
       <>
-        Docusaurus lets you focus on your docs, and we&apos;ll do the chores. Go
-        ahead and move your docs into the <code>docs</code> directory.
+        Describe what you want in plain language. Skill Compose finds, reuses,
+        or drafts skills, then assembles a ready-to-run agent.
       </>
     ),
   },
   {
-    title: 'Powered by React',
-    Svg: require('@site/static/img/undraw_docusaurus_react.svg').default,
+    icon: '\u{1F50C}',
+    title: 'Tool & MCP Integration',
     description: (
       <>
-        Extend or customize your website layout by reusing React. Docusaurus can
-        be extended while reusing the same header and footer.
+        Built-in tools plus MCP servers give agents executable capabilities
+        — code execution, web search, Git, and more — with zero glue code.
+      </>
+    ),
+  },
+  {
+    icon: '\u{1F504}',
+    title: 'Skill Evolution from Reality',
+    description: (
+      <>
+        Improve skills automatically using execution traces and user feedback,
+        with proposed rewrites you can review before merging.
+      </>
+    ),
+  },
+  {
+    icon: '\u{1F680}',
+    title: 'One-Click Publishing',
+    description: (
+      <>
+        Ship agents as shareable Web Chat links or API endpoints in a single
+        click — no extra infrastructure required.
+      </>
+    ),
+  },
+  {
+    icon: '\u{1F433}',
+    title: 'Container-First Execution',
+    description: (
+      <>
+        Run code in isolated Docker containers with custom images — GPU stacks,
+        ML libraries, or any environment your agents need.
       </>
     ),
   },
 ];
 
-function Feature({title, Svg, description}: FeatureItem) {
+function Feature({icon, title, description}: FeatureItem) {
   return (
-    <div className={clsx('col col--4')}>
-      <div className="text--center">
-        <Svg className={styles.featureSvg} role="img" />
-      </div>
-      <div className="text--center padding-horiz--md">
-        <Heading as="h3">{title}</Heading>
-        <p>{description}</p>
-      </div>
+    <div className={styles.featureCard}>
+      <div className={styles.featureIcon}>{icon}</div>
+      <h3 className={styles.featureTitle}>{title}</h3>
+      <p className={styles.featureDesc}>{description}</p>
     </div>
   );
 }
@@ -59,13 +83,9 @@ function Feature({title, Svg, description}: FeatureItem) {
 export default function HomepageFeatures(): ReactNode {
   return (
     <section className={styles.features}>
-      <div className="container">
-        <div className="row">
-          {FeatureList.map((props, idx) => (
-            <Feature key={idx} {...props} />
-          ))}
-        </div>
-      </div>
+      {FeatureList.map((props, idx) => (
+        <Feature key={idx} {...props} />
+      ))}
     </section>
   );
 }

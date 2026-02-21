@@ -11,6 +11,24 @@ const config: Config = {
     v4: true,
   },
 
+  headTags: [
+    {
+      tagName: 'link',
+      attributes: {rel: 'preconnect', href: 'https://fonts.googleapis.com'},
+    },
+    {
+      tagName: 'link',
+      attributes: {rel: 'preconnect', href: 'https://fonts.gstatic.com', crossorigin: 'anonymous'},
+    },
+    {
+      tagName: 'link',
+      attributes: {
+        rel: 'stylesheet',
+        href: 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap',
+      },
+    },
+  ],
+
   url: 'https://skill-compose.dev',
   baseUrl: '/',
 
@@ -49,9 +67,14 @@ const config: Config = {
 
   themeConfig: {
     image: 'img/social-card.png',
+    announcementBar: {
+      id: 'github_star',
+      content: 'If you like Skill Compose, give it a \u2B50 on <a href="https://github.com/MooseGoose0701/skill-compose" target="_blank" rel="noopener noreferrer">GitHub</a>!',
+      isCloseable: true,
+    },
     colorMode: {
       defaultMode: 'light',
-      respectPrefersColorScheme: true,
+      respectPrefersColorScheme: false,
     },
     navbar: {
       title: 'Skill Compose',
@@ -116,7 +139,7 @@ const config: Config = {
           ],
         },
       ],
-      copyright: `Copyright © ${new Date().getFullYear()} Skill Compose. Built with Docusaurus.`,
+      copyright: `Copyright \u00A9 ${new Date().getFullYear()} Skill Compose`,
     },
     mermaid: {
       theme: {
@@ -127,7 +150,7 @@ const config: Config = {
     prism: {
       theme: prismThemes.github,
       darkTheme: prismThemes.dracula,
-      additionalLanguages: ['bash', 'yaml', 'json', 'python', 'docker'],
+      additionalLanguages: ['bash', 'yaml', 'json', 'python', 'docker', 'toml'],
     },
   } satisfies Preset.ThemeConfig,
 };

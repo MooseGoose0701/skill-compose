@@ -4,15 +4,39 @@ slug: /
 title: Introduction
 ---
 
-# Skill Compose
+import HomepageFeatures from '@site/src/components/HomepageFeatures';
 
-Skill Compose is an open-source agent builder and runtime platform for skill-powered agents.
+<div className="hero-banner">
+  <h1>Skill Compose</h1>
+  <p>
+    An open-source agent builder and runtime platform for skill-powered agents.
+    <br />
+    Describe. Compose. Evolve.
+  </p>
+</div>
 
-No workflow graphs. No CLI.
-
-:::tip
-New to Skill Compose? Start with the [Quick Start](/quickstart) to get running and build your first agent.
-:::
+<div className="quick-links">
+  <a className="quick-link" href="/quickstart">
+    <span className="ql-icon">&#x1F680;</span>
+    <span className="ql-title">Quick Start</span>
+    <span className="ql-desc">Install and build your first agent in minutes.</span>
+  </a>
+  <a className="quick-link" href="/concepts/agents">
+    <span className="ql-icon">&#x1F4D6;</span>
+    <span className="ql-title">Concepts</span>
+    <span className="ql-desc">Learn about Skills, Agents, Tools, and MCP.</span>
+  </a>
+  <a className="quick-link" href="/reference/api">
+    <span className="ql-icon">&#x1F4E1;</span>
+    <span className="ql-title">API Reference</span>
+    <span className="ql-desc">Full REST API documentation and examples.</span>
+  </a>
+  <a className="quick-link" href="/how-to/create-agent">
+    <span className="ql-icon">&#x1F6E0;</span>
+    <span className="ql-title">How-To Guides</span>
+    <span className="ql-desc">Step-by-step guides for common workflows.</span>
+  </a>
+</div>
 
 ## Why Skill Compose?
 
@@ -29,15 +53,7 @@ Skill Compose:
 
 ## Key Capabilities
 
-- 🧩 **Skills as first-class artifacts** — versioned, reviewable skill packages (contracts, references, rubrics, helpers), not brittle graphs.
-- 🧠 **"Skill-Compose My Agent" workflow** — describe what you want; Skill Compose finds/reuses skills, drafts missing ones, and composes an agent.
-- 🔌 **Tool + MCP wiring** — connect tools and MCP servers without hand-writing glue code.
-- 🚀 **Instant publishing** — one click to ship as **Web Chat** (shareable link) and/or **API** (integrations-ready endpoint).
-- 🛡️ **Container-first isolation** — run agents in containers (or K8s pods) to keep hosts clean and execution reproducible.
-- 🧱 **Executors for heavy environments** — assign custom Docker images/K8s runtimes per agent (GPU/ML/HPC stacks, custom builds).
-- 📦 **Skill lifecycle management** — GitHub import, update from any source (GitHub URL / file / folder), multi-format import/export, version history, diff/rollback, and local sync.
-- 🔄 **Skill evolution from reality** — improve skills using feedback + execution traces, with proposed rewrites you can review.
-- 🗂️ **Skill library organization** — categories, pinning, and lightweight discovery to stay sane at 100+ skills.
+<HomepageFeatures />
 
 ## Architecture
 
