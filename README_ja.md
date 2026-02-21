@@ -125,6 +125,9 @@ docker compose -f docker-compose.dev.yaml up -d
 cd skill-compose/docker
 # '-v' はボリュームに保存されたすべてのデータを削除します
 docker compose down -v
+
+# executor プロファイルを起動している場合は、それらも停止してください
+docker compose --profile ml --profile gpu down -v
 ```
 
 </details>

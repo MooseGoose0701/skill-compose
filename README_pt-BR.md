@@ -125,6 +125,9 @@ docker compose -f docker-compose.dev.yaml up -d
 cd skill-compose/docker
 # '-v' removerá todos os dados armazenados nos volumes
 docker compose down -v
+
+# Se você iniciou perfis de executor, pare-os também
+docker compose --profile ml --profile gpu down -v
 ```
 
 </details>

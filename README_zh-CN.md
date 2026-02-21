@@ -125,6 +125,9 @@ docker compose -f docker-compose.dev.yaml up -d
 cd skill-compose/docker
 # '-v' 会删除所有存储在卷中的数据
 docker compose down -v
+
+# 如果启动了 executor profiles，也需要一并停止
+docker compose --profile ml --profile gpu down -v
 ```
 
 </details>
