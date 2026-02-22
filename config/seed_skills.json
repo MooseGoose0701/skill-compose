@@ -73,6 +73,9 @@
     "humanizer": {
       "source": "https://github.com/blader/humanizer",
       "author": "blader"
+    },
+    "skill-finder": {
+      "category": "Development Tools"
     }
   }
 }

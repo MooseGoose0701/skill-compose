@@ -66,7 +66,7 @@ class Settings(BaseSettings):
     database_echo: bool = False  # Log SQL statements
 
     # Meta skills (internal use only, not selectable by users)
-    meta_skills: list[str] = ["skill-creator", "skill-updater", "skill-evolver", "trace-qa", "skills-planner", "planning-with-files", "mcp-builder"]
+    meta_skills: list[str] = ["skill-creator", "skill-updater", "skill-evolver", "skill-finder", "trace-qa", "skills-planner", "planning-with-files", "mcp-builder"]
 
     @property
     def effective_skills_dir(self) -> str:
