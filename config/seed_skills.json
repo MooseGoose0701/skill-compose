@@ -69,6 +69,10 @@
       "category": "Media & Design",
       "source": "https://github.com/remotion-dev/skills/tree/main/skills/remotion",
       "author": "remotion-dev"
+    },
+    "humanizer": {
+      "source": "https://github.com/blader/humanizer",
+      "author": "blader"
     }
   }
 }

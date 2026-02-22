@@ -345,7 +345,32 @@ The packaging script will:
 
 If validation fails, the script will report the errors and exit without creating a package. Fix any validation errors and run the packaging command again.
 
-### Step 6: Iterate
+### Step 6: Register the Skill
+After creating the skill files, you MUST register it to the database so it becomes available in the system. Use the import-local API:
+ 
+```bash
+curl -X POST "http://localhost:62610/api/v1/registry/import-local" \
+  -H "Content-Type: application/json" \
+  -d '{"skill_names": ["your-skill-name"]}'
+```
+ 
+Example for a skill named `google-drive-uploader`:
+ 
+```bash
+curl -X POST "http://localhost:62610/api/v1/registry/import-local" \
+  -H "Content-Type: application/json" \
+  -d '{"skill_names": ["google-drive-uploader"]}'
+```
+ 
+The API will:
+1. Read the skill from the `skills/` directory
+2. Parse the SKILL.md frontmatter
+3. Store the skill and its files in the database
+4. Make it available for use in Agent Presets
+ 
+**IMPORTANT**: Without this step, the skill exists only on disk and will not appear in the skills list or be usable by agents.
+ 
+### Step 7: Iterate
 
 After testing the skill, users may request improvements. Often this happens right after using the skill, with fresh context of how the skill performed.
 
