@@ -559,6 +559,9 @@ Your workspace is `{workspace_dir}`. All tools share this directory — relative
 - **Accessing project files:** Use absolute paths (e.g., `read(file_path="{skills_dir}/my-skill/SKILL.md")`, `bash(command="python {skills_dir}/my-skill/scripts/main.py")`).
 - `glob` and `grep` default to the skills directory when no path is specified.
 
+## Skills Directory
+The skills directory is `{skills_dir}`. All SKILL.md files, references, scripts, assets, etc. are stored in this directory.
+
 ## Important Notes
 - Always read skill documentation before writing code
 - Variables, imports, and state persist across execute_code calls within the same session
