@@ -7,6 +7,23 @@ description: Extract audio from videos and download audio-only content from 1500
 
 Extract pure audio from videos and download audio content. Supports format conversion, metadata embedding, and batch playlist processing.
 
+## Prerequisites
+
+- **Executor**: Must use the `remotion` executor (provides yt-dlp, ffmpeg, deno)
+- **JS Runtime**: deno is required for YouTube extraction (yt-dlp 2025+ default). The remotion executor includes deno.
+- **ffmpeg**: Required for audio format conversion and metadata embedding. Included in remotion executor.
+
+## Limitations
+
+| Issue | Detail |
+|-------|--------|
+| **YouTube rate limiting** | Server IPs are frequently rate-limited by YouTube. If you get "This content isn't available, try again later", wait ~1 hour or ask the user to upload the audio file directly. |
+| **YouTube JS runtime** | yt-dlp requires deno for YouTube. Without it: `No supported JavaScript runtime could be found`. |
+| **Geo-restrictions** | Some content may be region-locked. Use `--geo-bypass` flag. |
+| **Authentication** | Some platforms require cookies. Use `--cookies-from-browser` or `--cookies cookies.txt`. |
+
+**Fallback strategy**: If YouTube download fails, suggest the user upload the audio file directly or provide a direct audio URL.
+
 ## Quick Start
 
 ```bash
