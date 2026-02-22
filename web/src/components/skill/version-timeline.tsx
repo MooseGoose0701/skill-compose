@@ -625,9 +625,9 @@ export function VersionTimeline({
 
           <div className="flex items-center justify-between gap-4 pb-3 border-b">
             <div className="flex items-center gap-3">
-              {diffFiles.length > 1 && (
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-muted-foreground">File:</span>
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">File:</span>
+                {diffFiles.length > 1 ? (
                   <select
                     value={diffFilePath}
                     onChange={(e) => handleDiffFileChange(e.target.value)}
@@ -640,8 +640,10 @@ export function VersionTimeline({
                       </option>
                     ))}
                   </select>
-                </div>
-              )}
+                ) : (
+                  <span className="text-sm font-mono font-medium">{diffFilePath}</span>
+                )}
+              </div>
             </div>
 
             <div className="flex items-center gap-2">
