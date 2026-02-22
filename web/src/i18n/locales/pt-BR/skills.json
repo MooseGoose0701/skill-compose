@@ -53,7 +53,9 @@
     "pinned": "Fixados",
     "metaSkills": "Meta Skills",
     "userSkills": "Skills do Usuário",
-    "uncategorized": "Outros"
+    "uncategorized": "Outros",
+    "githubTokenHint": "Configure um GITHUB_TOKEN para verificar atualizações de skills no GitHub e evitar limites da API.",
+    "githubTokenHintLink": "Ir para configurações de ambiente"
   },
   "card": {
     "version": "v{{version}}",
@@ -61,7 +63,8 @@
     "tags": "Tags",
     "noTags": "Sem tags",
     "pin": "Fixar no topo",
-    "unpin": "Desafixar"
+    "unpin": "Desafixar",
+    "githubUpdateAvailable": "Nova versão disponível no GitHub"
   },
   "detail": {
     "overview": "Visão Geral",

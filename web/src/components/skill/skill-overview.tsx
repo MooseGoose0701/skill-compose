@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { skillsApi } from '@/lib/api';
 import { formatDateTime } from '@/lib/formatters';
 import { SKILL_CATEGORIES } from '@/lib/constants';
-import { useCategories } from '@/hooks/use-skills';
+import { useCategories, skillKeys } from '@/hooks/use-skills';
 import { SkillTypeBadge } from './skill-type-badge';
 import { SkillIconEditor } from './skill-icon-editor';
 import type { Skill } from '@/types/skill';
@@ -354,6 +354,7 @@ export function SkillOverview({ skill }: { skill: Skill }) {
       // Always refresh skill data (author may have changed even without file changes)
       queryClient.invalidateQueries({ queryKey: ['skill', skill.name] });
       queryClient.invalidateQueries({ queryKey: ['skills'] });
+      queryClient.invalidateQueries({ queryKey: skillKeys.githubStatus() });
     } catch (e) {
       const message = e instanceof Error ? e.message : 'Update failed';
       setUpdateMessage({

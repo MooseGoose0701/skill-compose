@@ -18,11 +18,12 @@ import type { Skill } from '@/types/skill';
 
 interface SkillListItemProps {
   skill: Skill;
+  hasGithubUpdate?: boolean;
 }
 
 const MAX_VISIBLE_TAGS = 2;
 
-export function SkillListItem({ skill }: SkillListItemProps) {
+export function SkillListItem({ skill, hasGithubUpdate }: SkillListItemProps) {
   const { t } = useTranslation('skills');
   const togglePin = useTogglePin();
   const isMeta = skill.skill_type === 'meta';
@@ -88,6 +89,12 @@ export function SkillListItem({ skill }: SkillListItemProps) {
             <div className="flex items-center gap-1 text-xs text-muted-foreground flex-shrink-0">
               <Tag className="h-3 w-3" />
               <span>v{skill.current_version}</span>
+              {hasGithubUpdate && (
+                <span
+                  className="inline-block w-2 h-2 rounded-full bg-amber-400 dark:bg-amber-500"
+                  title={t('card.githubUpdateAvailable')}
+                />
+              )}
             </div>
           )}
 

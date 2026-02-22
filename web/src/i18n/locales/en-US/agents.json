@@ -9,7 +9,7 @@
     "createFirst": "Create your first agent",
     "user": "User Agents",
     "meta": "Meta Agents",
-    "composeButton": "Skill-Compose Your Agent",
+    "composeButton": "Compose Your Agent",
     "composeSubtext": "Auto-creates skills as needed!"
   },
   "card": {

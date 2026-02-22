@@ -17,7 +17,7 @@ cp .env.example .env
 docker compose up -d
 ```
 
-Open **http://localhost:62600** and click **"Skill-Compose Your Agent"**.
+Open **http://localhost:62600** and click **"Compose Your Agent"**.
 
 :::info Three services start automatically
 - **Web UI** — http://localhost:62600

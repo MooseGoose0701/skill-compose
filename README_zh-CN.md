@@ -30,7 +30,7 @@ Skill Compose 是一个开源的 Agent 构建和运行平台，基于技能驱�
 ## 核心能力
 
 - 🧩 **技能作为一等公民** — 版本化、可审查的技能包（合约、参考资料、评分标准、辅助工具），而非脆弱的工作流图。
-- 🧠 **"Skill-Compose My Agent" 工作流** — 描述你的需求；Skill Compose 自动查找/复用技能，起草缺失的技能，并组装 Agent。
+- 🧠 **"组合我的 Agent" 工作流** — 描述你的需求；Skill Compose 自动查找/复用技能，起草缺失的技能，并组装 Agent。
 - 🔌 **工具 + MCP 接入** — 连接工具和 MCP 服务器，无需手写胶水代码。
 - 🚀 **一键发布** — 一键部署为 **Web 聊天**（可分享链接）和/或 **API**（可集成端点）。
 - 🛡️ **容器优先隔离** — 在容器（或 K8s Pod）中运行 Agent，保持宿主机整洁，执行可复现。
@@ -44,9 +44,9 @@ Skill Compose 是一个开源的 Agent 构建和运行平台，基于技能驱�
 <table>
 <tr>
 <td align="center">
-<b>Skill-Compose 你的 Agent</b><br>
+<b>组合你的 Agent</b><br>
 <sub>描述你的需求，让 Skill Compose 为你构建 Agent —— 查找已有技能、起草缺失技能，并将一切组装到一起。</sub><br><br>
-<img src="docs/examples/skill-compose-your-agent.gif" alt="Skill-Compose 你的 Agent" width="100%" />
+<img src="docs/examples/skill-compose-your-agent.gif" alt="组合你的 Agent" width="100%" />
 </td>
 </tr>
 <tr>
@@ -93,7 +93,7 @@ cp .env.example .env
 docker compose up -d
 ```
 
-打开 **http://localhost:62600**，点击 **"Skill-Compose Your Agent"**。
+打开 **http://localhost:62600**，点击 **"Compose Your Agent"**。
 
 停止服务：
 

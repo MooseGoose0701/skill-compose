@@ -30,7 +30,7 @@ No workflow graphs. No CLI.
 ## Key Capabilities
 
 - 🧩 **Skills as first-class artifacts** — versioned, reviewable skill packages (contracts, references, rubrics, helpers), not brittle graphs.
-- 🧠 **"Skill-Compose My Agent" workflow** — describe what you want; Skill Compose finds/reuses skills, drafts missing ones, and composes an agent.
+- 🧠 **"Compose My Agent" workflow** — describe what you want; Skill Compose finds/reuses skills, drafts missing ones, and composes an agent.
 - 🔌 **Tool + MCP wiring** — connect tools and MCP servers without hand-writing glue code.
 - 🚀 **Instant publishing** — one click to ship as **Web Chat** (shareable link) and/or **API** (integrations-ready endpoint).
 - 🛡️ **Container-first isolation** — run agents in containers (or K8s pods) to keep hosts clean and execution reproducible.
@@ -44,9 +44,9 @@ No workflow graphs. No CLI.
 <table>
 <tr>
 <td align="center">
-<b>Skill-Compose Your Agent</b><br>
+<b>Compose Your Agent</b><br>
 <sub>Describe what you want and let Skill Compose build the agent for you — finding existing skills, drafting missing ones, and wiring everything together.</sub><br><br>
-<img src="docs/examples/skill-compose-your-agent.gif" alt="Skill-Compose Your Agent" width="100%" />
+<img src="docs/examples/skill-compose-your-agent.gif" alt="Compose Your Agent" width="100%" />
 </td>
 </tr>
 <tr>
@@ -93,7 +93,7 @@ cp .env.example .env
 docker compose up -d
 ```
 
-Open **http://localhost:62600** and click **"Skill-Compose Your Agent"**.
+Open **http://localhost:62600** and click **"Compose Your Agent"**.
 
 Stop services:
 

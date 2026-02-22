@@ -24,6 +24,7 @@ export const skillKeys = {
     [...skillKeys.detail(name), 'changelogs'] as const,
   tags: () => [...skillKeys.all, 'tags'] as const,
   categories: () => [...skillKeys.all, 'categories'] as const,
+  githubStatus: () => [...skillKeys.all, 'githubStatus'] as const,
 };
 
 // List skills
@@ -195,6 +196,17 @@ export function useUnregisteredSkills() {
   return useQuery({
     queryKey: [...skillKeys.all, 'unregistered'] as const,
     queryFn: () => skillsApi.listUnregistered(),
+  });
+}
+
+// Check GitHub update status for skills with GitHub source
+export function useGithubUpdateStatus(hasGithubSkills: boolean) {
+  return useQuery({
+    queryKey: skillKeys.githubStatus(),
+    queryFn: () => skillsApi.checkGithubUpdates(),
+    enabled: hasGithubSkills,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
   });
 }
 

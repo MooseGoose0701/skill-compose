@@ -4,6 +4,7 @@ import React from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { skillsApi, versionsApi, changelogsApi, resourcesApi, transferApi, type SkillResources } from "@/lib/api";
+import { skillKeys } from "@/hooks/use-skills";
 import { useChatPanel } from "@/components/chat/chat-provider";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -140,6 +141,7 @@ export default function SkillDetailPage() {
     queryClient.invalidateQueries({ queryKey: ["skill", skillName] });
     queryClient.invalidateQueries({ queryKey: ["versions", skillName] });
     queryClient.invalidateQueries({ queryKey: ["changelogs", skillName] });
+    queryClient.invalidateQueries({ queryKey: skillKeys.githubStatus() });
     queryClient.invalidateQueries({ queryKey: ["resources", skillName] });
     queryClient.invalidateQueries({ queryKey: ["version", skillName] });
   }, [queryClient, skillName]);

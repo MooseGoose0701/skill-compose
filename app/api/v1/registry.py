@@ -2749,6 +2749,229 @@ async def _compare_and_create_version(
     )
 
 
+class CheckGithubUpdatesResponse(BaseModel):
+    results: dict[str, dict]  # skill_name -> { has_update: bool }
+
+
+def _git_blob_sha(content: bytes) -> str:
+    """Compute git blob SHA-1 hash (same algorithm git uses for blob objects)."""
+    header = f"blob {len(content)}\0".encode()
+    return hashlib.sha1(header + content).hexdigest()
+
+
+async def _fetch_github_tree(
+    owner: str,
+    repo: str,
+    branch: str,
+    token: Optional[str] = None,
+) -> Optional[list[dict]]:
+    """Fetch full repo tree using Git Trees API (single API call).
+
+    Returns list of tree entries with {path, sha, type, ...}, or None if truncated.
+    """
+    url = f"https://api.github.com/repos/{owner}/{repo}/git/trees/{branch}?recursive=1"
+    headers = {
+        "Accept": "application/vnd.github.v3+json",
+        "User-Agent": "Skills-API",
+    }
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+
+    async with httpx.AsyncClient() as client:
+        response = await client.get(url, headers=headers, timeout=30.0)
+        if response.status_code != 200:
+            return None
+        data = response.json()
+        if data.get("truncated"):
+            return None
+        return data.get("tree", [])
+
+
+@router.post("/skills/check-github-updates", response_model=CheckGithubUpdatesResponse)
+async def check_github_updates(
+    db: AsyncSession = Depends(get_db),
+):
+    """Batch check which GitHub-sourced skills have updates available.
+
+    Groups skills by (owner, repo, branch) to minimize API calls.
+    Uses Git Trees API for efficient SHA comparison.
+    """
+    from app.db.models import SkillDB, SkillVersionDB, SkillFileDB
+
+    # 1. Get all skills with GitHub source
+    stmt = sa_select(SkillDB).where(
+        SkillDB.source.isnot(None),
+        SkillDB.source.like("https://github.com%"),
+    )
+    result = await db.execute(stmt)
+    github_skills = result.scalars().all()
+
+    if not github_skills:
+        return CheckGithubUpdatesResponse(results={})
+
+    github_token = _get_github_token()
+    results: dict[str, dict] = {}
+
+    # 2. Group by (owner, repo, branch) to share API calls
+    repo_groups: dict[tuple[str, str, str], list[tuple]] = {}
+    for skill in github_skills:
+        try:
+            owner, repo, branch, skill_path = _parse_github_url(skill.source)
+        except (ValueError, Exception):
+            continue
+
+        if branch is None:
+            try:
+                branch = await _get_github_default_branch(owner, repo, github_token)
+            except Exception:
+                continue
+
+        key = (owner, repo, branch)
+        if key not in repo_groups:
+            repo_groups[key] = []
+        repo_groups[key].append((skill, skill_path))
+
+    # 3. For each repo group, fetch tree once
+    for (owner, repo, branch), skill_list in repo_groups.items():
+        try:
+            tree_entries = await _fetch_github_tree(owner, repo, branch, github_token)
+        except Exception:
+            tree_entries = None
+
+        if tree_entries is None:
+            # Fallback: use contents API per skill (slower)
+            for skill, skill_path in skill_list:
+                try:
+                    remote_shas = await _collect_remote_shas_via_contents(
+                        owner, repo, branch, skill_path, github_token
+                    )
+                    has_update = await _compare_skill_shas(skill, remote_shas, db)
+                    results[skill.name] = {"has_update": has_update}
+                except Exception:
+                    pass
+            continue
+
+        # Build path -> sha map from tree
+        tree_map: dict[str, str] = {}
+        for entry in tree_entries:
+            if entry.get("type") == "blob":
+                tree_map[entry["path"]] = entry["sha"]
+
+        # 4. For each skill in this repo group, compare
+        for skill, skill_path in skill_list:
+            try:
+                # Filter tree entries by skill's path prefix
+                prefix = f"{skill_path}/" if skill_path else ""
+                remote_shas: dict[str, str] = {}
+                for path, sha in tree_map.items():
+                    if prefix:
+                        if path.startswith(prefix):
+                            rel_path = path[len(prefix):]
+                            remote_shas[rel_path] = sha
+                    else:
+                        remote_shas[path] = sha
+
+                has_update = await _compare_skill_shas(skill, remote_shas, db)
+                results[skill.name] = {"has_update": has_update}
+            except Exception:
+                pass
+
+    return CheckGithubUpdatesResponse(results=results)
+
+
+async def _collect_remote_shas_via_contents(
+    owner: str,
+    repo: str,
+    branch: str,
+    skill_path: str,
+    token: Optional[str],
+) -> dict[str, str]:
+    """Fallback: collect file SHAs using Contents API (recursive directory listing)."""
+    shas: dict[str, str] = {}
+
+    async def _walk(rel_path: str):
+        full_path = f"{skill_path}/{rel_path}".rstrip("/") if skill_path else rel_path.rstrip("/")
+        if not full_path:
+            full_path = skill_path or ""
+        try:
+            contents = await _fetch_github_contents(owner, repo, branch, full_path, token)
+        except Exception:
+            return
+        if isinstance(contents, dict):
+            contents = [contents]
+        for item in contents:
+            item_name = item.get("name", "")
+            item_rel = f"{rel_path}/{item_name}".lstrip("/") if rel_path else item_name
+            if item.get("type") == "file" and item.get("sha"):
+                shas[item_rel] = item["sha"]
+            elif item.get("type") == "dir":
+                await _walk(item_rel)
+
+    await _walk("")
+    return shas
+
+
+async def _compare_skill_shas(
+    skill,
+    remote_shas: dict[str, str],
+    db: AsyncSession,
+) -> bool:
+    """Compare local skill files against remote SHAs. Returns True if there's an update."""
+    from app.db.models import SkillVersionDB, SkillFileDB
+
+    if not skill.current_version:
+        return bool(remote_shas)
+
+    # Get current version
+    stmt = sa_select(SkillVersionDB).where(
+        SkillVersionDB.skill_id == skill.id,
+        SkillVersionDB.version == skill.current_version,
+    )
+    result = await db.execute(stmt)
+    version = result.scalar_one_or_none()
+    if not version:
+        return bool(remote_shas)
+
+    # Build local SHA map
+    local_shas: dict[str, str] = {}
+
+    # SKILL.md
+    if version.skill_md:
+        local_shas["SKILL.md"] = _git_blob_sha(version.skill_md.encode("utf-8"))
+
+    # Other files
+    stmt = sa_select(SkillFileDB).where(SkillFileDB.version_id == version.id)
+    result = await db.execute(stmt)
+    files = result.scalars().all()
+    for f in files:
+        if f.content:
+            local_shas[f.file_path] = _git_blob_sha(f.content)
+
+    # Compare: filter remote to only files we care about (skip hidden, __pycache__, etc.)
+    filtered_remote: dict[str, str] = {}
+    for path, sha in remote_shas.items():
+        # Skip hidden files/dirs
+        parts = path.split("/")
+        if any(p.startswith(".") for p in parts):
+            continue
+        if any(p == "__pycache__" for p in parts):
+            continue
+        # Skip compiled artifacts
+        if path.endswith((".pyc", ".pyo", ".class", ".o", ".so", ".dll")):
+            continue
+        filtered_remote[path] = sha
+
+    # Any difference in keys or SHA values means update available
+    if set(local_shas.keys()) != set(filtered_remote.keys()):
+        return True
+
+    for path, local_sha in local_shas.items():
+        if filtered_remote.get(path) != local_sha:
+            return True
+
+    return False
+
+
 @router.post("/skills/{name}/update-from-github", response_model=UpdateFromSourceResponse)
 async def update_skill_from_github(
     name: str,

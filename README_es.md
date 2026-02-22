@@ -30,7 +30,7 @@ Sin grafos de flujo. Sin CLI.
 ## Capacidades Clave
 
 - 🧩 **Habilidades como artefactos de primera clase** — paquetes de habilidades versionados y revisables (contratos, referencias, rúbricas, helpers), no grafos frágiles.
-- 🧠 **Flujo de trabajo "Skill-Compose My Agent"** — describe lo que necesitas; Skill Compose encuentra/reutiliza habilidades, redacta las faltantes y compone un agente.
+- 🧠 **Flujo de trabajo "Compose My Agent"** — describe lo que necesitas; Skill Compose encuentra/reutiliza habilidades, redacta las faltantes y compone un agente.
 - 🔌 **Conexión de herramientas + MCP** — conecta herramientas y servidores MCP sin escribir código de integración manualmente.
 - 🚀 **Publicación instantánea** — un clic para desplegar como **Chat Web** (enlace compartible) y/o **API** (endpoint listo para integraciones).
 - 🛡️ **Aislamiento con contenedores** — ejecuta agentes en contenedores (o pods de K8s) para mantener el host limpio y la ejecución reproducible.
@@ -44,9 +44,9 @@ Sin grafos de flujo. Sin CLI.
 <table>
 <tr>
 <td align="center">
-<b>Skill-Compose Tu Agente</b><br>
+<b>Compón tu Agente</b><br>
 <sub>Describe lo que necesitas y deja que Skill Compose construya el agente por ti — encontrando habilidades existentes, redactando las faltantes y conectando todo.</sub><br><br>
-<img src="docs/examples/skill-compose-your-agent.gif" alt="Skill-Compose Tu Agente" width="100%" />
+<img src="docs/examples/skill-compose-your-agent.gif" alt="Compón tu Agente" width="100%" />
 </td>
 </tr>
 <tr>
@@ -93,7 +93,7 @@ cp .env.example .env
 docker compose up -d
 ```
 
-Abre **http://localhost:62600** y haz clic en **"Skill-Compose Your Agent"**.
+Abre **http://localhost:62600** y haz clic en **"Compose Your Agent"**.
 
 Detener servicios:
 

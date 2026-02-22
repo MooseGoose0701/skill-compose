@@ -30,7 +30,7 @@ Skill Compose は、スキル駆動型エージェントのためのオープン
 ## 主な機能
 
 - 🧩 **スキルをファーストクラスの成果物として** — バージョン管理・レビュー可能なスキルパッケージ（コントラクト、参考資料、ルーブリック、ヘルパー）。脆いグラフではありません。
-- 🧠 **「Skill-Compose My Agent」ワークフロー** — 必要なものを記述するだけで、Skill Compose がスキルを検索・再利用し、不足分を起草してエージェントを構成します。
+- 🧠 **「Compose My Agent」ワークフロー** — 必要なものを記述するだけで、Skill Compose がスキルを検索・再利用し、不足分を起草してエージェントを構成します。
 - 🔌 **ツール + MCP 接続** — グルーコードを手書きせずにツールや MCP サーバーを接続。
 - 🚀 **ワンクリック公開** — **Web チャット**（共有リンク）や **API**（統合用エンドポイント）としてワンクリックでデプロイ。
 - 🛡️ **コンテナファーストの分離** — コンテナ（または K8s Pod）でエージェントを実行し、ホストをクリーンに保ち、再現性のある実行を実現。
@@ -44,9 +44,9 @@ Skill Compose は、スキル駆動型エージェントのためのオープン
 <table>
 <tr>
 <td align="center">
-<b>Skill-Compose でエージェントを構築</b><br>
+<b>エージェントを組み立てる</b><br>
 <sub>必要なものを記述するだけで、Skill Compose がエージェントを構築します — 既存スキルの検索、不足スキルの起草、すべての接続を自動で行います。</sub><br><br>
-<img src="docs/examples/skill-compose-your-agent.gif" alt="Skill-Compose でエージェントを構築" width="100%" />
+<img src="docs/examples/skill-compose-your-agent.gif" alt="エージェントを組み立てる" width="100%" />
 </td>
 </tr>
 <tr>
@@ -93,7 +93,7 @@ cp .env.example .env
 docker compose up -d
 ```
 
-**http://localhost:62600** を開き、**「Skill-Compose Your Agent」** をクリックしてください。
+**http://localhost:62600** を開き、**「Compose Your Agent」** をクリックしてください。
 
 サービスの停止：
 
