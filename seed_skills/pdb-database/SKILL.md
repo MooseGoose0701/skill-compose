@@ -38,7 +38,7 @@ print(f"Found {len(results)} structures")
 **Attribute Search:** Query specific properties (organism, resolution, method, etc.)
 ```python
 from rcsbapi.search import AttributeQuery
-from rcsbapi.search.attrs import rcsb_entity_source_organism, rcsb_entry_info
+from rcsbapi.search.attrs import rcsb_entity_source_organism
 
 # Find human protein structures
 query = AttributeQuery(
@@ -75,7 +75,7 @@ results = list(query())
 **Combining Queries:** Use logical operators to build complex searches
 ```python
 from rcsbapi.search import TextQuery, AttributeQuery
-from rcsbapi.search.attrs import rcsb_entity_source_organism, rcsb_entry_info
+from rcsbapi.search.attrs import rcsb_entry_info
 
 # High-resolution human proteins
 query1 = AttributeQuery(
@@ -202,127 +202,6 @@ print(f"Method: {method}")
 print(f"Deposited: {deposition_date}")
 ```
 
-**Extract Sequence from PDB File:**
-```python
-import requests
-
-def extract_sequence_from_pdb(pdb_id):
-    """Extract protein sequence directly from PDB file without external libraries."""
-    url = f"https://files.rcsb.org/download/{pdb_id}.pdb"
-    response = requests.get(url)
-    
-    sequences = {}
-    current_chain = None
-    current_seq = []
-    
-    for line in response.text.split('\n'):
-        if line.startswith('SEQRES'):
-            chain = line[11]
-            if chain != current_chain:
-                if current_chain:
-                    sequences[current_chain] = ''.join(current_seq)
-                current_chain = chain
-                current_seq = []
-            # Extract 3-letter codes and convert to 1-letter
-            residues = line[19:70].split()
-            for res in residues:
-                # 3-letter to 1-letter amino acid code mapping
-                aa_map = {
-                    'ALA': 'A', 'CYS': 'C', 'ASP': 'D', 'GLU': 'E', 'PHE': 'F',
-                    'GLY': 'G', 'HIS': 'H', 'ILE': 'I', 'LYS': 'K', 'LEU': 'L',
-                    'MET': 'M', 'ASN': 'N', 'PRO': 'P', 'GLN': 'Q', 'ARG': 'R',
-                    'SER': 'S', 'THR': 'T', 'VAL': 'V', 'TRP': 'W', 'TYR': 'Y'
-                }
-                if res in aa_map:
-                    current_seq.append(aa_map[res])
-    
-    if current_chain:
-        sequences[current_chain] = ''.join(current_seq)
-    
-    return sequences
-
-# Example usage
-seqs = extract_sequence_from_pdb("4HHB")
-for chain, seq in seqs.items():
-    print(f"Chain {chain}: {seq[:50]}...")
-```
-
-**Identify and Extract Ligand Information:**
-```python
-import requests
-
-def get_ligand_info(pdb_id):
-    """Extract ligand/drug information from a PDB structure."""
-    url = f"https://files.rcsb.org/download/{pdb_id}.pdb"
-    response = requests.get(url)
-    
-    ligands = {}
-    het_atoms = []
-    
-    for line in response.text.split('\n'):
-        if line.startswith('HETATM'):
-            res_name = line[17:20].strip()
-            chain = line[21]
-            res_num = line[22:26].strip()
-            ligand_id = f"{res_name}_{chain}{res_num}"
-            
-            if res_name not in ['HOH', 'WAT', 'DOD']:  # Skip water
-                if ligand_id not in ligands:
-                    ligands[ligand_id] = {
-                        'name': res_name,
-                        'chain': chain,
-                        'residue_number': res_num,
-                        'atoms': []
-                    }
-                ligands[ligand_id]['atoms'].append({
-                    'atom_name': line[12:16].strip(),
-                    'x': float(line[30:38]),
-                    'y': float(line[38:46]),
-                    'z': float(line[46:54])
-                })
-    
-    return ligands
-
-# Example usage
-ligands = get_ligand_info("5KIR")  # COX-2 with celecoxib
-for lig_id, info in ligands.items():
-    print(f"Ligand: {info['name']} (Chain {info['chain']}, Res {info['residue_number']})")
-    print(f"  Atoms: {len(info['atoms'])}")
-```
-
-**Retrieve Ligand Chemical Data from PDB:**
-```python
-from rcsbapi.data import fetch, Schema
-
-def get_ligand_chemical_data(pdb_id, ligand_name):
-    """Get chemical information about a ligand from PDB data API."""
-    # Fetch entry data
-    entry_data = fetch(pdb_id, schema=Schema.ENTRY)
-    
-    # Look for non-polymer entities (ligands)
-    ligand_info = None
-    for entity in entry_data.get('rcsb_nonpolymer_entity', []):
-        if entity.get('chem_comp', {}).get('id') == ligand_name:
-            ligand_info = {
-                'name': entity.get('chem_comp', {}).get('name'),
-                'formula': entity.get('chem_comp', {}).get('formula'),
-                'molecular_weight': entity.get('chem_comp', {}).get('formula_weight'),
-                'smiles': entity.get('rcsb_chem_comp_descriptor', {}).get('smiles'),
-                'inchi': entity.get('rcsb_chem_comp_descriptor', {}).get('inchi'),
-                'inchikey': entity.get('rcsb_chem_comp_descriptor', {}).get('inchikey')
-            }
-            break
-    
-    return ligand_info
-
-# Example: Get celecoxib data from COX-2 structure
-ligand_data = get_ligand_chemical_data("5KIR", "RCX")
-if ligand_data:
-    print(f"Name: {ligand_data['name']}")
-    print(f"Formula: {ligand_data['formula']}")
-    print(f"SMILES: {ligand_data['smiles']}")
-```
-
 ### 5. Batch Operations
 
 Process multiple structures efficiently:
@@ -372,103 +251,6 @@ The `rcsb-api` package provides unified access to both Search and Data APIs thro
 - Analyze ligand binding sites
 - Compare protein-ligand complexes
 - Identify similar binding pockets
-
-### Structure with Ligand Analysis Workflow
-A common workflow for drug discovery research involves analyzing a protein structure with its bound ligand:
-
-```python
-import requests
-from rcsbapi.data import fetch, Schema
-
-def analyze_protein_ligand_complex(pdb_id):
-    """
-    Complete workflow: Get protein structure, identify ligands, 
-    extract sequences, and retrieve chemical data.
-    """
-    results = {
-        'pdb_id': pdb_id,
-        'protein': {},
-        'ligands': [],
-        'metadata': {}
-    }
-    
-    # 1. Get metadata
-    entry_data = fetch(pdb_id, schema=Schema.ENTRY)
-    results['metadata'] = {
-        'title': entry_data.get('struct', {}).get('title'),
-        'resolution': entry_data.get('rcsb_entry_info', {}).get('resolution_combined'),
-        'method': entry_data.get('exptl', [{}])[0].get('method'),
-        'organism': entry_data.get('rcsb_entity_source_organism', [{}])[0].get('scientific_name')
-    }
-    
-    # 2. Download PDB file
-    pdb_url = f"https://files.rcsb.org/download/{pdb_id}.pdb"
-    pdb_content = requests.get(pdb_url).text
-    
-    # 3. Extract protein sequences
-    sequences = {}
-    current_chain = None
-    current_seq = []
-    aa_map = {
-        'ALA': 'A', 'CYS': 'C', 'ASP': 'D', 'GLU': 'E', 'PHE': 'F',
-        'GLY': 'G', 'HIS': 'H', 'ILE': 'I', 'LYS': 'K', 'LEU': 'L',
-        'MET': 'M', 'ASN': 'N', 'PRO': 'P', 'GLN': 'Q', 'ARG': 'R',
-        'SER': 'S', 'THR': 'T', 'VAL': 'V', 'TRP': 'W', 'TYR': 'Y'
-    }
-    
-    for line in pdb_content.split('\n'):
-        if line.startswith('SEQRES'):
-            chain = line[11]
-            if chain != current_chain:
-                if current_chain:
-                    sequences[current_chain] = ''.join(current_seq)
-                current_chain = chain
-                current_seq = []
-            residues = line[19:70].split()
-            for res in residues:
-                if res in aa_map:
-                    current_seq.append(aa_map[res])
-    
-    if current_chain:
-        sequences[current_chain] = ''.join(current_seq)
-    results['protein']['sequences'] = sequences
-    
-    # 4. Identify ligands (hetero atoms excluding water)
-    ligands_found = set()
-    for line in pdb_content.split('\n'):
-        if line.startswith('HETATM'):
-            res_name = line[17:20].strip()
-            if res_name not in ['HOH', 'WAT', 'DOD']:
-                ligands_found.add(res_name)
-    
-    # 5. Get ligand chemical data
-    for ligand_name in ligands_found:
-        for entity in entry_data.get('rcsb_nonpolymer_entity', []):
-            if entity.get('chem_comp', {}).get('id') == ligand_name:
-                ligand_info = {
-                    'pdb_code': ligand_name,
-                    'name': entity.get('chem_comp', {}).get('name'),
-                    'formula': entity.get('chem_comp', {}).get('formula'),
-                    'molecular_weight': entity.get('chem_comp', {}).get('formula_weight'),
-                    'smiles': entity.get('rcsb_chem_comp_descriptor', {}).get('smiles'),
-                    'inchikey': entity.get('rcsb_chem_comp_descriptor', {}).get('inchikey')
-                }
-                results['ligands'].append(ligand_info)
-                break
-    
-    return results
-
-# Example: Analyze COX-2 with celecoxib
-analysis = analyze_protein_ligand_complex("5KIR")
-print(f"Structure: {analysis['metadata']['title']}")
-print(f"Resolution: {analysis['metadata']['resolution']} Å")
-print(f"\nProtein chains: {list(analysis['protein']['sequences'].keys())}")
-print(f"\nLigands found:")
-for lig in analysis['ligands']:
-    print(f"  - {lig['pdb_code']}: {lig['name']} (MW: {lig['molecular_weight']})")
-    if lig.get('smiles'):
-        print(f"    SMILES: {lig['smiles'][:50]}...")
-```
 
 ### Protein Engineering
 - Find homologous structures for modeling
