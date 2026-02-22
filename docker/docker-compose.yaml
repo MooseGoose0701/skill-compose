@@ -185,6 +185,9 @@ services:
     environment:
       - EXECUTOR_NAME=base
       - EXECUTOR_PORT=62680
+      - SKILLS_DIR=/app/skills
+      - UPLOADS_DIR=/app/uploads
+      - DATA_DIR=/app/data
       - TZ=${TZ:-UTC}
     networks:
       - skills-network
@@ -212,6 +215,9 @@ services:
     environment:
       - EXECUTOR_NAME=ml
       - EXECUTOR_PORT=62681
+      - SKILLS_DIR=/app/skills
+      - UPLOADS_DIR=/app/uploads
+      - DATA_DIR=/app/data
       - TZ=${TZ:-UTC}
     networks:
       - skills-network
@@ -239,6 +245,9 @@ services:
     environment:
       - EXECUTOR_NAME=cuda
       - EXECUTOR_PORT=62682
+      - SKILLS_DIR=/app/skills
+      - UPLOADS_DIR=/app/uploads
+      - DATA_DIR=/app/data
       - TZ=${TZ:-UTC}
       - NVIDIA_VISIBLE_DEVICES=all
     networks:
@@ -259,6 +268,66 @@ services:
               count: 1
               capabilities: [gpu]
 
+  executor-chemscout:
+    image: skillcompose/executor-chemscout:latest
+    container_name: skills-executor-chemscout
+    restart: unless-stopped
+    profiles:
+      - chemscout
+    volumes:
+      - workspaces:/app/workspaces
+      - skills:/app/skills:ro
+      - uploads:/app/uploads:ro
+    environment:
+      - EXECUTOR_NAME=chemscout
+      - EXECUTOR_PORT=62680
+      - SKILLS_DIR=/app/skills
+      - UPLOADS_DIR=/app/uploads
+      - DATA_DIR=/app/data
+      - TZ=${TZ:-UTC}
+    networks:
+      - skills-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:62680/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+
+  executor-remotion:
+    image: skillcompose/executor-remotion:latest
+    container_name: skills-executor-remotion
+    restart: unless-stopped
+    profiles:
+      - remotion
+    volumes:
+      - workspaces:/app/workspaces
+      - skills:/app/skills:ro
+      - uploads:/app/uploads:ro
+    environment:
+      - EXECUTOR_NAME=remotion
+      - EXECUTOR_PORT=62680
+      - SKILLS_DIR=/app/skills
+      - UPLOADS_DIR=/app/uploads
+      - DATA_DIR=/app/data
+      - TZ=${TZ:-UTC}
+    networks:
+      - skills-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:62680/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 8G
+
   executor-diagram:
     image: skillcompose/executor-diagram:latest
     container_name: skills-executor-diagram
@@ -272,6 +341,9 @@ services:
     environment:
       - EXECUTOR_NAME=diagram
       - EXECUTOR_PORT=62680
+      - SKILLS_DIR=/app/skills
+      - UPLOADS_DIR=/app/uploads
+      - DATA_DIR=/app/data
       - TZ=${TZ:-UTC}
     networks:
       - skills-network

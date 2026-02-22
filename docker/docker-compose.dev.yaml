@@ -211,6 +211,9 @@ services:
     environment:
       - EXECUTOR_NAME=base
       - EXECUTOR_PORT=62680
+      - SKILLS_DIR=/app/skills
+      - UPLOADS_DIR=/app/uploads
+      - DATA_DIR=/app/data
       - TZ=${TZ:-UTC}
     networks:
       - skills-network
@@ -241,6 +244,9 @@ services:
     environment:
       - EXECUTOR_NAME=ml
       - EXECUTOR_PORT=62681
+      - SKILLS_DIR=/app/skills
+      - UPLOADS_DIR=/app/uploads
+      - DATA_DIR=/app/data
       - TZ=${TZ:-UTC}
     networks:
       - skills-network
@@ -271,6 +277,9 @@ services:
     environment:
       - EXECUTOR_NAME=cuda
       - EXECUTOR_PORT=62682
+      - SKILLS_DIR=/app/skills
+      - UPLOADS_DIR=/app/uploads
+      - DATA_DIR=/app/data
       - TZ=${TZ:-UTC}
       - NVIDIA_VISIBLE_DEVICES=all
     networks:
@@ -308,6 +317,9 @@ services:
     environment:
       - EXECUTOR_NAME=chemscout
       - EXECUTOR_PORT=62680
+      - SKILLS_DIR=/app/skills
+      - UPLOADS_DIR=/app/uploads
+      - DATA_DIR=/app/data
       - TZ=${TZ:-UTC}
     networks:
       - skills-network
@@ -339,6 +351,9 @@ services:
     environment:
       - EXECUTOR_NAME=remotion
       - EXECUTOR_PORT=62680
+      - SKILLS_DIR=/app/skills
+      - UPLOADS_DIR=/app/uploads
+      - DATA_DIR=/app/data
       - TZ=${TZ:-UTC}
     networks:
       - skills-network
@@ -370,6 +385,9 @@ services:
     environment:
       - EXECUTOR_NAME=diagram
       - EXECUTOR_PORT=62680
+      - SKILLS_DIR=/app/skills
+      - UPLOADS_DIR=/app/uploads
+      - DATA_DIR=/app/data
       - TZ=${TZ:-UTC}
     networks:
       - skills-network
