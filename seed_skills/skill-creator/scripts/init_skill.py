@@ -17,7 +17,7 @@ from pathlib import Path
 
 SKILL_TEMPLATE = """---
 name: {skill_name}
-description: {skill_description}
+description: [TODO: Complete and informative explanation of what the skill does and when to use it. Include WHEN to use this skill - specific scenarios, file types, or tasks that trigger it.]
 ---
 
 # {skill_title}
@@ -191,14 +191,13 @@ def title_case_skill_name(skill_name):
     return ' '.join(word.capitalize() for word in skill_name.split('-'))
 
 
-def init_skill(skill_name, path, description=None):
+def init_skill(skill_name, path):
     """
     Initialize a new skill directory with template SKILL.md.
 
     Args:
         skill_name: Name of the skill
         path: Path where the skill directory should be created
-        description: Optional description to populate in SKILL.md
 
     Returns:
         Path to created skill directory, or None if error
@@ -221,11 +220,9 @@ def init_skill(skill_name, path, description=None):
 
     # Create SKILL.md from template
     skill_title = title_case_skill_name(skill_name)
-    default_description = "[TODO: Complete and informative explanation of what the skill does and when to use it. Include WHEN to use this skill - specific scenarios, file types, or tasks that trigger it.]"
     skill_content = SKILL_TEMPLATE.format(
         skill_name=skill_name,
-        skill_title=skill_title,
-        skill_description=description if description else default_description
+        skill_title=skill_title
     )
 
     skill_md_path = skill_dir / 'SKILL.md'
@@ -274,46 +271,27 @@ def init_skill(skill_name, path, description=None):
 
 
 def main():
-    # Parse arguments
-    args = sys.argv[1:]
-    skill_name = None
-    path = None
-    description = None
-
-    i = 0
-    while i < len(args):
-        if args[i] == '--path' and i + 1 < len(args):
-            path = args[i + 1]
-            i += 2
-        elif args[i] == '--description' and i + 1 < len(args):
-            description = args[i + 1]
-            i += 2
-        elif not skill_name and not args[i].startswith('--'):
-            skill_name = args[i]
-            i += 1
-        else:
-            i += 1
-
-    if not skill_name or not path:
-        print("Usage: init_skill.py <skill-name> --path <path> [--description <description>]")
+    if len(sys.argv) < 4 or sys.argv[2] != '--path':
+        print("Usage: init_skill.py <skill-name> --path <path>")
         print("\nSkill name requirements:")
-        print("  - Hyphen-case identifier (e.g., 'data-analyzer')")
+        print("  - Kebab-case identifier (e.g., 'my-data-analyzer')")
         print("  - Lowercase letters, digits, and hyphens only")
-        print("  - Max 40 characters")
+        print("  - Max 64 characters")
         print("  - Must match directory name exactly")
         print("\nExamples:")
         print("  init_skill.py my-new-skill --path skills/public")
-        print("  init_skill.py my-api-helper --path skills/private --description 'A skill to help with APIs'")
+        print("  init_skill.py my-api-helper --path skills/private")
         print("  init_skill.py custom-skill --path /custom/location")
         sys.exit(1)
 
+    skill_name = sys.argv[1]
+    path = sys.argv[3]
+
     print(f"🚀 Initializing skill: {skill_name}")
     print(f"   Location: {path}")
-    if description:
-        print(f"   Description: {description}")
     print()
 
-    result = init_skill(skill_name, path, description)
+    result = init_skill(skill_name, path)
 
     if result:
         sys.exit(0)

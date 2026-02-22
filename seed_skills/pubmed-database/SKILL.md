@@ -24,25 +24,6 @@ This skill should be used when:
 - Working with PMIDs (PubMed IDs) or DOIs
 - Creating automated workflows for literature monitoring or data extraction
 
-## Environment Requirements
-
-**No API key required.** PubMed E-utilities API is free and public. The only requirement is setting an email address — this is a courtesy field required by NCBI policy, **not verified or authenticated** (any string works). An optional NCBI API key increases rate limits from 3 to 10 requests/second, free to obtain at https://www.ncbi.nlm.nih.gov/account/settings/.
-
-**Setting email in Python (Bio.Entrez):**
-```python
-from Bio import Entrez
-Entrez.email = "user@example.com"  # Any email, not verified by NCBI
-```
-
-**Setting email in direct REST API calls:**
-```python
-params = {
-    "db": "pubmed",
-    "term": "your query",
-    "email": "user@example.com"  # Add to request params
-}
-```
-
 ## Core Capabilities
 
 ### 1. Advanced Search Query Construction
