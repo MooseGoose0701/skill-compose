@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Download, FileText } from "lucide-react";
+import { Download, FileText, Maximize2, Minimize2 } from "lucide-react";
 import { formatFileSize } from "@/lib/formatters";
 import {
   Dialog,
@@ -28,6 +28,9 @@ const AUDIO_TYPES = new Set([
 function isImage(ct: string) { return IMAGE_TYPES.has(ct); }
 function isVideo(ct: string) { return VIDEO_TYPES.has(ct); }
 function isAudio(ct: string) { return AUDIO_TYPES.has(ct); }
+function isHtml(ct: string, filename: string) {
+  return ct === "text/html" || filename.endsWith(".html") || filename.endsWith(".htm");
+}
 
 function FileInfo({ filename, size, downloadUrl }: { filename: string; size: number; downloadUrl: string }) {
   return (
@@ -102,6 +105,54 @@ export function OutputFileCard({ data }: OutputFileCardProps) {
           <source src={url} type={ct} />
         </audio>
       </div>
+    );
+  }
+
+  if (isHtml(ct, data.filename)) {
+    return (
+      <>
+        <div className="my-1.5">
+          <div className="relative border rounded-lg overflow-hidden bg-black">
+            <iframe
+              src={url}
+              title={data.filename}
+              sandbox="allow-scripts allow-same-origin"
+              className="w-full border-0"
+              style={{ height: 480, maxWidth: "100%" }}
+            />
+            <button
+              onClick={() => setLightboxOpen(true)}
+              className="absolute top-2 right-2 p-1.5 rounded-md bg-black/60 hover:bg-black/80 text-white transition-colors"
+              title="Fullscreen"
+            >
+              <Maximize2 className="h-4 w-4" />
+            </button>
+          </div>
+          <FileInfo filename={data.filename} size={data.size} downloadUrl={url} />
+        </div>
+        <Dialog open={lightboxOpen} onOpenChange={setLightboxOpen}>
+          <DialogContent className="max-w-[95vw] max-h-[95vh] w-[95vw] h-[90vh] p-0 border-none bg-black">
+            <VisuallyHidden>
+              <DialogTitle>{data.filename}</DialogTitle>
+            </VisuallyHidden>
+            <div className="relative w-full h-full">
+              <iframe
+                src={url}
+                title={data.filename}
+                sandbox="allow-scripts allow-same-origin"
+                className="w-full h-full border-0"
+              />
+              <button
+                onClick={() => setLightboxOpen(false)}
+                className="absolute top-3 right-3 p-1.5 rounded-md bg-black/60 hover:bg-black/80 text-white transition-colors"
+                title="Exit fullscreen"
+              >
+                <Minimize2 className="h-4 w-4" />
+              </button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      </>
     );
   }
 

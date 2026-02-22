@@ -179,6 +179,17 @@ async def download_output_file_by_path(
 
     content_type = mimetypes.guess_type(filepath.name)[0] or "application/octet-stream"
 
+    # Use inline disposition for browser-renderable types (HTML, images, etc.)
+    # so they can be displayed in iframes and img tags instead of triggering download
+    inline_types = {"text/html", "image/png", "image/jpeg", "image/gif", "image/svg+xml",
+                    "image/webp", "video/mp4", "video/webm", "audio/mpeg", "audio/wav"}
+    if content_type in inline_types:
+        return FileResponse(
+            path=str(filepath),
+            media_type=content_type,
+            headers={"Content-Disposition": f'inline; filename="{filepath.name}"'},
+        )
+
     return FileResponse(
         path=str(filepath),
         filename=filepath.name,
