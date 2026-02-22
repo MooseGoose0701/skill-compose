@@ -1,0 +1,72 @@
+# ==============================================================================
+# Executor: Diagram - Mermaid.js Rendering Environment
+# ==============================================================================
+# Extends python:3.11-slim with Node.js 20, Chromium, and @mermaid-js/mermaid-cli
+# for rendering Mermaid diagrams to SVG/PNG.
+#
+# Included tools:
+# - Node.js 20 + npm (mermaid-cli runtime)
+# - Chromium (headless browser for Puppeteer)
+# - mmdc (@mermaid-js/mermaid-cli) — global install
+# - git (for cloning repos to analyze)
+#
+# Included Python packages:
+# - requests, httpx (HTTP clients)
+# - pillow (image processing)
+# ==============================================================================
+
+FROM python:3.11-slim
+
+LABEL org.opencontainers.image.title="Skills Executor - Diagram"
+LABEL org.opencontainers.image.description="Mermaid.js diagram rendering with Node.js, Chromium, mmdc"
+LABEL org.opencontainers.image.version="1.0.0"
+
+WORKDIR /app
+
+# Install system dependencies: Chromium + git
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    git \
+    chromium \
+    # CJK + emoji fonts for international text rendering
+    fonts-noto-cjk \
+    fonts-noto-color-emoji \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Node.js 20 via NodeSource
+RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+    && apt-get install -y nodejs \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install mermaid-cli globally
+RUN npm install -g @mermaid-js/mermaid-cli
+
+# Create puppeteer config for headless/root environments
+RUN echo '{"args":["--no-sandbox","--disable-setuid-sandbox"]}' > /tmp/puppeteer-config.json
+
+# Install executor server dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Install common Python packages
+RUN pip install --no-cache-dir \
+    requests \
+    httpx \
+    pillow
+
+# Copy executor server and kernel module
+COPY executor_server.py .
+COPY ipython_kernel.py .
+
+# Environment
+ENV EXECUTOR_NAME=diagram
+ENV WORKSPACES_DIR=/app/workspaces
+ENV PYTHONUNBUFFERED=1
+ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
+
+# Create workspaces directory
+RUN mkdir -p /app/workspaces
+
+EXPOSE 62680
+
+CMD uvicorn executor_server:app --host 0.0.0.0 --port ${EXECUTOR_PORT:-62680}

@@ -34,6 +34,13 @@
       "url": "http://executor-remotion:62680",
       "memory_limit": "4G",
       "gpu_required": false
+    },
+    "diagram": {
+      "description": "Mermaid.js diagram rendering with Node.js 20, Chromium, mmdc for code-to-diagram",
+      "image": "skillcompose/executor-diagram:latest",
+      "url": "http://executor-diagram:62680",
+      "memory_limit": "4G",
+      "gpu_required": false
     }
   }
 }

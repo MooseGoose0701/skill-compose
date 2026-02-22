@@ -31,8 +31,8 @@ if [ ! -f /app/config/mcp.json ]; then
     echo "Config initialized."
 else
     echo "Config directory already initialized."
-    # Always update seed files (new skills/agents may have been added)
-    for f in seed_agents.json seed_skills.json; do
+    # Always update seed files (new skills/agents/executors may have been added)
+    for f in seed_agents.json seed_skills.json executors.json; do
         if [ -f /app/default-config/$f ]; then
             cp /app/default-config/$f /app/config/$f 2>/dev/null || true
         fi
