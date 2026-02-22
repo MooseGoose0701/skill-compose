@@ -9,6 +9,7 @@ import { ErrorBanner } from '@/components/ui/error-banner';
 import { SkillList } from '@/components/skill/skill-list';
 import { CategoryFilterChips } from '@/components/skill/category-filter-chips';
 import { UnregisteredSkillsBanner } from '@/components/skill/unregistered-skills-banner';
+import { GithubTokenHint } from '@/components/skill/github-token-hint';
 import { useSkills, useCategories } from '@/hooks/use-skills';
 import { useTranslation } from '@/i18n/client';
 import { SKILL_VIEW_MODE_KEY } from '@/lib/constants';
@@ -167,8 +168,9 @@ export default function SkillsPage() {
           )}
         </div>
 
-        {/* Unregistered Skills Banner */}
+        {/* Banners */}
         <UnregisteredSkillsBanner />
+        <GithubTokenHint />
 
         {/* Error State */}
         {error && (

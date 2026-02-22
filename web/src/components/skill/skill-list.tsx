@@ -11,6 +11,7 @@ import { cn } from '@/lib/utils';
 import type { Skill } from '@/types/skill';
 import type { ViewMode } from '@/app/skills/page';
 import { useTranslation } from '@/i18n/client';
+import { useGithubUpdateStatus } from '@/hooks/use-skills';
 
 interface SkillListProps {
   skills: Skill[];
@@ -29,6 +30,14 @@ export function SkillList({
 }: SkillListProps) {
   const { t } = useTranslation('skills');
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set(['__meta__']));
+
+  // Check GitHub update status
+  const githubSkillNames = useMemo(
+    () => skills.filter((s) => s.source?.startsWith('https://github.com')).map((s) => s.name),
+    [skills]
+  );
+  const { data: githubStatus } = useGithubUpdateStatus(githubSkillNames.length > 0);
+  const githubUpdateMap = githubStatus?.results;
 
   // Separate user and meta skills (treat undefined as 'user')
   const userSkills = skills.filter((s) => !s.skill_type || s.skill_type !== 'meta');
@@ -113,7 +122,7 @@ export function SkillList({
   const renderGrid = (items: Skill[]) => (
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
       {items.map((skill) => (
-        <SkillCard key={skill.id} skill={skill} />
+        <SkillCard key={skill.id} skill={skill} hasGithubUpdate={githubUpdateMap?.[skill.name]?.has_update} />
       ))}
     </div>
   );
@@ -121,7 +130,7 @@ export function SkillList({
   const renderList = (items: Skill[]) => (
     <div className="space-y-2">
       {items.map((skill) => (
-        <SkillListItem key={skill.id} skill={skill} />
+        <SkillListItem key={skill.id} skill={skill} hasGithubUpdate={githubUpdateMap?.[skill.name]?.has_update} />
       ))}
     </div>
   );

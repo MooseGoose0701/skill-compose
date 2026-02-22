@@ -9,7 +9,7 @@
     "createFirst": "最初のエージェントを作成",
     "user": "ユーザーエージェント",
     "meta": "メタエージェント",
-    "composeButton": "スキルでエージェントを組み立てる",
+    "composeButton": "エージェントを組み立てる",
     "composeSubtext": "必要に応じてスキルを自動作成！"
   },
   "card": {

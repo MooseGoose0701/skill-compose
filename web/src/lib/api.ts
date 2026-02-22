@@ -381,6 +381,12 @@ export const skillsApi = {
 
     return response.json();
   },
+
+  checkGithubUpdates: async (): Promise<{ results: Record<string, { has_update: boolean }> }> => {
+    return fetchApi('/skills/check-github-updates', {
+      method: 'POST',
+    });
+  },
 };
 
 // Versions API

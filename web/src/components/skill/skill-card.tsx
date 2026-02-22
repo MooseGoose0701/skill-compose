@@ -33,6 +33,7 @@ import type { Skill } from '@/types/skill';
 
 interface SkillCardProps {
   skill: Skill;
+  hasGithubUpdate?: boolean;
 }
 
 const MAX_VISIBLE_TAGS = 3;
@@ -73,7 +74,7 @@ function getIconUrl(iconUrl: string | null, updatedAt?: string): string | null {
   return url;
 }
 
-export function SkillCard({ skill }: SkillCardProps) {
+export function SkillCard({ skill, hasGithubUpdate }: SkillCardProps) {
   const { t } = useTranslation('skills');
   const togglePin = useTogglePin();
   const isMeta = skill.skill_type === 'meta';  // undefined defaults to user
@@ -161,6 +162,12 @@ export function SkillCard({ skill }: SkillCardProps) {
               <div className="flex items-center gap-1">
                 <Tag className="h-3 w-3" />
                 <span>v{skill.current_version}</span>
+                {hasGithubUpdate && (
+                  <span
+                    className="inline-block w-2 h-2 rounded-full bg-amber-400 dark:bg-amber-500"
+                    title={t('card.githubUpdateAvailable')}
+                  />
+                )}
               </div>
             )}
             <div className="flex items-center gap-1">

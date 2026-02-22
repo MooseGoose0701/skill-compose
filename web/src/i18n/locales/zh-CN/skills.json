@@ -53,7 +53,9 @@
     "pinned": "已置顶",
     "metaSkills": "元技能",
     "userSkills": "用户技能",
-    "uncategorized": "其他"
+    "uncategorized": "其他",
+    "githubTokenHint": "设置 GITHUB_TOKEN 以检查 GitHub 上的 Skill 更新并避免 API 速率限制。",
+    "githubTokenHintLink": "前往环境变量设置"
   },
   "card": {
     "version": "v{{version}}",
@@ -61,7 +63,8 @@
     "tags": "标签",
     "noTags": "无标签",
     "pin": "置顶",
-    "unpin": "取消置顶"
+    "unpin": "取消置顶",
+    "githubUpdateAvailable": "GitHub 上有新版本可用"
   },
   "detail": {
     "overview": "概览",

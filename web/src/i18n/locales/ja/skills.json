@@ -53,7 +53,9 @@
     "pinned": "ピン留め",
     "metaSkills": "メタスキル",
     "userSkills": "ユーザースキル",
-    "uncategorized": "その他"
+    "uncategorized": "その他",
+    "githubTokenHint": "GITHUB_TOKEN を設定すると、GitHub 上のスキル更新を確認でき、API レート制限を回避できます。",
+    "githubTokenHintLink": "環境変数設定へ"
   },
   "card": {
     "version": "v{{version}}",
@@ -61,7 +63,8 @@
     "tags": "タグ",
     "noTags": "タグなし",
     "pin": "トップに固定",
-    "unpin": "固定を解除"
+    "unpin": "固定を解除",
+    "githubUpdateAvailable": "GitHub に新しいバージョンがあります"
   },
   "detail": {
     "overview": "概要",
