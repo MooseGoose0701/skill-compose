@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { FileText, Pin, ChevronRight } from 'lucide-react';
+import { FileText, Pin, ChevronRight, Settings2 } from 'lucide-react';
 import { SkillCard } from './skill-card';
 import { SkillListItem } from './skill-list-item';
 import { LoadingSkeleton } from '@/components/ui/loading-skeleton';
@@ -29,7 +29,7 @@ export function SkillList({
   allCategories = [],
 }: SkillListProps) {
   const { t } = useTranslation('skills');
-  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set(['__meta__']));
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
 
   // Check GitHub update status
   const githubSkillNames = useMemo(
@@ -137,38 +137,10 @@ export function SkillList({
 
   const renderItems = viewMode === 'grid' ? renderGrid : renderList;
 
-  const isMetaCollapsed = collapsedGroups.has('__meta__');
   const shouldGroupCategories = groupByCategory && categoryGroups && categoryGroups.size > 0;
 
   return (
     <div className="space-y-8">
-      {/* Meta Skills — distinct container, collapsed by default */}
-      {sortedMetaSkills.length > 0 && (
-        <div className="rounded-lg border border-dashed border-border bg-muted/40 dark:bg-muted/20 dark:ring-1 dark:ring-white/[0.04]">
-          <button
-            onClick={() => toggleGroup('__meta__')}
-            aria-expanded={!isMetaCollapsed}
-            className="flex items-center gap-2 w-full text-left px-4 py-3 text-base font-semibold text-muted-foreground hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded-lg"
-          >
-            <ChevronRight
-              className={cn(
-                'h-4 w-4 flex-shrink-0 transition-transform duration-200 motion-reduce:transition-none',
-                !isMetaCollapsed && 'rotate-90'
-              )}
-            />
-            <span>{t('list.metaSkills')}</span>
-            <Badge variant="secondary" className="text-xs font-normal tabular-nums">
-              {sortedMetaSkills.length}
-            </Badge>
-          </button>
-          {!isMetaCollapsed && (
-            <div className="px-4 pb-4">
-              {renderItems(sortedMetaSkills)}
-            </div>
-          )}
-        </div>
-      )}
-
       {/* Pinned User Skills */}
       {pinnedUserSkills.length > 0 && (
         <div>
@@ -218,6 +190,17 @@ export function SkillList({
             {renderItems(unpinnedUserSkills)}
           </div>
         )
+      )}
+
+      {/* Meta Skills — at the bottom, always visible */}
+      {sortedMetaSkills.length > 0 && (
+        <div>
+          <h2 className="text-lg font-semibold mb-4 flex items-center gap-2 text-muted-foreground">
+            <Settings2 className="h-4 w-4" />
+            {t('list.metaSkills')}
+          </h2>
+          {renderItems(sortedMetaSkills)}
+        </div>
       )}
     </div>
   );
