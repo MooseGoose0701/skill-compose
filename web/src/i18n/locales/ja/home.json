@@ -66,9 +66,9 @@
     "executions": "実行回数"
   },
   "quickActions": {
-    "browseSkills": {
-      "title": "スキルを閲覧",
-      "description": "スキルライブラリを管理"
+    "findSkills": {
+      "title": "スキルを探す",
+      "description": "skills.sh からスキルを発見"
     },
     "createSkill": {
       "title": "スキルを作成",

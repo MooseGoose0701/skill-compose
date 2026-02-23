@@ -54,8 +54,25 @@
     "metaSkills": "メタスキル",
     "userSkills": "ユーザースキル",
     "uncategorized": "その他",
+    "findSkills": "スキルを探す",
     "githubTokenHint": "GITHUB_TOKEN を設定すると、GitHub 上のスキル更新を確認でき、API レート制限を回避できます。",
     "githubTokenHintLink": "環境変数設定へ"
+  },
+  "find": {
+    "title": "スキルを探す",
+    "emptyTitle": "コミュニティからスキルを探す",
+    "emptyDescription": "skills.sh でコミュニティが作成したスキルを検索し、結果を確認して直接ワークスペースにインストールできます。",
+    "inputPlaceholder": "探しているスキルを説明してください...",
+    "skillsInstalled": "スキルがインストールされました",
+    "hideConfig": "設定を隠す",
+    "showConfig": "設定を表示",
+    "modelLabel": "モデル",
+    "maxTurns": "最大ターン数",
+    "loadingFinder": "スキルファインダーを読み込み中...",
+    "loadingFinderHint": "skill-finder エージェント設定を取得中",
+    "loadError": "スキルファインダーの読み込みに失敗しました",
+    "retry": "再試行",
+    "backToSkills": "スキル一覧に戻る"
   },
   "card": {
     "version": "v{{version}}",

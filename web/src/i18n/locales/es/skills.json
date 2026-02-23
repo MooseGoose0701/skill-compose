@@ -54,8 +54,25 @@
     "metaSkills": "Meta Skills",
     "userSkills": "Skills de Usuario",
     "uncategorized": "Otros",
+    "findSkills": "Buscar Habilidades",
     "githubTokenHint": "Configure un GITHUB_TOKEN para verificar actualizaciones de skills en GitHub y evitar límites de la API.",
     "githubTokenHintLink": "Ir a configuración de entorno"
+  },
+  "find": {
+    "title": "Buscar Habilidades",
+    "emptyTitle": "Encuentra habilidades de la comunidad",
+    "emptyDescription": "Busca habilidades creadas por la comunidad en skills.sh, discute los resultados e instálalas directamente en tu espacio de trabajo.",
+    "inputPlaceholder": "Describe la habilidad que buscas...",
+    "skillsInstalled": "Habilidades instaladas",
+    "hideConfig": "Ocultar Config",
+    "showConfig": "Mostrar Config",
+    "modelLabel": "Modelo",
+    "maxTurns": "Turnos Máx",
+    "loadingFinder": "Cargando Buscador de Habilidades...",
+    "loadingFinderHint": "Obteniendo configuración del agente skill-finder",
+    "loadError": "Error al cargar el Buscador de Habilidades",
+    "retry": "Reintentar",
+    "backToSkills": "Volver a Habilidades"
   },
   "card": {
     "version": "v{{version}}",

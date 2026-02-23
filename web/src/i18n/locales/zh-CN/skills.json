@@ -54,8 +54,25 @@
     "metaSkills": "元技能",
     "userSkills": "用户技能",
     "uncategorized": "其他",
+    "findSkills": "查找技能",
     "githubTokenHint": "设置 GITHUB_TOKEN 以检查 GitHub 上的 Skill 更新并避免 API 速率限制。",
     "githubTokenHintLink": "前往环境变量设置"
+  },
+  "find": {
+    "title": "查找技能",
+    "emptyTitle": "从社区查找技能",
+    "emptyDescription": "搜索 skills.sh 上的社区技能，讨论结果并直接安装到你的工作区。",
+    "inputPlaceholder": "描述你要查找的技能...",
+    "skillsInstalled": "技能已安装",
+    "hideConfig": "隐藏配置",
+    "showConfig": "显示配置",
+    "modelLabel": "模型",
+    "maxTurns": "最大轮次",
+    "loadingFinder": "加载技能查找器...",
+    "loadingFinderHint": "正在获取 skill-finder 代理配置",
+    "loadError": "加载技能查找器失败",
+    "retry": "重试",
+    "backToSkills": "返回技能列表"
   },
   "card": {
     "version": "v{{version}}",

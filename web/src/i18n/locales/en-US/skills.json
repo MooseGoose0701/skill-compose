@@ -54,8 +54,25 @@
     "metaSkills": "Meta Skills",
     "userSkills": "User Skills",
     "uncategorized": "Other",
+    "findSkills": "Find Skills",
     "githubTokenHint": "Set a GITHUB_TOKEN to check for skill updates from GitHub and avoid API rate limits.",
     "githubTokenHintLink": "Go to Environment settings"
+  },
+  "find": {
+    "title": "Find Skills",
+    "emptyTitle": "Find Skills from the Community",
+    "emptyDescription": "Search skills.sh for community-built skills, discuss results, and install them directly into your workspace.",
+    "inputPlaceholder": "Describe the skill you're looking for...",
+    "skillsInstalled": "Skills installed",
+    "hideConfig": "Hide Config",
+    "showConfig": "Show Config",
+    "modelLabel": "Model",
+    "maxTurns": "Max Turns",
+    "loadingFinder": "Loading Skill Finder...",
+    "loadingFinderHint": "Fetching skill-finder agent configuration",
+    "loadError": "Failed to load Skill Finder",
+    "retry": "Retry",
+    "backToSkills": "Back to Skills"
   },
   "card": {
     "version": "v{{version}}",

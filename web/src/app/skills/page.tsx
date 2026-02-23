@@ -95,6 +95,12 @@ export default function SkillsPage() {
             </p>
           </div>
           <div className="flex gap-2">
+            <Link href="/skills/find">
+              <Button variant="outline">
+                <Search className="mr-2 h-4 w-4" />
+                {t('list.findSkills')}
+              </Button>
+            </Link>
             <Link href="/import">
               <Button variant="outline">
                 <Upload className="mr-2 h-4 w-4" />
