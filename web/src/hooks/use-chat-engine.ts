@@ -62,11 +62,12 @@ export interface ChatEngineOptions {
 export interface ChatEngineReturn {
   input: string;
   setInput: React.Dispatch<React.SetStateAction<string>>;
-  handleSubmit: () => Promise<void>;
+  handleSubmit: (overrideMessage?: string) => Promise<void>;
   handleStop: () => void;
   handleKeyDown: (e: React.KeyboardEvent) => void;
   handleFileUpload: (e: React.ChangeEvent<HTMLInputElement>) => Promise<void>;
   handleRemoveFile: (fileId: string) => Promise<void>;
+  handleRespond: (promptId: string, answer: string) => void;
   streamingContent: string | null;
   streamingEvents: StreamEventRecord[];
   streamingMessageId: string | null;
@@ -99,6 +100,10 @@ export function useChatEngine(options: ChatEngineOptions): ChatEngineReturn {
   // Stable refs to avoid stale closures in callbacks
   const adapterRef = React.useRef(options);
   adapterRef.current = options;
+  // Ref for handleSubmit so handleRespond can call it without circular dependency
+  const handleSubmitRef = React.useRef<(overrideMessage?: string) => Promise<void>>(async () => {});
+  // Pending ask_user response queued while a run was still in progress
+  const pendingAskUserResponseRef = React.useRef<string | null>(null);
 
   const handleSteer = React.useCallback(async (message: string) => {
     const traceId = currentTraceIdRef.current;
@@ -127,13 +132,26 @@ export function useChatEngine(options: ChatEngineOptions): ChatEngineReturn {
     }
   }, []);
 
-  const handleSubmit = React.useCallback(async () => {
-    if (!input.trim()) return;
+  const handleRespond = React.useCallback((_promptId: string, answer: string) => {
+    // ask_user ends the agent run; user's answer is sent as a new chat message.
+    // If the run is still completing (isRunning=true), queue the response
+    // to be processed after the run finishes (in handleSubmit's finally block).
+    if (adapterRef.current.messageAdapter.getIsRunning()) {
+      pendingAskUserResponseRef.current = answer;
+    } else {
+      handleSubmitRef.current(answer);
+    }
+  }, []);
+
+  const handleSubmit = React.useCallback(async (overrideMessage?: string) => {
+    const messageText = overrideMessage || input.trim();
+    if (!messageText) return;
     const { messageAdapter: ma, streamAdapter: sa, responseMode: rm = 'streaming', onSessionId: onSid } = adapterRef.current;
 
     // Steering mode: inject message into running agent
     if (ma.getIsRunning() && currentTraceIdRef.current) {
-      await handleSteer(input.trim());
+      await handleSteer(messageText);
+      if (!overrideMessage) setInput("");
       return;
     }
 
@@ -166,7 +184,7 @@ export function useChatEngine(options: ChatEngineOptions): ChatEngineReturn {
     const userMessage: ChatMessage = {
       id: Date.now().toString(),
       role: "user",
-      content: input.trim(),
+      content: messageText,
       timestamp: Date.now(),
       attachedFiles: uploadedFiles.length > 0
         ? uploadedFiles.map((f) => ({ file_id: f.file_id, filename: f.filename }))
@@ -186,7 +204,7 @@ export function useChatEngine(options: ChatEngineOptions): ChatEngineReturn {
 
     ma.addMessage(userMessage);
     ma.addMessage(loadingMessage);
-    setInput("");
+    if (!overrideMessage) setInput("");
     ma.clearUploadedFiles();
     ma.setIsRunning(true);
     setStreamingMessageId(loadingMessageId);
@@ -210,7 +228,20 @@ export function useChatEngine(options: ChatEngineOptions): ChatEngineReturn {
 
         if (result.steps && result.steps.length > 0) {
           for (const step of result.steps) {
-            if (step.tool_name) {
+            if (step.tool_name === 'ask_user') {
+              // Reconstruct ask_user event from the tool call
+              const toolInput = step.tool_input as Record<string, unknown> | undefined;
+              events.push({
+                id: `sync-${eventId++}`,
+                type: 'ask_user',
+                timestamp: now,
+                data: {
+                  promptId: `sync-prompt-${Date.now()}`,
+                  question: (toolInput?.question as string) || '',
+                  options: (toolInput?.options as string[]) || undefined,
+                },
+              });
+            } else if (step.tool_name) {
               events.push({
                 id: `sync-${eventId++}`,
                 type: 'tool_call',
@@ -398,8 +429,19 @@ export function useChatEngine(options: ChatEngineOptions): ChatEngineReturn {
       currentRequestMessagesRef.current = [];
       currentTraceIdRef.current = null;
       currentEventsRef.current = null;
+
+      // Process queued ask_user response (user clicked option while run was completing)
+      const pendingResponse = pendingAskUserResponseRef.current;
+      if (pendingResponse) {
+        pendingAskUserResponseRef.current = null;
+        // Defer to next tick so state cleanup takes effect before starting new run
+        setTimeout(() => handleSubmitRef.current(pendingResponse), 0);
+      }
     }
   }, [input, handleSteer]);
+
+  // Keep ref in sync so handleRespond can call latest handleSubmit
+  handleSubmitRef.current = handleSubmit;
 
   const handleKeyDown = React.useCallback((e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -454,6 +496,7 @@ export function useChatEngine(options: ChatEngineOptions): ChatEngineReturn {
     handleKeyDown,
     handleFileUpload,
     handleRemoveFile,
+    handleRespond,
     streamingContent,
     streamingEvents,
     streamingMessageId,

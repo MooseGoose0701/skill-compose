@@ -375,6 +375,7 @@ export default function FullscreenChatPage() {
                 streamingContent={message.id === engine.streamingMessageId ? engine.streamingContent : null}
                 streamingEvents={message.id === engine.streamingMessageId ? engine.streamingEvents : undefined}
                 streamingOutputFiles={message.id === engine.streamingMessageId ? engine.currentOutputFiles : undefined}
+                onAskUserRespond={engine.handleRespond}
               />
             </div>
           ))
@@ -422,12 +423,12 @@ export default function FullscreenChatPage() {
                 <Button onClick={engine.handleStop} variant="destructive" size="sm">
                   <Square className="h-4 w-4 mr-1" />{t('stop')}
                 </Button>
-                <Button onClick={engine.handleSubmit} disabled={!engine.input.trim()} size="sm">
+                <Button onClick={() => engine.handleSubmit()} disabled={!engine.input.trim()} size="sm">
                   {t('send')}
                 </Button>
               </div>
             ) : (
-              <Button onClick={engine.handleSubmit} disabled={!engine.input.trim()}>{t('send')}</Button>
+              <Button onClick={() => engine.handleSubmit()} disabled={!engine.input.trim()}>{t('send')}</Button>
             )}
           </div>
         </div>

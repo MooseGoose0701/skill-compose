@@ -1,5 +1,6 @@
 "use client";
 
+import React from "react";
 import type { StreamEventRecord } from "@/types/stream-events";
 import { TurnDivider } from "./turn-divider";
 import { ThinkingBlock } from "./thinking-block";
@@ -9,6 +10,7 @@ import { OutputFileCard } from "./output-file-card";
 import { CompleteBanner } from "./complete-banner";
 import { ErrorBanner } from "./error-banner";
 import { SteeringMessage } from "./steering-message";
+import { AskUserCard } from "./ask-user-card";
 
 interface StreamEventsRendererProps {
   events: StreamEventRecord[];
@@ -16,12 +18,14 @@ interface StreamEventsRendererProps {
   expandAll?: boolean;
   /** When true, the last assistant block uses plain text instead of Markdown for performance */
   isStreaming?: boolean;
+  /** Callback when user responds to an ask_user prompt */
+  onAskUserRespond?: (promptId: string, answer: string) => void;
 }
 
 /**
  * Renders a list of stream events as structured UI components
  */
-export function StreamEventsRenderer({ events, expandAll = false, isStreaming = false }: StreamEventsRendererProps) {
+export function StreamEventsRenderer({ events, expandAll = false, isStreaming = false, onAskUserRespond }: StreamEventsRendererProps) {
   // Find the index of the last assistant event for streaming optimization
   let lastAssistantIndex = -1;
   if (isStreaming) {
@@ -61,6 +65,15 @@ export function StreamEventsRenderer({ events, expandAll = false, isStreaming = 
           case 'steering_received':
             return <SteeringMessage key={event.id} data={event.data} />;
 
+          case 'ask_user':
+            return (
+              <AskUserCard
+                key={event.id}
+                data={event.data}
+                onRespond={onAskUserRespond}
+              />
+            );
+
           // run_started and trace_saved don't have visible UI
           case 'run_started':
           case 'trace_saved':
@@ -83,3 +96,4 @@ export { OutputFileCard } from "./output-file-card";
 export { CompleteBanner } from "./complete-banner";
 export { ErrorBanner } from "./error-banner";
 export { SteeringMessage } from "./steering-message";
+export { AskUserCard } from "./ask-user-card";

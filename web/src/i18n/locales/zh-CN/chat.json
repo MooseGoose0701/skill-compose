@@ -127,5 +127,12 @@
       "messagesCount": "{{count}} 条消息",
       "messagesCount_other": "{{count}} 条消息"
     }
+  },
+  "askUser": {
+    "waitingForResponse": "等待您的回复...",
+    "answered": "已回答",
+    "typeAnswer": "输入您的回答...",
+    "submit": "提交",
+    "timedOut": "回复超时"
   }
 }

@@ -127,5 +127,12 @@
       "messagesCount": "{{count}} msg",
       "messagesCount_other": "{{count}} msgs"
     }
+  },
+  "askUser": {
+    "waitingForResponse": "Waiting for your response...",
+    "answered": "Answered",
+    "typeAnswer": "Type your answer...",
+    "submit": "Submit",
+    "timedOut": "Response timed out"
   }
 }

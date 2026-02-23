@@ -15,6 +15,7 @@ import type {
   RunStartedRecord,
   TraceSavedRecord,
   SteeringReceivedRecord,
+  AskUserRecord,
 } from '@/types/stream-events';
 
 let eventIdCounter = 0;
@@ -145,6 +146,18 @@ export function mapEventToRecord(event: StreamEvent): StreamEventRecord | null {
         },
       } as SteeringReceivedRecord;
 
+    case 'ask_user':
+      if (!event.prompt_id || !event.question) return null;
+      return {
+        ...base,
+        type: 'ask_user',
+        data: {
+          promptId: event.prompt_id,
+          question: event.question,
+          options: event.options,
+        },
+      } as AskUserRecord;
+
     default:
       return null;
   }
@@ -236,6 +249,13 @@ export function serializeEventsToText(events: StreamEventRecord[]): string {
 
       case 'steering_received':
         result += `\n🎯 Steering: ${event.data.message}\n`;
+        break;
+
+      case 'ask_user':
+        result += `\n❓ Question: ${event.data.question}\n`;
+        if (event.data.options) {
+          result += `   Options: ${event.data.options.join(' | ')}\n`;
+        }
         break;
 
       // run_started and trace_saved don't produce visible text

@@ -1227,6 +1227,37 @@ Notes:
             "required": ["query"],
         },
     },
+    # Interactive tool
+    {
+        "name": "ask_user",
+        "description": """Ask the user for a decision.
+
+Use this PROACTIVELY when:
+- You need to confirm a decision with the user — e.g., "Should I proceed with installation?"
+- You encounter multiple candidates or possibilities that the user should pick from — e.g., a search returns several matching skills, a dataset has multiple date columns, there are several files that could be the target. Present them as options instead of guessing.
+
+Examples:
+- ask_user(question="Proceed with installation?", options=["yes", "no"])
+- ask_user(question="What format would you like for the output report?")
+- ask_user(question="I found two matching skills. Which one should I use?", options=["data-analyzer", "csv-processor"])""",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "question": {
+                    "type": "string",
+                    "description": "The question to ask the user",
+                },
+                "options": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "minItems": 2,
+                    "maxItems": 6,
+                    "description": "Optional predefined answer choices (rendered as buttons). If omitted, user gets a free text input.",
+                },
+            },
+            "required": ["question"],
+        },
+    },
 ]
 
 # Legacy TOOLS list for backward compatibility (includes all MCP tools by default)
@@ -1634,6 +1665,7 @@ TOOL_REQUIRED_PARAMS: Dict[str, List[str]] = {
     "edit": ["file_path", "old_string", "new_string"],
     "web_fetch": ["url", "prompt"],
     "web_search": ["query"],
+    "ask_user": ["question"],
 }
 
 

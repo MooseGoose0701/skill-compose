@@ -523,6 +523,13 @@ Today is {current_date}. Use this date when searching for recent news or time-se
 
 {mcp_tools_section}
 
+### User Interaction
+- ask_user: Ask the user for a decision. Provide predefined options when possible.
+
+**When to use ask_user proactively:**
+- You need to confirm a decision with the user — e.g., "Should I proceed with installation?"
+- You encounter multiple candidates or possibilities that the user needs to pick from — e.g., a search returns several matching skills, a dataset has multiple date columns, or there are several files that could be the target. Present them as options and let the user decide instead of guessing.
+
 ## Workflow
 1. First, list available skills to see what's available
 2. Read relevant skill documentation to learn the API
@@ -1414,6 +1421,94 @@ class SkillsAgent:
                 if self.verbose:
                     print(f"\nTool: {tool_name}")
                     print(f"Input: {json.dumps(tool_call['input'], ensure_ascii=False)[:3000]}")
+
+                # Special-case: ask_user ends the agent run and waits for user's next message
+                if tool_name == "ask_user":
+                    question = tool_call["input"].get("question", "")
+                    ask_options = tool_call["input"].get("options")
+
+                    # Append tool_result to messages so conversation history is coherent
+                    tool_result = json.dumps({
+                        "status": "waiting_for_user",
+                        "question": question,
+                        "options": ask_options,
+                    })
+                    tool_results.append({
+                        "type": "tool_result",
+                        "tool_use_id": tool_call["id"],
+                        "content": tool_result,
+                    })
+                    steps.append(AgentStep(
+                        role="tool",
+                        content=tool_result,
+                        tool_name=tool_name,
+                        tool_input=tool_call["input"],
+                        tool_result=tool_result,
+                    ))
+
+                    if streaming and event_stream is not None:
+                        # Streaming mode: emit ask_user event via SSE
+                        prompt_id = str(uuid.uuid4())
+                        await event_stream.push(StreamEvent(
+                            event_type="ask_user",
+                            turn=turns,
+                            data={
+                                "prompt_id": prompt_id,
+                                "question": question,
+                                "options": ask_options,
+                            }
+                        ))
+                        await event_stream.push(StreamEvent(
+                            event_type="tool_result",
+                            turn=turns,
+                            data={
+                                "tool_name": tool_name,
+                                "tool_input": tool_call["input"],
+                                "tool_result": tool_result[:3000],
+                            }
+                        ))
+
+                    # Append tool_result to messages
+                    messages.append({"role": "user", "content": tool_results})
+                    # Append synthetic assistant message to maintain alternating roles in session
+                    messages.append({
+                        "role": "assistant",
+                        "content": f"[Waiting for user response: {question}]",
+                    })
+
+                    # End the run successfully (both streaming and non-streaming)
+                    final_answer = f"[Waiting for user response: {question}]"
+                    result = AgentResult(
+                        success=True,
+                        answer=final_answer,
+                        steps=steps,
+                        llm_calls=llm_calls,
+                        total_turns=turns,
+                        total_input_tokens=total_input_tokens,
+                        total_output_tokens=total_output_tokens,
+                        skills_used=sorted(used_skills),
+                        output_files=output_files,
+                        final_messages=messages,
+                    )
+                    result.log_file = self._save_log(request, result)
+
+                    if streaming and event_stream is not None:
+                        await event_stream.push(StreamEvent(
+                            event_type="complete",
+                            turn=turns,
+                            data={
+                                "success": True,
+                                "answer": final_answer,
+                                "total_turns": turns,
+                                "total_input_tokens": total_input_tokens,
+                                "total_output_tokens": total_output_tokens,
+                                "skills_used": sorted(used_skills),
+                                "output_files": output_files,
+                                "final_messages": messages,
+                            }
+                        ))
+                        await event_stream.close()
+                    return result
 
                 tool_result = await acall_tool(
                     tool_name,
