@@ -83,20 +83,20 @@
     "copywriting": {
       "category": "Content Creation"
     },
-    "skill-finder": {
-      "category": "Development Tools"
-    },
     "code-to-diagram": {
       "category": "Development Tools"
     },
+    "skill-finder": {
+      "category": "meta"
+    },
     "planning-with-files": {
-      "category": "Automation"
+      "category": "meta"
     },
     "skills-planner": {
-      "category": "Development Tools"
+      "category": "meta"
     },
     "trace-qa": {
-      "category": "Development Tools"
+      "category": "meta"
     },
     "skill-creator": {
       "category": "meta"
