@@ -54,7 +54,8 @@
     "selectModel": "モデルを選択",
     "executor": "エグゼキューター",
     "executorLocal": "ローカル",
-    "executorDescription": "コード実行環境を選択"
+    "executorDescription": "コード実行環境を選択",
+    "executorOfflineWarning": "エクゼキューター \"{{name}}\" がオフラインです。コード実行は失敗します。"
   },
   "files": {
     "title": "ファイル",

@@ -559,12 +559,14 @@ async def _ensure_seed_agents_exist():
                             id, name, description, system_prompt,
                             skill_ids, mcp_servers, builtin_tools,
                             max_turns, model_provider, model_name,
+                            executor_name,
                             is_system, is_published, api_response_mode,
                             created_at, updated_at
                         ) VALUES (
                             :id, :name, :description, :system_prompt,
                             :skill_ids, :mcp_servers, :builtin_tools,
                             :max_turns, :model_provider, :model_name,
+                            :executor_name,
                             :is_system, :is_published, :api_response_mode,
                             :created_at, :updated_at
                         )
@@ -580,6 +582,7 @@ async def _ensure_seed_agents_exist():
                         "max_turns": agent.get("max_turns", 60),
                         "model_provider": agent.get("model_provider"),
                         "model_name": agent.get("model_name"),
+                        "executor_name": agent.get("executor_name"),
                         "is_system": agent.get("is_system", True),
                         "is_published": agent.get("is_published", False),
                         "api_response_mode": agent.get("api_response_mode"),

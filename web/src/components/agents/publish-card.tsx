@@ -1,11 +1,17 @@
 'use client';
 
 import { useState } from 'react';
-import { Globe, Copy, Check, ExternalLink, ChevronDown, Loader2 } from 'lucide-react';
+import { Globe, Copy, Check, ExternalLink, ChevronDown, Loader2, AlertTriangle } from 'lucide-react';
 import { useTranslation } from '@/i18n/client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 
 interface PublishCardProps {
   preset: {
@@ -15,11 +21,13 @@ interface PublishCardProps {
     api_response_mode?: string | null;
   };
   isUnpublishing?: boolean;
+  executorOffline?: boolean;
+  executorName?: string;
   onPublish: () => void;
   onUnpublish: () => void;
 }
 
-export function PublishCard({ preset, isUnpublishing, onPublish, onUnpublish }: PublishCardProps) {
+export function PublishCard({ preset, isUnpublishing, executorOffline, executorName, onPublish, onUnpublish }: PublishCardProps) {
   const { t } = useTranslation('agents');
   const [copiedUrl, setCopiedUrl] = useState<string | null>(null);
   const [showApiUsage, setShowApiUsage] = useState(false);
@@ -164,11 +172,38 @@ export function PublishCard({ preset, isUnpublishing, onPublish, onUnpublish }: 
             <h3 className="font-semibold">{t('publish.title')}</h3>
             <p className="text-sm text-muted-foreground">{t('detail.publishDescription')}</p>
           </div>
-          <Button onClick={onPublish}>
-            <Globe className="mr-2 h-4 w-4" />
-            {t('publish.title')}
-          </Button>
+          {executorOffline ? (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span tabIndex={0}>
+                    <Button disabled>
+                      <Globe className="mr-2 h-4 w-4" />
+                      {t('publish.title')}
+                    </Button>
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent side="top" className="max-w-xs">
+                  <div className="flex items-start gap-2">
+                    <AlertTriangle className="h-4 w-4 text-destructive shrink-0 mt-0.5" />
+                    <p className="text-xs">{t('publish.executorOfflineWarning', { name: executorName })}</p>
+                  </div>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          ) : (
+            <Button onClick={onPublish}>
+              <Globe className="mr-2 h-4 w-4" />
+              {t('publish.title')}
+            </Button>
+          )}
         </div>
+        {executorOffline && (
+          <p className="text-xs text-destructive mt-2 flex items-center gap-1">
+            <AlertTriangle className="h-3 w-3" />
+            {t('publish.executorOfflineWarning', { name: executorName })}
+          </p>
+        )}
       </CardContent>
     </Card>
   );

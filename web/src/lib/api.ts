@@ -687,7 +687,7 @@ export interface AgentRequest {
   uploaded_files?: AgentUploadedFile[];  // Uploaded files available to the agent
   equipped_mcp_servers?: string[];  // Optional list of MCP servers to enable (undefined = all)
   system_prompt?: string;  // Custom system prompt to append to base prompt
-  executor_id?: string;  // Executor ID for code execution (custom mode only)
+  executor_name?: string;  // Executor name for code execution (custom mode only)
 }
 
 export interface StepInfo {
@@ -1153,7 +1153,7 @@ export interface AgentPreset {
   max_turns: number;
   model_provider: string | null;
   model_name: string | null;
-  executor_id: string | null;
+  executor_name: string | null;
   is_system: boolean;
   is_published: boolean;
   api_response_mode: 'streaming' | 'non_streaming' | null;
@@ -1176,7 +1176,7 @@ export interface AgentPresetCreateRequest {
   max_turns?: number;
   model_provider?: string;
   model_name?: string;
-  executor_id?: string;
+  executor_name?: string;
 }
 
 export interface AgentPresetUpdateRequest {
@@ -1189,7 +1189,7 @@ export interface AgentPresetUpdateRequest {
   max_turns?: number;
   model_provider?: string | null;
   model_name?: string | null;
-  executor_id?: string | null;
+  executor_name?: string | null;
   is_published?: boolean;
 }
 

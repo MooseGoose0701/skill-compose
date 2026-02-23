@@ -72,6 +72,7 @@
       ],
       "builtin_tools": null,
       "max_turns": 90,
+      "executor_name": "base",
       "model_provider": "kimi",
       "model_name": "kimi-k2.5",
       "is_system": false,
@@ -101,6 +102,7 @@
       ],
       "builtin_tools": null,
       "max_turns": 120,
+      "executor_name": "chemscout",
       "model_provider": "kimi",
       "model_name": "kimi-k2.5",
       "is_system": false,
@@ -120,6 +122,7 @@
       ],
       "builtin_tools": null,
       "max_turns": 90,
+      "executor_name": "remotion",
       "model_provider": "kimi",
       "model_name": "kimi-k2.5",
       "is_system": false,
@@ -140,6 +143,7 @@
       ],
       "builtin_tools": null,
       "max_turns": 60,
+      "executor_name": "diagram",
       "model_provider": "kimi",
       "model_name": "kimi-k2.5",
       "is_system": false,
@@ -172,6 +176,7 @@
       ],
       "builtin_tools": null,
       "max_turns": 90,
+      "executor_name": "base",
       "model_provider": "kimi",
       "model_name": "kimi-k2.5",
       "is_system": false,
@@ -180,3 +185,4 @@
     }
   ]
 }
+

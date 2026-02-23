@@ -171,6 +171,7 @@
       "sessionIdNote": "El session_id es un UUID generado por el cliente. Use el mismo ID en las solicitudes para mantener el contexto de la conversación.",
       "docsLink": "Documentación completa de la API de Published Agent"
     },
+    "executorOfflineWarning": "No se puede publicar: el ejecutor \"{{name}}\" está fuera de línea. Inicia el ejecutor primero.",
     "dialogDescription": "Selecciona el modelo que usará este agente publicado. Los usuarios interactuarán con este modelo al usar tu agente.",
     "modelHelp": "Este modelo se usará para todas las conversaciones con el agente publicado.",
     "noModelWarning": "No se seleccionó modelo. Se usará el modelo por defecto (Kimi K2.5)."
@@ -188,6 +189,11 @@
     "user": "Usuario",
     "meta": "Meta",
     "system": "Sistema"
+  },
+  "executor": {
+    "label": "Ejecutor",
+    "offline": "fuera de línea",
+    "online": "en línea"
   },
   "model": {
     "title": "Modelo",

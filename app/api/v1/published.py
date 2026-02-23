@@ -22,7 +22,7 @@ from app.api.v1.agent import _finalize_trace
 from app.api.v1.sessions import load_or_create_session, save_session_messages, save_session_checkpoint, save_session_checkpoint_sync, pre_compress_if_needed
 from app.config import get_settings
 from app.db.database import AsyncSessionLocal, get_db
-from app.db.models import AgentPresetDB, AgentTraceDB, PublishedSessionDB, ExecutorDB
+from app.db.models import AgentPresetDB, AgentTraceDB, PublishedSessionDB
 
 settings = get_settings()
 
@@ -327,16 +327,19 @@ async def steer_published_agent(
 
 
 async def _resolve_published_config(preset):
-    """Resolve config from a published preset, including executor name."""
-    executor_name = None
-    if preset.executor_id:
-        async with AsyncSessionLocal() as db:
-            executor_result = await db.execute(
-                select(ExecutorDB).where(ExecutorDB.id == preset.executor_id)
+    """Resolve config from a published preset, including executor name.
+
+    Raises HTTPException if the executor is offline.
+    """
+    executor_name = preset.executor_name or None
+    if executor_name:
+        from app.api.v1.executors import _get_executor_status
+        status = await _get_executor_status(executor_name)
+        if status != "online":
+            raise HTTPException(
+                status_code=503,
+                detail=f"Executor '{executor_name}' is offline. Published agent cannot process requests."
             )
-            executor = executor_result.scalar_one_or_none()
-            if executor:
-                executor_name = executor.name
 
     return {
         "skills": preset.skill_ids,

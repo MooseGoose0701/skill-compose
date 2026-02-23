@@ -178,7 +178,7 @@ export default function NewAgentPage() {
       max_turns: values.max_turns,
       model_provider: values.model_provider || undefined,
       model_name: values.model_name || undefined,
-      executor_id: values.executor_id || undefined,
+      executor_name: values.executor_name || undefined,
     });
     router.push(`/agents/${preset.id}`);
   };

@@ -83,8 +83,8 @@ class AgentRequest(BaseModel):
     system_prompt: Optional[str] = Field(
         None, description="Custom system prompt to append to the base prompt"
     )
-    executor_id: Optional[str] = Field(
-        None, description="Executor ID for code execution (custom mode only, ignored when agent_id is set)"
+    executor_name: Optional[str] = Field(
+        None, description="Executor name for code execution (custom mode only, ignored when agent_id is set)"
     )
 
 
@@ -147,18 +147,18 @@ async def steer_agent(trace_id: str, body: SteerRequest, db: AsyncSession = Depe
 async def _resolve_agent_config(request: AgentRequest, db: AsyncSession) -> dict:
     """Resolve effective agent config. If agent_id is set, load preset and use its config."""
     from sqlalchemy import select
-    from app.db.models import ExecutorDB
 
     if not request.agent_id:
-        # Custom mode: resolve executor_name from executor_id if provided
-        executor_name = None
-        if request.executor_id:
-            executor_result = await db.execute(
-                select(ExecutorDB).where(ExecutorDB.id == request.executor_id)
-            )
-            executor = executor_result.scalar_one_or_none()
-            if executor:
-                executor_name = executor.name
+        # Custom mode: use executor_name directly
+        executor_name = request.executor_name or None
+        if executor_name:
+            from app.api.v1.executors import _get_executor_status
+            status = await _get_executor_status(executor_name)
+            if status != "online":
+                raise HTTPException(
+                    status_code=503,
+                    detail=f"Executor '{executor_name}' is offline. Cannot run agent."
+                )
 
         return {
             "skills": request.skills,
@@ -177,18 +177,18 @@ async def _resolve_agent_config(request: AgentRequest, db: AsyncSession) -> dict
     )
     preset = result.scalar_one_or_none()
     if not preset:
-        from fastapi import HTTPException
         raise HTTPException(status_code=404, detail=f"Agent preset '{request.agent_id}' not found")
 
-    # Get executor name if executor_id is set
-    executor_name = None
-    if preset.executor_id:
-        executor_result = await db.execute(
-            select(ExecutorDB).where(ExecutorDB.id == preset.executor_id)
-        )
-        executor = executor_result.scalar_one_or_none()
-        if executor:
-            executor_name = executor.name
+    # Use executor_name directly from preset
+    executor_name = preset.executor_name or None
+    if executor_name:
+        from app.api.v1.executors import _get_executor_status
+        status = await _get_executor_status(executor_name)
+        if status != "online":
+            raise HTTPException(
+                status_code=503,
+                detail=f"Executor '{executor_name}' is offline. Cannot run agent."
+            )
 
     return {
         "skills": preset.skill_ids,

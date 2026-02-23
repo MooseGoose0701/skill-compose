@@ -54,7 +54,8 @@
     "selectModel": "选择模型",
     "executor": "执行器",
     "executorLocal": "本地",
-    "executorDescription": "选择代码执行环境"
+    "executorDescription": "选择代码执行环境",
+    "executorOfflineWarning": "执行器 \"{{name}}\" 已离线。代码执行将会失败。"
   },
   "files": {
     "title": "文件",

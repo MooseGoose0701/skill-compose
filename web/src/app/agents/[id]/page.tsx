@@ -4,7 +4,7 @@ import { useState, useMemo } from 'react';
 import { useRouter, useParams, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowLeft, MessageSquare, Bot } from 'lucide-react';
+import { ArrowLeft, MessageSquare, Bot, Server } from 'lucide-react';
 import { Spinner } from '@/components/ui/spinner';
 import { useTranslation } from '@/i18n/client';
 import { Button } from '@/components/ui/button';
@@ -22,6 +22,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { useAgentPreset, useUpdateAgentPreset, useDeleteAgentPreset, usePublishAgent, useUnpublishAgent } from '@/hooks/use-agents';
+import { useExecutors } from '@/hooks/use-executors';
 import { modelsApi, toolsApi } from '@/lib/api';
 import { useChatStore } from '@/stores/chat-store';
 import { useChatPanel } from '@/components/chat/chat-provider';
@@ -65,6 +66,14 @@ export default function AgentDetailPage() {
   });
   const tools = toolsData?.tools || [];
 
+  // Fetch executors for status display
+  const { data: executorsData } = useExecutors();
+  const executorInfo = useMemo(() => {
+    if (!preset?.executor_name || !executorsData?.executors) return null;
+    return executorsData.executors.find(e => e.name === preset.executor_name) || null;
+  }, [preset?.executor_name, executorsData?.executors]);
+  const isExecutorOffline = executorInfo ? executorInfo.status !== 'online' : false;
+
   // Chat store + panel
   const {
     messages,
@@ -74,7 +83,7 @@ export default function AgentDetailPage() {
     setMaxTurns,
     setSelectedAgentPreset,
     setSelectedModel,
-    setSelectedExecutorId: setChatExecutorId,
+    setSelectedExecutorName: setChatExecutorId,
     clearMessages,
     clearUploadedFiles,
     setSessionId,
@@ -95,7 +104,7 @@ export default function AgentDetailPage() {
       max_turns: preset.max_turns,
       model_provider: preset.model_provider || null,
       model_name: preset.model_name || null,
-      executor_id: preset.executor_id || null,
+      executor_name: preset.executor_name || null,
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [preset?.id, preset?.updated_at]);
@@ -123,7 +132,7 @@ export default function AgentDetailPage() {
     }
     setSelectedMcpServers(preset.mcp_servers || []);
     setSelectedModel(preset.model_provider || null, preset.model_name || null);
-    setChatExecutorId(preset.executor_id || null);
+    setChatExecutorId(preset.executor_name || null);
     setSelectedAgentPreset(preset.id);
     chatPanel.open(preset.skill_ids || []);
   };
@@ -162,7 +171,7 @@ export default function AgentDetailPage() {
         max_turns: values.max_turns,
         model_provider: values.model_provider ?? null,
         model_name: values.model_name ?? null,
-        executor_id: values.executor_id ?? null,
+        executor_name: values.executor_name ?? null,
       });
       setHasChanges(false);
     } catch (error) {
@@ -289,6 +298,8 @@ export default function AgentDetailPage() {
             <PublishCard
               preset={preset}
               isUnpublishing={unpublishAgent.isPending}
+              executorOffline={isExecutorOffline}
+              executorName={executorInfo?.name}
               onPublish={() => setShowPublishDialog(true)}
               onUnpublish={() => unpublishAgent.mutate()}
             />
@@ -312,6 +323,17 @@ export default function AgentDetailPage() {
                     : t('detail.modelDefault')}
                 </span>
               </div>
+              {executorInfo && (
+                <div className="flex justify-between items-center">
+                  <span className="flex items-center gap-1">
+                    <Server className="h-3.5 w-3.5" />
+                    {t('executor.label')}:
+                  </span>
+                  <Badge variant={executorInfo.status === 'online' ? 'outline-success' : 'outline-error'} className="text-xs">
+                    {executorInfo.name} ({executorInfo.status === 'online' ? t('executor.online') : t('executor.offline')})
+                  </Badge>
+                </div>
+              )}
               <div className="flex justify-between">
                 <span>{t('overview.createdAt')}:</span>
                 <span>{new Date(preset.created_at).toLocaleString()}</span>

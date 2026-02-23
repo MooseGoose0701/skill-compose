@@ -171,6 +171,7 @@
       "sessionIdNote": "session_id 是客户端生成的 UUID。在多次请求中使用相同的 ID 以保持对话上下文。",
       "docsLink": "Published Agent API 完整文档"
     },
+    "executorOfflineWarning": "无法发布：执行器 \"{{name}}\" 已离线。请先启动执行器。",
     "dialogDescription": "选择此已发布代理将使用的模型。用户将通过此模型与你的代理交互。",
     "modelHelp": "此模型将用于已发布代理的所有对话。",
     "noModelWarning": "未选择模型。将使用默认模型 (Kimi K2.5)。"
@@ -188,6 +189,11 @@
     "user": "用户",
     "meta": "元",
     "system": "系统"
+  },
+  "executor": {
+    "label": "执行器",
+    "offline": "离线",
+    "online": "在线"
   },
   "model": {
     "title": "模型",
