@@ -85,6 +85,9 @@
     },
     "skill-finder": {
       "category": "Development Tools"
+    },
+    "code-to-diagram": {
+      "category": "Development Tools"
     }
   }
 }
