@@ -66,9 +66,9 @@
     "executions": "Executions"
   },
   "quickActions": {
-    "browseSkills": {
-      "title": "Browse Skills",
-      "description": "Manage your skills library"
+    "findSkills": {
+      "title": "Find Skills",
+      "description": "Discover skills from skills.sh"
     },
     "createSkill": {
       "title": "Create Skill",

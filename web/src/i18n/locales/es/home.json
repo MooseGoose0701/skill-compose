@@ -66,9 +66,9 @@
     "executions": "Ejecuciones"
   },
   "quickActions": {
-    "browseSkills": {
-      "title": "Explorar Habilidades",
-      "description": "Gestiona tu biblioteca de habilidades"
+    "findSkills": {
+      "title": "Buscar Habilidades",
+      "description": "Descubre habilidades de skills.sh"
     },
     "createSkill": {
       "title": "Crear Habilidad",

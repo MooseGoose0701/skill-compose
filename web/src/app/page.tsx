@@ -4,6 +4,7 @@ import Link from 'next/link';
 import {
   ArrowRight,
   Sparkles,
+  Search,
   GitBranch,
   Zap,
   Download,
@@ -30,7 +31,7 @@ function StatCard({ value, label, href, isLoading }: { value: number; label: str
 }
 
 const QUICK_ACTIONS = [
-  { href: '/skills', icon: Sparkles, titleKey: 'quickActions.browseSkills.title', descKey: 'quickActions.browseSkills.description', accent: 'from-blue-500 to-cyan-500' },
+  { href: '/skills/find', icon: Search, titleKey: 'quickActions.findSkills.title', descKey: 'quickActions.findSkills.description', accent: 'from-blue-500 to-cyan-500' },
   { href: '/skills/new', icon: Plus, titleKey: 'quickActions.createSkill.title', descKey: 'quickActions.createSkill.description', accent: 'from-violet-500 to-purple-500' },
   { href: '/import', icon: Download, titleKey: 'quickActions.importSkill.title', descKey: 'quickActions.importSkill.description', accent: 'from-emerald-500 to-teal-500' },
   { href: '/skills/evolve', icon: Zap, titleKey: 'quickActions.evolveSkills.title', descKey: 'quickActions.evolveSkills.description', accent: 'from-amber-500 to-orange-500' },

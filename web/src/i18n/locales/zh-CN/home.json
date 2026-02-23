@@ -66,9 +66,9 @@
     "executions": "执行次数"
   },
   "quickActions": {
-    "browseSkills": {
-      "title": "浏览技能",
-      "description": "管理你的技能库"
+    "findSkills": {
+      "title": "查找技能",
+      "description": "从 skills.sh 发现技能"
     },
     "createSkill": {
       "title": "创建技能",
