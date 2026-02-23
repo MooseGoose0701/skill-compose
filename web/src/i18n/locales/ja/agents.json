@@ -171,6 +171,7 @@
       "sessionIdNote": "session_id はクライアント側で生成する UUID です。会話コンテキストを維持するため、リクエスト間で同じ ID を使用してください。",
       "docsLink": "Published Agent API の完全なドキュメント"
     },
+    "executorOfflineWarning": "公開できません: エクゼキューター \"{{name}}\" がオフラインです。先にエクゼキューターを起動してください。",
     "dialogDescription": "この公開エージェントが使用するモデルを選択してください。ユーザーはこのモデルを通じてエージェントと対話します。",
     "modelHelp": "このモデルは公開エージェントのすべての会話に使用されます。",
     "noModelWarning": "モデルが選択されていません。デフォルトモデル (Kimi K2.5) が使用されます。"
@@ -188,6 +189,11 @@
     "user": "ユーザー",
     "meta": "メタ",
     "system": "システム"
+  },
+  "executor": {
+    "label": "エクゼキューター",
+    "offline": "オフライン",
+    "online": "オンライン"
   },
   "model": {
     "title": "モデル",

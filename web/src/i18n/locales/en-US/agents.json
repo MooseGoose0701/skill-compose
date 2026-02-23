@@ -171,6 +171,7 @@
       "sessionIdNote": "The session_id is a client-generated UUID. Use the same ID across requests to maintain conversation context.",
       "docsLink": "Full documentation on Published Agent API"
     },
+    "executorOfflineWarning": "Cannot publish: executor \"{{name}}\" is offline. Start the executor first.",
     "dialogDescription": "Select the model that this published agent will use. Users will interact with this model when using your agent.",
     "modelHelp": "This model will be used for all conversations with the published agent.",
     "noModelWarning": "No model selected. The default model (Kimi K2.5) will be used."
@@ -188,6 +189,11 @@
     "user": "User",
     "meta": "Meta",
     "system": "System"
+  },
+  "executor": {
+    "label": "Executor",
+    "offline": "offline",
+    "online": "online"
   },
   "model": {
     "title": "Model",

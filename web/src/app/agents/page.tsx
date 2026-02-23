@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from 'react';
 import Link from 'next/link';
-import { Search, Bot, Settings, Settings2, Trash2, Globe, ExternalLink } from 'lucide-react';
+import { Search, Bot, Settings, Settings2, Trash2, Globe, ExternalLink, AlertTriangle, Server } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -29,8 +29,9 @@ import {
 } from '@/components/ui/tooltip';
 import { toast } from 'sonner';
 import { useAgentPresets, useDeleteAgentPreset } from '@/hooks/use-agents';
+import { useExecutors } from '@/hooks/use-executors';
 import { useTranslation } from '@/i18n/client';
-import type { AgentPreset } from '@/lib/api';
+import type { AgentPreset, Executor } from '@/lib/api';
 
 export default function AgentsPage() {
   const { t } = useTranslation('agents');
@@ -39,6 +40,17 @@ export default function AgentsPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const { data, isLoading, error } = useAgentPresets();
   const deletePreset = useDeleteAgentPreset();
+  const { data: executorsData } = useExecutors();
+
+  const executorMap = useMemo(() => {
+    const map = new Map<string, Executor>();
+    if (executorsData?.executors) {
+      for (const e of executorsData.executors) {
+        map.set(e.name, e);
+      }
+    }
+    return map;
+  }, [executorsData?.executors]);
 
   const filteredPresets = useMemo(() =>
     data?.presets.filter(
@@ -138,6 +150,7 @@ export default function AgentsPage() {
                     key={preset.id}
                     preset={preset}
                     onDelete={() => handleDelete(preset.id)}
+                    executorMap={executorMap}
                     t={t}
                     tc={tc}
                   />
@@ -159,6 +172,7 @@ export default function AgentsPage() {
                     key={preset.id}
                     preset={preset}
                     onDelete={() => handleDelete(preset.id)}
+                    executorMap={executorMap}
                     t={t}
                     tc={tc}
                   />
@@ -182,14 +196,18 @@ export default function AgentsPage() {
 function AgentPresetCard({
   preset,
   onDelete,
+  executorMap,
   t,
   tc,
 }: {
   preset: AgentPreset;
   onDelete: () => void;
+  executorMap: Map<string, Executor>;
   t: (key: string, options?: Record<string, unknown>) => string;
   tc: (key: string) => string;
 }) {
+  const executor = preset.executor_name ? executorMap.get(preset.executor_name) : null;
+
   return (
     <Card className="group hover:shadow-md transition-shadow h-full flex flex-col">
       <CardHeader className="pb-3">
@@ -253,6 +271,21 @@ function AgentPresetCard({
                     <p className="text-xs">{preset.mcp_servers.slice(2).join(', ')}</p>
                   </TooltipContent>
                 </Tooltip>
+              )}
+            </div>
+          )}
+          {executor && (
+            <div className="flex items-center gap-1">
+              <Server className="h-3.5 w-3.5 text-muted-foreground" />
+              {executor.status === 'online' ? (
+                <Badge variant="outline-success" className="text-xs">
+                  {executor.name}
+                </Badge>
+              ) : (
+                <Badge variant="outline-error" className="text-xs">
+                  <AlertTriangle className="h-3 w-3 mr-1" />
+                  {executor.name} ({t('executor.offline')})
+                </Badge>
               )}
             </div>
           )}

@@ -755,7 +755,7 @@ class TestPublishedSessionFullMessagesE2E:
         mock_preset.system_prompt = None
         mock_preset.model_provider = None
         mock_preset.model_name = None
-        mock_preset.executor_id = None
+        mock_preset.executor_name = None
 
         saved_messages = {}
         call_idx = {"i": 0}
@@ -887,7 +887,7 @@ class TestPublishedSessionFullMessagesE2E:
         mock_preset.system_prompt = None
         mock_preset.model_provider = None
         mock_preset.model_name = None
-        mock_preset.executor_id = None
+        mock_preset.executor_name = None
 
         call_idx = {"i": 0}
 

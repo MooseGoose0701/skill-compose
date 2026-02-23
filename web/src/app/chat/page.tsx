@@ -37,7 +37,7 @@ export default function FullscreenChatPage() {
     setIsRunning, setMaxTurns, addUploadedFile, removeUploadedFile, clearUploadedFiles,
     setSelectedAgentPreset, setSystemPrompt,
     selectedModelProvider, selectedModelName, setSelectedModel,
-    selectedExecutorId, setSelectedExecutorId,
+    selectedExecutorName, setSelectedExecutorName,
   } = useChatStore();
 
   useChatSessionRestore();
@@ -83,7 +83,7 @@ export default function FullscreenChatPage() {
           const currentMcpServers = state.selectedMcpServers;
           const currentTools = state.selectedTools;
           const currentSystemPrompt = state.systemPrompt;
-          const currentExecutorId = state.selectedExecutorId;
+          const currentExecutorName = state.selectedExecutorName;
 
           agentRequest = {
             request, session_id: currentSessionId,
@@ -95,7 +95,7 @@ export default function FullscreenChatPage() {
             system_prompt: currentSystemPrompt || undefined,
             model_provider: currentModelProvider || undefined,
             model_name: currentModelName || undefined,
-            executor_id: currentExecutorId || undefined,
+            executor_name: currentExecutorName || undefined,
           };
         }
 
@@ -178,7 +178,7 @@ export default function FullscreenChatPage() {
     else setSelectedTools([]);
     setSelectedMcpServers(preset.mcp_servers || []);
     setSelectedModel(preset.model_provider || null, preset.model_name || null);
-    setSelectedExecutorId(preset.executor_id || null);
+    setSelectedExecutorName(preset.executor_name || null);
   };
 
   const currentAgentName = selectedAgentPreset
@@ -226,8 +226,8 @@ export default function FullscreenChatPage() {
               <span className="text-muted-foreground/40 select-none">|</span>
               <Server className="h-4 w-4 text-muted-foreground shrink-0" />
               <ExecutorSelect
-                value={selectedExecutorId}
-                onChange={(id) => { setSelectedExecutorId(id); setSelectedAgentPreset(null); }}
+                value={selectedExecutorName}
+                onChange={(id) => { setSelectedExecutorName(id); setSelectedAgentPreset(null); }}
                 executors={onlineExecutors}
                 size="sm"
                 className="max-w-[120px]"

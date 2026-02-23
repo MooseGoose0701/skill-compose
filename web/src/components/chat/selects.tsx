@@ -143,7 +143,7 @@ export const AgentPresetSelect = React.memo(function AgentPresetSelect({
 
 interface ExecutorSelectProps {
   value: string | null;
-  onChange: (executorId: string | null) => void;
+  onChange: (executorName: string | null) => void;
   executors: Executor[];
   size?: SelectSize;
   className?: string;
@@ -178,8 +178,8 @@ export const ExecutorSelect = React.memo(function ExecutorSelect({
         <SelectItem value="__local__">{placeholder}</SelectItem>
         {executors.map((executor) => (
           <SelectItem
-            key={executor.id}
-            value={executor.id}
+            key={executor.name}
+            value={executor.name}
             disabled={!showAll && executor.status !== 'online'}
           >
             {executor.name}

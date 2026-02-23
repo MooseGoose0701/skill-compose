@@ -286,7 +286,7 @@ class TestPublishedChat:
         preset = _make_preset(published=True)
         preset.model_provider = None
         preset.model_name = None
-        preset.executor_id = None
+        preset.executor_name = None
 
         # Mock agent
         MockAgent.return_value = _make_mock_agent_instance()

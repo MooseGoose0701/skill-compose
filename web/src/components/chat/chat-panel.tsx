@@ -3,7 +3,7 @@
 import React from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
-import { RotateCcw, Paperclip, X, Wrench, Plug, ChevronDown, ChevronUp, Square, Bot, Cpu, Maximize2, Server, Plus, Settings } from "lucide-react";
+import { RotateCcw, Paperclip, X, Wrench, Plug, ChevronDown, ChevronUp, Square, Bot, Cpu, Maximize2, Server, Plus, Settings, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
@@ -18,6 +18,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { MultiSelect } from "@/components/ui/multi-select";
+import { toast } from "sonner";
 import { skillsApi, agentApi, mcpApi, toolsApi, agentPresetsApi, modelsApi, executorsApi } from "@/lib/api";
 import type { StreamEvent } from "@/lib/api";
 import { useChatStore, REQUIRED_TOOLS } from "@/stores/chat-store";
@@ -69,8 +70,8 @@ export function ChatPanel({ isOpen, onClose, defaultSkills = [] }: ChatPanelProp
     selectedModelProvider,
     selectedModelName,
     setSelectedModel,
-    selectedExecutorId,
-    setSelectedExecutorId,
+    selectedExecutorName,
+    setSelectedExecutorName,
   } = useChatStore();
 
   // Restore session messages from server on mount
@@ -123,7 +124,7 @@ export function ChatPanel({ isOpen, onClose, defaultSkills = [] }: ChatPanelProp
           const currentMcpServers = state.selectedMcpServers;
           const currentTools = state.selectedTools;
           const currentSystemPrompt = state.systemPrompt;
-          const currentExecutorId = state.selectedExecutorId;
+          const currentExecutorName = state.selectedExecutorName;
 
           const skillsList = currentSkills.length > 0 ? currentSkills : undefined;
           const mcpServersList = (currentMcpServers === null || currentMcpServers.length === 0) ? undefined : currentMcpServers;
@@ -140,7 +141,7 @@ export function ChatPanel({ isOpen, onClose, defaultSkills = [] }: ChatPanelProp
             system_prompt: currentSystemPrompt || undefined,
             model_provider: currentModelProvider || undefined,
             model_name: currentModelName || undefined,
-            executor_id: currentExecutorId || undefined,
+            executor_name: currentExecutorName || undefined,
           };
         }
 
@@ -227,6 +228,16 @@ export function ChatPanel({ isOpen, onClose, defaultSkills = [] }: ChatPanelProp
   const applyPreset = (presetId: string) => {
     const preset = agentPresets.find((p) => p.id === presetId);
     if (!preset) return;
+
+    // Warn if preset's executor is offline
+    if (preset.executor_name) {
+      const allExecutors = executorsData?.executors || [];
+      const executor = allExecutors.find(e => e.name === preset.executor_name);
+      if (executor && executor.status !== 'online') {
+        toast.warning(t('configuration.executorOfflineWarning', { name: executor.name }));
+      }
+    }
+
     // Reset session so the new agent gets a fresh server-side session
     setSessionId(null);
     setSelectedAgentPreset(preset.id);
@@ -242,7 +253,7 @@ export function ChatPanel({ isOpen, onClose, defaultSkills = [] }: ChatPanelProp
     }
     setSelectedMcpServers(preset.mcp_servers || []);
     setSelectedModel(preset.model_provider || null, preset.model_name || null);
-    setSelectedExecutorId(preset.executor_id || null);
+    setSelectedExecutorName(preset.executor_name || null);
   };
 
   if (!isOpen) return null;
@@ -329,8 +340,8 @@ export function ChatPanel({ isOpen, onClose, defaultSkills = [] }: ChatPanelProp
               <Server className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
               <span className="text-muted-foreground shrink-0">{t('configuration.executor')}:</span>
               <ExecutorSelect
-                value={selectedExecutorId}
-                onChange={(id) => { setSelectedExecutorId(id); setSelectedAgentPreset(null); }}
+                value={selectedExecutorName}
+                onChange={(id) => { setSelectedExecutorName(id); setSelectedAgentPreset(null); }}
                 executors={onlineExecutors}
                 size="xs"
                 className="flex-1"
@@ -339,6 +350,20 @@ export function ChatPanel({ isOpen, onClose, defaultSkills = [] }: ChatPanelProp
               />
             </div>
           )}
+          {/* Offline executor warning for preset */}
+          {selectedAgentPreset && (() => {
+            const preset = agentPresets.find(p => p.id === selectedAgentPreset);
+            if (!preset?.executor_name) return null;
+            const allExecs = executorsData?.executors || [];
+            const exec = allExecs.find(e => e.name === preset.executor_name);
+            if (!exec || exec.status === 'online') return null;
+            return (
+              <p className="text-xs text-destructive flex items-center gap-1">
+                <AlertTriangle className="h-3 w-3 shrink-0" />
+                {t('configuration.executorOfflineWarning', { name: exec.name })}
+              </p>
+            );
+          })()}
 
           {/* Turns + Skills */}
           <div className={`flex items-center gap-3 ${selectedAgentPreset ? 'opacity-50 pointer-events-none' : ''}`}>

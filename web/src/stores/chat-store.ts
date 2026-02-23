@@ -38,7 +38,7 @@ interface ChatState {
   systemPrompt: string | null;  // Custom system prompt from agent preset
   selectedModelProvider: string | null;  // LLM provider: anthropic, openrouter, openai, google
   selectedModelName: string | null;  // Model name/ID
-  selectedExecutorId: string | null;  // Executor ID for code execution
+  selectedExecutorName: string | null;  // Executor name for code execution
 
   // Actions
   addMessage: (message: ChatMessage) => void;
@@ -62,7 +62,7 @@ interface ChatState {
   setSelectedAgentPreset: (presetId: string | null) => void;  // Set selected agent preset
   setSystemPrompt: (prompt: string | null) => void;  // Set custom system prompt
   setSelectedModel: (provider: string | null, name: string | null) => void;  // Set model
-  setSelectedExecutorId: (id: string | null) => void;  // Set executor
+  setSelectedExecutorName: (id: string | null) => void;  // Set executor
 }
 
 // Required tools that cannot be deselected
@@ -83,7 +83,7 @@ export const useChatStore = create<ChatState>()(
       systemPrompt: null,
       selectedModelProvider: null,  // null = use default
       selectedModelName: null,  // null = use default
-      selectedExecutorId: null,  // null = local execution
+      selectedExecutorName: null,  // null = local execution
 
       addMessage: (message) =>
         set((state) => ({
@@ -178,7 +178,7 @@ export const useChatStore = create<ChatState>()(
         systemPrompt: null,
         selectedModelProvider: null,
         selectedModelName: null,
-        selectedExecutorId: null,
+        selectedExecutorName: null,
       }),
 
       setSelectedAgentPreset: (presetId) => set({ selectedAgentPreset: presetId }),
@@ -190,11 +190,11 @@ export const useChatStore = create<ChatState>()(
         selectedModelName: name
       }),
 
-      setSelectedExecutorId: (id) => set({ selectedExecutorId: id }),
+      setSelectedExecutorName: (id) => set({ selectedExecutorName: id }),
     }),
     {
       name: 'chat-storage',
-      version: 10, // Increment this when making breaking changes
+      version: 11, // Increment this when making breaking changes
       partialize: (state) => ({
         // Messages are NOT persisted — server session is source of truth
         sessionId: state.sessionId,
@@ -206,7 +206,7 @@ export const useChatStore = create<ChatState>()(
         systemPrompt: state.systemPrompt,
         selectedModelProvider: state.selectedModelProvider,
         selectedModelName: state.selectedModelName,
-        selectedExecutorId: state.selectedExecutorId,
+        selectedExecutorName: state.selectedExecutorName,
       }),
       // Migration from old versions
       migrate: (persistedState: unknown, version: number) => {
@@ -241,15 +241,24 @@ export const useChatStore = create<ChatState>()(
 
         // v7 -> v8: Add streamEvents (no migration needed, field is optional)
 
-        // v8 -> v9: Add selectedExecutorId
+        // v8 -> v9: Add selectedExecutorName
         if (version < 9) {
-          state.selectedExecutorId = null;
+          state.selectedExecutorName = null;
         }
 
         // v9 -> v10: Add sessionId, messages no longer persisted (server is source of truth)
         if (version < 10) {
           (state as Record<string, unknown>).sessionId = null;
           state.messages = [];
+        }
+
+        // v10 -> v11: Rename selectedExecutorId → selectedExecutorName
+        if (version < 11) {
+          const raw = state as Record<string, unknown>;
+          if ('selectedExecutorId' in raw) {
+            raw.selectedExecutorName = null;  // Clear old UUID value
+            delete raw.selectedExecutorId;
+          }
         }
 
         return state as ChatState;

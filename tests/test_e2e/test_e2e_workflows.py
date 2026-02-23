@@ -992,7 +992,7 @@ class TestPublishedAgentSessionE2E:
         mock_preset.system_prompt = None
         mock_preset.model_provider = None
         mock_preset.model_name = None
-        mock_preset.executor_id = None
+        mock_preset.executor_name = None
 
         call_idx = {"i": 0}
         results = [mock_preset, None, None, None, None]
@@ -2760,7 +2760,7 @@ class TestPublishedAgentOutputFilesE2E:
         mock_preset.system_prompt = None
         mock_preset.model_provider = None
         mock_preset.model_name = None
-        mock_preset.executor_id = None
+        mock_preset.executor_name = None
 
         call_idx = {"i": 0}
 
@@ -2827,7 +2827,7 @@ class TestPublishedAgentOutputFilesE2E:
         mock_preset.system_prompt = None
         mock_preset.model_provider = None
         mock_preset.model_name = None
-        mock_preset.executor_id = None
+        mock_preset.executor_name = None
 
         call_idx = {"i": 0}
 
@@ -3141,7 +3141,7 @@ class TestResilientStreamingE2E:
         mock_preset.system_prompt = None
         mock_preset.model_provider = None
         mock_preset.model_name = None
-        mock_preset.executor_id = None
+        mock_preset.executor_name = None
 
         call_idx = {"i": 0}
         results = [mock_preset, None, None, None, None, None]
@@ -3208,7 +3208,7 @@ class TestResilientStreamingE2E:
         mock_preset.system_prompt = None
         mock_preset.model_provider = None
         mock_preset.model_name = None
-        mock_preset.executor_id = None
+        mock_preset.executor_name = None
 
         call_idx = {"i": 0}
         results = [mock_preset, None, None, None, None, None]
@@ -3278,7 +3278,7 @@ class TestResilientStreamingE2E:
         mock_preset.system_prompt = None
         mock_preset.model_provider = None
         mock_preset.model_name = None
-        mock_preset.executor_id = None
+        mock_preset.executor_name = None
 
         call_idx = {"i": 0}
         results = [mock_preset, None, None, None, None, None]
@@ -3445,7 +3445,7 @@ class TestResilientStreamingE2E:
         mock_preset.system_prompt = None
         mock_preset.model_provider = None
         mock_preset.model_name = None
-        mock_preset.executor_id = None
+        mock_preset.executor_name = None
 
         call_idx = {"i": 0}
         results = [mock_preset, None, None, None, None, None]

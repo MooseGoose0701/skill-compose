@@ -36,7 +36,7 @@ class AgentPresetBase(BaseModel):
     max_turns: int = Field(default=60, ge=1, le=60000)
     model_provider: Optional[str] = Field(None, description="LLM provider: anthropic, openrouter, openai, google")
     model_name: Optional[str] = Field(None, description="Model name/ID for the provider")
-    executor_id: Optional[str] = Field(None, description="Executor ID for code execution environment")
+    executor_name: Optional[str] = Field(None, description="Executor name for code execution environment")
 
 
 class AgentPresetCreate(AgentPresetBase):
@@ -55,7 +55,7 @@ class AgentPresetUpdate(BaseModel):
     max_turns: Optional[int] = Field(None, ge=1, le=60000)
     model_provider: Optional[str] = Field(None, description="LLM provider: anthropic, openrouter, openai, google")
     model_name: Optional[str] = Field(None, description="Model name/ID for the provider")
-    executor_id: Optional[str] = Field(None, description="Executor ID for code execution environment")
+    executor_name: Optional[str] = Field(None, description="Executor name for code execution environment")
     is_published: Optional[bool] = None
 
 
@@ -80,7 +80,7 @@ class AgentPresetResponse(BaseModel):
     max_turns: int
     model_provider: Optional[str] = None
     model_name: Optional[str] = None
-    executor_id: Optional[str] = None
+    executor_name: Optional[str] = None
     is_system: bool
     is_published: bool
     api_response_mode: Optional[str] = None
@@ -128,7 +128,7 @@ async def list_agent_presets(
                 max_turns=p.max_turns,
                 model_provider=p.model_provider,
                 model_name=p.model_name,
-                executor_id=p.executor_id,
+                executor_name=p.executor_name,
                 is_system=p.is_system,
                 is_published=p.is_published,
                 api_response_mode=p.api_response_mode,
@@ -168,7 +168,7 @@ async def get_agent_preset(
         max_turns=preset.max_turns,
         model_provider=preset.model_provider,
         model_name=preset.model_name,
-        executor_id=preset.executor_id,
+        executor_name=preset.executor_name,
         is_system=preset.is_system,
         is_published=preset.is_published,
         api_response_mode=preset.api_response_mode,
@@ -204,7 +204,7 @@ async def get_agent_preset_by_name(
         max_turns=preset.max_turns,
         model_provider=preset.model_provider,
         model_name=preset.model_name,
-        executor_id=preset.executor_id,
+        executor_name=preset.executor_name,
         is_system=preset.is_system,
         is_published=preset.is_published,
         api_response_mode=preset.api_response_mode,
@@ -239,7 +239,7 @@ async def create_agent_preset(
         max_turns=data.max_turns,
         model_provider=data.model_provider,
         model_name=data.model_name,
-        executor_id=data.executor_id,
+        executor_name=data.executor_name,
         is_system=False,  # User-created presets are never system presets
     )
 
@@ -258,7 +258,7 @@ async def create_agent_preset(
         max_turns=preset.max_turns,
         model_provider=preset.model_provider,
         model_name=preset.model_name,
-        executor_id=preset.executor_id,
+        executor_name=preset.executor_name,
         is_system=preset.is_system,
         is_published=preset.is_published,
         api_response_mode=preset.api_response_mode,
@@ -316,8 +316,8 @@ async def update_agent_preset(
         preset.model_provider = data.model_provider
     if 'model_name' in fields_set:
         preset.model_name = data.model_name
-    if 'executor_id' in fields_set:
-        preset.executor_id = data.executor_id
+    if 'executor_name' in fields_set:
+        preset.executor_name = data.executor_name
     if 'is_published' in fields_set:
         preset.is_published = data.is_published
 
@@ -335,7 +335,7 @@ async def update_agent_preset(
         max_turns=preset.max_turns,
         model_provider=preset.model_provider,
         model_name=preset.model_name,
-        executor_id=preset.executor_id,
+        executor_name=preset.executor_name,
         is_system=preset.is_system,
         is_published=preset.is_published,
         api_response_mode=preset.api_response_mode,
@@ -373,6 +373,16 @@ async def publish_agent_preset(
             detail="Agent is already published. Unpublish first to change the response mode."
         )
 
+    # Validate executor is online before publishing
+    if preset.executor_name:
+        from app.api.v1.executors import _get_executor_status
+        status = await _get_executor_status(preset.executor_name)
+        if status != "online":
+            raise HTTPException(
+                status_code=409,
+                detail=f"Cannot publish: executor '{preset.executor_name}' is offline. Start the executor first."
+            )
+
     preset.is_published = True
     preset.api_response_mode = request.api_response_mode
     await db.commit()
@@ -389,7 +399,7 @@ async def publish_agent_preset(
         max_turns=preset.max_turns,
         model_provider=preset.model_provider,
         model_name=preset.model_name,
-        executor_id=preset.executor_id,
+        executor_name=preset.executor_name,
         is_system=preset.is_system,
         is_published=preset.is_published,
         api_response_mode=preset.api_response_mode,
@@ -431,7 +441,7 @@ async def unpublish_agent_preset(
         max_turns=preset.max_turns,
         model_provider=preset.model_provider,
         model_name=preset.model_name,
-        executor_id=preset.executor_id,
+        executor_name=preset.executor_name,
         is_system=preset.is_system,
         is_published=preset.is_published,
         api_response_mode=preset.api_response_mode,

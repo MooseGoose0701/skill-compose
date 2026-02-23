@@ -19,7 +19,7 @@ from typing import List, Optional
 from pydantic import BaseModel
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Query
 from fastapi.responses import StreamingResponse
-from sqlalchemy import select as sa_select, delete as sa_delete, update as sa_update
+from sqlalchemy import select as sa_select, delete as sa_delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.database import get_db
@@ -244,7 +244,7 @@ async def _create_backup_zip(
             "is_system": p.is_system,
             "is_published": p.is_published,
             "api_response_mode": p.api_response_mode,
-            "executor_id": p.executor_id,
+            "executor_name": p.executor_name,
             "created_at": _serialize_datetime(p.created_at),
             "updated_at": _serialize_datetime(p.updated_at),
         })
@@ -442,10 +442,6 @@ async def _restore_from_zip(
         await db.execute(sa_delete(SkillTestDB))
         await db.execute(sa_delete(SkillChangelogDB))
         await db.execute(sa_delete(SkillVersionDB))
-        # Nullify executor_id on presets before deleting presets
-        await db.execute(
-            sa_update(AgentPresetDB).values(executor_id=None)
-        )
         await db.execute(sa_delete(AgentPresetDB))
         await db.execute(sa_delete(SkillDB))
         await db.flush()
@@ -572,7 +568,7 @@ async def _restore_from_zip(
 
     await db.flush()
 
-    # Agent Presets (executor_id set to None)
+    # Agent Presets (executor_name preserved across backup/restore)
     for p in presets_data:
         try:
             preset = AgentPresetDB(
@@ -589,7 +585,7 @@ async def _restore_from_zip(
                 is_system=p.get("is_system", False),
                 is_published=p.get("is_published", False),
                 api_response_mode=p.get("api_response_mode"),
-                executor_id=None,
+                executor_name=p.get("executor_name"),
                 created_at=datetime.fromisoformat(p["created_at"]) if p.get("created_at") else datetime.utcnow(),
                 updated_at=datetime.fromisoformat(p["updated_at"]) if p.get("updated_at") else datetime.utcnow(),
             )

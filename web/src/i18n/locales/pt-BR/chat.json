@@ -54,7 +54,8 @@
     "selectModel": "Selecionar modelo",
     "executor": "Executor",
     "executorLocal": "Local",
-    "executorDescription": "Selecionar ambiente de execução de código"
+    "executorDescription": "Selecionar ambiente de execução de código",
+    "executorOfflineWarning": "O executor \"{{name}}\" está offline. A execução de código falhará."
   },
   "files": {
     "title": "Arquivos",

@@ -420,11 +420,6 @@ class ExecutorDB(Base):
         DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
     )
 
-    # Relationships
-    presets: Mapped[List["AgentPresetDB"]] = relationship(
-        "AgentPresetDB", back_populates="executor"
-    )
-
     def __repr__(self) -> str:
         return f"<Executor(name={self.name}, image={self.image}, is_builtin={self.is_builtin})>"
 
@@ -475,19 +470,14 @@ class AgentPresetDB(Base):
     api_response_mode: Mapped[Optional[str]] = mapped_column(
         String(32), nullable=True
     )  # "streaming" or "non_streaming", null = unpublished
-    executor_id: Mapped[Optional[str]] = mapped_column(
-        String(36), ForeignKey("executors.id"), nullable=True
-    )  # Executor to use for code execution
+    executor_name: Mapped[Optional[str]] = mapped_column(
+        String(50), nullable=True
+    )  # Executor name (e.g. "base", "ml", "cuda") for code execution
     created_at: Mapped[datetime] = mapped_column(
         DateTime, default=datetime.utcnow, nullable=False
     )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
-    )
-
-    # Relationships
-    executor: Mapped[Optional["ExecutorDB"]] = relationship(
-        "ExecutorDB", back_populates="presets"
     )
 
     __table_args__ = (
