@@ -97,6 +97,18 @@
     },
     "trace-qa": {
       "category": "Development Tools"
+    },
+    "skill-creator": {
+      "category": "meta"
+    },
+    "skill-evolver": {
+      "category": "meta"
+    },
+    "skill-updater": {
+      "category": "meta"
+    },
+    "mcp-builder": {
+      "category": "meta"
     }
   }
 }
