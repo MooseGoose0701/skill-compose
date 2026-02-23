@@ -674,12 +674,14 @@ async def run_agent_stream(request: AgentRequest, db: AsyncSession = Depends(get
                     final_msgs = last_complete_event.get("final_messages")
 
                     # Compute new display messages (only the new turns from this request)
+                    # Priority: final_messages > pre-compression snapshot
+                    # turn_complete snapshots miss the final assistant text (emitted before last LLM turn)
                     new_display = None
-                    if last_snapshot_for_display and history_len is not None:
-                        # Use pre-compression snapshot for accurate display extraction
-                        new_display = last_snapshot_for_display[history_len:]
-                    elif final_msgs and not compression_happened and history_len is not None:
+                    if final_msgs and not compression_happened and history_len is not None:
                         new_display = final_msgs[history_len:]
+                    elif last_snapshot_for_display and history_len is not None:
+                        # Compression happened — use pre-compression snapshot for correct offset
+                        new_display = last_snapshot_for_display[history_len:]
                     # else: fallback to simple user+assistant pair (handled by save_session_messages)
 
                     await save_session_messages(
