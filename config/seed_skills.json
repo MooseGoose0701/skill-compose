@@ -74,6 +74,9 @@
       "source": "https://github.com/blader/humanizer",
       "author": "blader"
     },
+    "canvas-design": {
+      "category": "Media & Design"
+    },
     "skill-finder": {
       "category": "Development Tools"
     }
