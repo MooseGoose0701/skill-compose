@@ -88,6 +88,15 @@
     },
     "code-to-diagram": {
       "category": "Development Tools"
+    },
+    "planning-with-files": {
+      "category": "Automation"
+    },
+    "skills-planner": {
+      "category": "Development Tools"
+    },
+    "trace-qa": {
+      "category": "Development Tools"
     }
   }
 }
