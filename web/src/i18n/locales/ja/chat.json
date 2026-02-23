@@ -127,5 +127,12 @@
       "messagesCount": "{{count}} 件",
       "messagesCount_other": "{{count}} 件"
     }
+  },
+  "askUser": {
+    "waitingForResponse": "回答をお待ちしています...",
+    "answered": "回答済み",
+    "typeAnswer": "回答を入力...",
+    "submit": "送信",
+    "timedOut": "回答がタイムアウトしました"
   }
 }

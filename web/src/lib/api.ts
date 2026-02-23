@@ -711,7 +711,7 @@ const AGENT_API_BASE = BACKEND_API_BASE;
 
 // Stream event types
 export interface StreamEvent {
-  event_type: 'run_started' | 'turn_start' | 'text_delta' | 'assistant' | 'tool_call' | 'tool_result' | 'output_file' | 'complete' | 'error' | 'trace_saved' | 'steering_received';
+  event_type: 'run_started' | 'turn_start' | 'text_delta' | 'assistant' | 'tool_call' | 'tool_result' | 'output_file' | 'complete' | 'error' | 'trace_saved' | 'steering_received' | 'ask_user';
   turn: number;
   // For turn_start
   max_turns?: number;
@@ -746,6 +746,10 @@ export interface StreamEvent {
   content_type?: string;
   download_url?: string;
   description?: string;
+  // For ask_user
+  prompt_id?: string;
+  question?: string;
+  options?: string[];
 }
 
 // Output file info for display

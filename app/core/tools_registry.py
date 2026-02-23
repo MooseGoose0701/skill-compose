@@ -54,6 +54,11 @@ TOOL_CATEGORIES = {
         "description": "Tools for reporting and managing output files",
         "icon": "download",
     },
+    "user_interaction": {
+        "name": "User Interaction",
+        "description": "Tools for interactive communication with the user",
+        "icon": "message-circle",
+    },
 }
 
 
@@ -352,6 +357,44 @@ Notes:
                 },
             },
             "required": ["query"],
+        },
+    ),
+    # User Interaction Tools
+    ToolDefinition(
+        id="ask_user",
+        name="ask_user",
+        description="""Ask the user a question and wait for their response. The current agent run ends and resumes when the user replies.
+
+Supports two modes:
+- **Options mode**: Provide predefined choices for the user to select from
+- **Free input mode**: Ask an open-ended question (omit options)
+
+Use proactively when:
+- Multiple candidates or possibilities need user selection (e.g., matching skills, date columns, target files)
+- The user's request is ambiguous — clarify before proceeding
+- A destructive or irreversible action needs confirmation
+
+Examples:
+- ask_user(question="Which date column should I use for the X axis?", options=["created_at", "updated_at", "published_at"])
+- ask_user(question="This will delete 15 files. Continue?", options=["Yes, delete them", "No, cancel"])
+- ask_user(question="What format would you like for the output report?")""",
+        category="user_interaction",
+        input_schema={
+            "type": "object",
+            "properties": {
+                "question": {
+                    "type": "string",
+                    "description": "The question to ask the user",
+                },
+                "options": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Optional predefined answer choices (rendered as buttons). If omitted, user gets a free text input.",
+                    "minItems": 2,
+                    "maxItems": 6,
+                },
+            },
+            "required": ["question"],
         },
     ),
 ]

@@ -3512,3 +3512,141 @@ class TestResilientStreamingE2E:
         await e2e_client.post(f"/api/v1/agents/{pid}/unpublish")
         resp = await e2e_client.delete(f"/api/v1/agents/{pid}")
         assert resp.status_code == 200
+
+
+# ===================================================================
+# Class: Ask User Tool E2E
+# ===================================================================
+
+@pytest.mark.e2e
+@pytest.mark.asyncio(loop_scope="class")
+class TestAskUserE2E:
+    """Tests for the ask_user built-in tool: end-turn behavior, SSE events, non-streaming fallback."""
+
+    _state: dict = {}
+
+    async def test_01_ask_user_tool_in_base_tools(self, e2e_client: AsyncClient):
+        """Verify ask_user tool is defined in BASE_TOOLS and has correct schema."""
+        from app.agent.tools import BASE_TOOLS, TOOL_REQUIRED_PARAMS
+
+        names = [t["name"] for t in BASE_TOOLS]
+        assert "ask_user" in names
+
+        # Verify it has the expected parameters
+        ask_user_tool = next(t for t in BASE_TOOLS if t["name"] == "ask_user")
+        schema = ask_user_tool["input_schema"]
+        assert "question" in schema["properties"]
+        assert "question" in schema["required"]
+        assert "options" in schema["properties"]
+
+        # Verify required params mapping
+        assert "ask_user" in TOOL_REQUIRED_PARAMS
+        assert "question" in TOOL_REQUIRED_PARAMS["ask_user"]
+
+    @patch("app.api.v1.agent.pre_compress_if_needed", new_callable=AsyncMock, return_value=[])
+    @patch("app.api.v1.agent.save_session_checkpoint", new_callable=AsyncMock)
+    @patch("app.api.v1.agent.save_session_messages", new_callable=AsyncMock)
+    @patch("app.api.v1.agent.load_or_create_session", new_callable=AsyncMock, return_value=SessionData(session_id="ask-user-session"))
+    @patch("app.api.v1.agent.AsyncSessionLocal")
+    @patch("app.api.v1.agent.SkillsAgent")
+    async def test_02_stream_with_ask_user_ends_run(
+        self, MockAgent, MockSessionLocal, _mock_load, _mock_save, _mock_checkpoint, _mock_precompress, e2e_client: AsyncClient
+    ):
+        """Verify that ask_user SSE event is emitted and the stream ends with complete (success=True)."""
+        # ask_user now ends the run — no ask_user_response event is emitted
+        ask_user_events = [
+            StreamEvent(event_type="turn_start", turn=1, data={"turn": 1}),
+            StreamEvent(
+                event_type="assistant",
+                turn=1,
+                data={"content": "I need to ask you something.", "turn": 1},
+            ),
+            StreamEvent(
+                event_type="ask_user",
+                turn=1,
+                data={
+                    "prompt_id": "test-prompt-123",
+                    "question": "Which format do you prefer?",
+                    "options": ["PDF", "HTML", "Markdown"],
+                },
+            ),
+            StreamEvent(
+                event_type="tool_result",
+                turn=1,
+                data={
+                    "tool_name": "ask_user",
+                    "tool_input": {"question": "Which format do you prefer?", "options": ["PDF", "HTML", "Markdown"]},
+                    "tool_result": '{"status": "waiting_for_user", "question": "Which format do you prefer?"}',
+                },
+            ),
+            StreamEvent(
+                event_type="complete",
+                turn=1,
+                data={
+                    "success": True,
+                    "answer": "[Waiting for user response: Which format do you prefer?]",
+                    "total_turns": 1,
+                    "total_input_tokens": 200,
+                    "total_output_tokens": 100,
+                    "skills_used": [],
+                    "final_messages": [],
+                },
+            ),
+        ]
+        MockAgent.return_value = _make_streaming_mock_agent(events=ask_user_events, answer="[Waiting for user response: Which format do you prefer?]")
+        MockSessionLocal.side_effect = lambda: _mock_session_local()()
+
+        resp = await e2e_client.post(
+            "/api/v1/agent/run/stream",
+            json={"request": "Convert this file", "session_id": "ask-user-session"},
+        )
+        assert resp.status_code == 200
+        assert "text/event-stream" in resp.headers.get("content-type", "")
+
+        events = parse_sse_events(resp.text)
+        assert len(events) >= 1
+
+        # Verify run_started event
+        assert events[0]["event_type"] == "run_started"
+        type(self)._state["trace_id"] = events[0].get("trace_id")
+
+        # Find ask_user event
+        ask_user_evts = [e for e in events if e.get("event_type") == "ask_user"]
+        assert len(ask_user_evts) >= 1, f"Expected ask_user event, got event types: {[e.get('event_type') for e in events]}"
+        ask_evt = ask_user_evts[0]
+        assert ask_evt["prompt_id"] == "test-prompt-123"
+        assert ask_evt["question"] == "Which format do you prefer?"
+        assert ask_evt["options"] == ["PDF", "HTML", "Markdown"]
+
+        # No ask_user_response event should be emitted (run ends instead)
+        response_evts = [e for e in events if e.get("event_type") == "ask_user_response"]
+        assert len(response_evts) == 0, "ask_user_response should not be emitted; run ends on ask_user"
+
+        # Verify stream ends with complete event (success=True)
+        complete_evts = [e for e in events if e.get("event_type") == "complete"]
+        assert len(complete_evts) >= 1
+        assert complete_evts[0]["success"] is True
+
+    async def test_03_respond_endpoint_removed(self, e2e_client: AsyncClient):
+        """The /respond endpoint no longer exists (removed in end-turn refactor)."""
+        resp = await e2e_client.post(
+            "/api/v1/agent/run/stream/nonexistent-trace/respond",
+            json={"prompt_id": "test-prompt", "answer": "yes"},
+        )
+        # Should be 404 or 405 since the endpoint no longer exists
+        assert resp.status_code in (404, 405)
+
+    @patch("app.api.v1.agent.save_session_messages", new_callable=AsyncMock)
+    @patch("app.api.v1.agent.load_or_create_session", new_callable=AsyncMock, return_value=SessionData(session_id="ask-user-sync"))
+    @patch("app.api.v1.agent.SkillsAgent")
+    async def test_04_non_streaming_ask_user_ends_run(self, MockAgent, _mock_load, _mock_save, e2e_client: AsyncClient):
+        """In non-streaming (sync) mode, ask_user also ends the run (same as streaming)."""
+        MockAgent.return_value = _make_mock_agent()
+        resp = await e2e_client.post(
+            "/api/v1/agent/run",
+            json={"request": "Do something that needs confirmation", "session_id": "ask-user-sync"},
+        )
+        # Mock agent doesn't actually call ask_user; we verify the endpoint works.
+        # The non-streaming ask_user end-turn logic is in the agent loop itself.
+        assert resp.status_code == 200
+        assert resp.json()["success"] is True

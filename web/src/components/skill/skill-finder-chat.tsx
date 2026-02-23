@@ -257,6 +257,7 @@ export function SkillFinderChat({
                 streamingContent={engine.streamingMessageId === message.id ? engine.streamingContent : undefined}
                 streamingEvents={engine.streamingMessageId === message.id ? engine.streamingEvents : undefined}
                 streamingOutputFiles={engine.streamingMessageId === message.id ? engine.currentOutputFiles : undefined}
+                onAskUserRespond={engine.handleRespond}
               />
             </div>
           ))
@@ -305,12 +306,12 @@ export function SkillFinderChat({
                 <Button onClick={engine.handleStop} variant="destructive" size="sm">
                   <Square className="h-4 w-4 mr-1" />{tc('stop')}
                 </Button>
-                <Button onClick={engine.handleSubmit} disabled={!engine.input.trim()} size="sm">
+                <Button onClick={() => engine.handleSubmit()} disabled={!engine.input.trim()} size="sm">
                   {tc('send')}
                 </Button>
               </div>
             ) : (
-              <Button onClick={engine.handleSubmit} disabled={!engine.input.trim()}>
+              <Button onClick={() => engine.handleSubmit()} disabled={!engine.input.trim()}>
                 {tc('send')}
               </Button>
             )}

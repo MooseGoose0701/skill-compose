@@ -125,6 +125,18 @@ export interface SteeringReceivedRecord extends StreamEventRecordBase {
   data: SteeringReceivedData;
 }
 
+// Ask user event data (agent run ends, resumes when user replies)
+export interface AskUserData {
+  promptId: string;
+  question: string;
+  options?: string[];
+}
+
+export interface AskUserRecord extends StreamEventRecordBase {
+  type: 'ask_user';
+  data: AskUserData;
+}
+
 // Union type of all stream event records
 export type StreamEventRecord =
   | TurnStartRecord
@@ -136,7 +148,8 @@ export type StreamEventRecord =
   | ErrorRecord
   | RunStartedRecord
   | TraceSavedRecord
-  | SteeringReceivedRecord;
+  | SteeringReceivedRecord
+  | AskUserRecord;
 
 // Type guard functions
 export function isTurnStartRecord(record: StreamEventRecord): record is TurnStartRecord {

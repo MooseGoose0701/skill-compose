@@ -462,6 +462,7 @@ export function ChatPanel({ isOpen, onClose, defaultSkills = [] }: ChatPanelProp
               streamingContent={message.id === engine.streamingMessageId ? engine.streamingContent : null}
               streamingEvents={message.id === engine.streamingMessageId ? engine.streamingEvents : undefined}
               streamingOutputFiles={message.id === engine.streamingMessageId ? engine.currentOutputFiles : undefined}
+              onAskUserRespond={engine.handleRespond}
             />
           ))
         )}
@@ -508,12 +509,12 @@ export function ChatPanel({ isOpen, onClose, defaultSkills = [] }: ChatPanelProp
                 <Square className="h-4 w-4 mr-1" />
                 {t('stop')}
               </Button>
-              <Button onClick={engine.handleSubmit} disabled={!engine.input.trim()} size="sm">
+              <Button onClick={() => engine.handleSubmit()} disabled={!engine.input.trim()} size="sm">
                 {t('send')}
               </Button>
             </div>
           ) : (
-            <Button onClick={engine.handleSubmit} disabled={!engine.input.trim()}>
+            <Button onClick={() => engine.handleSubmit()} disabled={!engine.input.trim()}>
               {t('send')}
             </Button>
           )}
