@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from 'react';
 import Link from 'next/link';
-import { Search, Bot, Settings, Trash2, Globe, ExternalLink } from 'lucide-react';
+import { Search, Bot, Settings, Settings2, Trash2, Globe, ExternalLink } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -149,7 +149,10 @@ export default function AgentsPage() {
           {/* Meta Agents */}
           {!isLoading && metaAgents.length > 0 && (
             <div className="mb-8">
-              <h2 className="text-lg font-semibold mb-4 text-muted-foreground">{t('list.meta')}</h2>
+              <h2 className="text-lg font-semibold mb-4 flex items-center gap-2 text-muted-foreground">
+                <Settings2 className="h-4 w-4" />
+                {t('list.meta')}
+              </h2>
               <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                 {metaAgents.map((preset) => (
                   <AgentPresetCard
