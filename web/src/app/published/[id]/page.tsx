@@ -76,6 +76,7 @@ export default function PublishedChatPage() {
   // Session
   const [sessionId, setSessionId] = useState<string>(() => getOrCreateSessionId(agentId));
   const [restoringSession, setRestoringSession] = useState(false);
+  const [loadingSession, setLoadingSession] = useState(false);
 
   // Chat state (local)
   const [messages, setMessages] = useState<LocalMessage[]>([]);
@@ -207,6 +208,7 @@ export default function PublishedChatPage() {
     setMessages([]);
     setUploadedFiles([]);
     setMobileSidebarOpen(false);
+    setLoadingSession(true);
 
     try {
       const data = await publishedAgentApi.getSession(agentId, newSessionId);
@@ -215,6 +217,8 @@ export default function PublishedChatPage() {
       }
     } catch {
       // First visit or not found
+    } finally {
+      setLoadingSession(false);
     }
   }, [agentId, sessionId, isRunning]);
 
@@ -299,7 +303,12 @@ export default function PublishedChatPage() {
 
         {/* Messages */}
         <div className="flex-1 overflow-auto p-4 sm:p-6 space-y-4">
-          {messages.length === 0 ? (
+          {loadingSession ? (
+            <div className="flex flex-col items-center justify-center py-16 gap-3">
+              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+              <p className="text-sm text-muted-foreground">{t('published.loadingSession')}</p>
+            </div>
+          ) : messages.length === 0 ? (
             <div className="text-center text-muted-foreground py-16">
               <Bot className="h-12 w-12 mx-auto mb-4 opacity-50" />
               <p className="text-lg">{t('startConversation')}</p>
