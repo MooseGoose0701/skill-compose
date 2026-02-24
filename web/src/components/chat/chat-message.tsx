@@ -48,14 +48,14 @@ export function ChatMessageItem({
   if (message.role === "user") {
     return (
       <div className="flex justify-end">
-        <Card className="max-w-[85%] p-3 px-4 bg-primary text-primary-foreground">
+        <Card className="max-w-[85%] p-3 px-4 bg-[#f4f4f4] dark:bg-[#303030] text-foreground border-0 shadow-none rounded-2xl">
           <p className="text-sm whitespace-pre-wrap">{message.content}</p>
           {message.attachedFiles && message.attachedFiles.length > 0 && (
-            <div className="flex flex-wrap gap-1.5 mt-2 pt-2 border-t border-primary-foreground/20">
+            <div className="flex flex-wrap gap-1.5 mt-2 pt-2 border-t border-foreground/10">
               {message.attachedFiles.map((file) => (
                 <span
                   key={file.file_id}
-                  className="inline-flex items-center gap-1 text-xs opacity-80 bg-primary-foreground/10 rounded px-1.5 py-0.5"
+                  className="inline-flex items-center gap-1 text-xs opacity-70 bg-foreground/5 rounded px-1.5 py-0.5"
                 >
                   <Paperclip className="h-3 w-3" />
                   <span className="max-w-[150px] truncate">{file.filename}</span>

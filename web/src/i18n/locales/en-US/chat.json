@@ -113,6 +113,7 @@
     "notAvailable": "This agent is not available.",
     "sessionId": "Session",
     "sessionIdCopied": "Session ID copied",
+    "loadingSession": "Loading conversation...",
     "sidebar": {
       "title": "History",
       "noSessions": "No conversations yet",

@@ -113,6 +113,7 @@
     "notAvailable": "此 Agent 不可用。",
     "sessionId": "会话",
     "sessionIdCopied": "会话 ID 已复制",
+    "loadingSession": "正在加载对话...",
     "sidebar": {
       "title": "历史记录",
       "noSessions": "暂无对话",
