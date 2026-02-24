@@ -24,7 +24,7 @@ interface ChatMessageItemProps {
   onAskUserRespond?: (promptId: string, answer: string) => void;
 }
 
-export function ChatMessageItem({
+export const ChatMessageItem = React.memo(function ChatMessageItem({
   message,
   streamingContent,
   streamingOutputFiles,
@@ -148,7 +148,7 @@ export function ChatMessageItem({
       </Card>
     </div>
   );
-}
+});
 
 export function TraceIdDisplay({ traceId }: { traceId: string }) {
   const [copied, setCopied] = React.useState(false);

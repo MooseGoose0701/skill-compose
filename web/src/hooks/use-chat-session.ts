@@ -9,6 +9,8 @@ import { sessionMessagesToChatMessages } from '@/lib/session-utils';
  * On mount, if the store has a sessionId but no messages,
  * fetch the session from the server and populate the message list.
  * Also fetches trace IDs for the session and attaches them to assistant messages.
+ *
+ * Uses setMessages() for a single batch state update (instead of N addMessage calls).
  */
 export function useChatSessionRestore() {
   const sessionId = useChatStore((s) => s.sessionId);
@@ -21,6 +23,9 @@ export function useChatSessionRestore() {
     if (!sessionId || messages.length > 0 || isRunning) return;
 
     attempted.current = true;
+
+    const store = useChatStore.getState();
+    store.setIsRestoringSession(true);
 
     (async () => {
       try {
@@ -46,14 +51,13 @@ export function useChatSessionRestore() {
             }
           }
 
-          // Populate store
-          const store = useChatStore.getState();
-          for (const msg of chatMessages) {
-            store.addMessage(msg);
-          }
+          // Batch update: single state change instead of N addMessage calls
+          useChatStore.getState().setMessages(chatMessages);
         }
       } catch {
         // 404 or network error — start fresh, no messages to restore
+      } finally {
+        useChatStore.getState().setIsRestoringSession(false);
       }
     })();
   }, [sessionId, messages.length, isRunning]);

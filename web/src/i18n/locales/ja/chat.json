@@ -108,6 +108,10 @@
     "button": "操舵",
     "label": "ステアリング"
   },
+  "session": {
+    "restoring": "セッションを復元中...",
+    "switching": "会話を読み込み中..."
+  },
   "published": {
     "typeToBegin": "下にメッセージを入力して開始してください。",
     "notAvailable": "このエージェントは利用できません。",

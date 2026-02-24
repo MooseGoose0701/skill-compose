@@ -108,6 +108,10 @@
     "button": "Direcionar",
     "label": "Direcionamento"
   },
+  "session": {
+    "restoring": "Restaurando sessão...",
+    "switching": "Carregando conversa..."
+  },
   "published": {
     "typeToBegin": "Digite uma mensagem abaixo para começar.",
     "notAvailable": "Este agente não está disponível.",

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef, useEffect, useCallback } from "react";
+import React, { useState, useRef, useEffect, useCallback, startTransition } from "react";
 import { useParams } from "next/navigation";
 import { Paperclip, X, Square, Bot, Loader2, MessageSquarePlus, PanelLeft, Copy, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -76,6 +76,7 @@ export default function PublishedChatPage() {
   // Session
   const [sessionId, setSessionId] = useState<string>(() => getOrCreateSessionId(agentId));
   const [restoringSession, setRestoringSession] = useState(false);
+  const [switchingSession, setSwitchingSession] = useState(false);
 
   // Chat state (local)
   const [messages, setMessages] = useState<LocalMessage[]>([]);
@@ -163,14 +164,17 @@ export default function PublishedChatPage() {
         const sessionData = await publishedAgentApi.getSession(agentId, sessionId);
         if (sessionData.messages.length > 0) {
           const restoredMessages = sessionMessagesToChatMessages(sessionData.messages);
-          setMessages(restoredMessages);
+          startTransition(() => {
+            setMessages(restoredMessages);
+            setRestoringSession(false);
+            setLoadingInfo(false);
+          });
+          return;
         }
       } catch {
         // Session not found — first visit
-      } finally {
-        setRestoringSession(false);
       }
-
+      setRestoringSession(false);
       setLoadingInfo(false);
     }
     loadInfo();
@@ -207,15 +211,21 @@ export default function PublishedChatPage() {
     setMessages([]);
     setUploadedFiles([]);
     setMobileSidebarOpen(false);
+    setSwitchingSession(true);
 
     try {
       const data = await publishedAgentApi.getSession(agentId, newSessionId);
       if (data.messages.length > 0) {
-        setMessages(sessionMessagesToChatMessages(data.messages));
+        startTransition(() => {
+          setMessages(sessionMessagesToChatMessages(data.messages));
+          setSwitchingSession(false);
+        });
+        return;
       }
     } catch {
       // First visit or not found
     }
+    setSwitchingSession(false);
   }, [agentId, sessionId, isRunning]);
 
   if (loadingInfo || restoringSession) {
@@ -299,7 +309,12 @@ export default function PublishedChatPage() {
 
         {/* Messages */}
         <div className="flex-1 overflow-auto p-4 sm:p-6 space-y-4">
-          {messages.length === 0 ? (
+          {switchingSession ? (
+            <div className="flex flex-col items-center justify-center py-16 gap-3">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              <p className="text-sm text-muted-foreground">{t('session.switching')}</p>
+            </div>
+          ) : messages.length === 0 ? (
             <div className="text-center text-muted-foreground py-16">
               <Bot className="h-12 w-12 mx-auto mb-4 opacity-50" />
               <p className="text-lg">{t('startConversation')}</p>

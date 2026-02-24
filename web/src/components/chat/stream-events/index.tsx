@@ -25,7 +25,7 @@ interface StreamEventsRendererProps {
 /**
  * Renders a list of stream events as structured UI components
  */
-export function StreamEventsRenderer({ events, expandAll = false, isStreaming = false, onAskUserRespond }: StreamEventsRendererProps) {
+export const StreamEventsRenderer = React.memo(function StreamEventsRenderer({ events, expandAll = false, isStreaming = false, onAskUserRespond }: StreamEventsRendererProps) {
   // Find the index of the last assistant event for streaming optimization
   let lastAssistantIndex = -1;
   if (isStreaming) {
@@ -85,7 +85,7 @@ export function StreamEventsRenderer({ events, expandAll = false, isStreaming = 
       })}
     </div>
   );
-}
+});
 
 // Re-export individual components for direct usage
 export { TurnDivider } from "./turn-divider";

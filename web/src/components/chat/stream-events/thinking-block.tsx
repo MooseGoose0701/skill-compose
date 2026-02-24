@@ -1,7 +1,7 @@
 "use client";
 
 import { MessageSquare } from "lucide-react";
-import { Markdown } from "@/components/ui/markdown";
+import { LazyMarkdown } from "@/components/ui/lazy-markdown";
 import type { AssistantData } from "@/types/stream-events";
 
 interface ThinkingBlockProps {
@@ -18,7 +18,7 @@ export function ThinkingBlock({ data, isStreaming }: ThinkingBlockProps) {
         {isStreaming ? (
           <pre className="whitespace-pre-wrap font-sans">{data.content}</pre>
         ) : (
-          <Markdown>{data.content}</Markdown>
+          <LazyMarkdown>{data.content}</LazyMarkdown>
         )}
       </div>
     </div>

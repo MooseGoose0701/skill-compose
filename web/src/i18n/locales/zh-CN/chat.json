@@ -108,6 +108,10 @@
     "button": "引导",
     "label": "引导消息"
   },
+  "session": {
+    "restoring": "正在恢复会话...",
+    "switching": "正在加载对话..."
+  },
   "published": {
     "typeToBegin": "在下方输入消息开始。",
     "notAvailable": "此 Agent 不可用。",

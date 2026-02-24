@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import {
   RotateCcw, Paperclip, X, Wrench, Plug, ChevronDown, ChevronUp, Square, Bot, Cpu, Server,
-  MessageSquare, Home, Settings, Plus,
+  MessageSquare, Home, Settings, Plus, Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -31,7 +31,7 @@ export default function FullscreenChatPage() {
 
   const {
     messages, selectedSkills, selectedTools, selectedMcpServers, isRunning, maxTurns,
-    uploadedFiles, selectedAgentPreset, systemPrompt,
+    uploadedFiles, selectedAgentPreset, systemPrompt, isRestoringSession,
     addMessage, updateMessage, removeMessages, newSession, resetAll,
     setSessionId, setSelectedSkills, setSelectedTools, setSelectedMcpServers,
     setIsRunning, setMaxTurns, addUploadedFile, removeUploadedFile, clearUploadedFiles,
@@ -360,7 +360,12 @@ export default function FullscreenChatPage() {
 
       {/* Messages */}
       <div className="flex-1 overflow-auto p-6 space-y-4">
-        {messages.length === 0 ? (
+        {isRestoringSession ? (
+          <div className="flex flex-col items-center justify-center py-16 gap-3">
+            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            <p className="text-sm text-muted-foreground">{t('session.restoring')}</p>
+          </div>
+        ) : messages.length === 0 ? (
           <div className="text-center text-muted-foreground py-16">
             <MessageSquare className="h-12 w-12 mx-auto mb-4 opacity-50" />
             <p className="text-lg">{t('startConversation')}</p>

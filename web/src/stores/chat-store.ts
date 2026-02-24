@@ -32,6 +32,7 @@ interface ChatState {
   selectedTools: string[] | null;  // null = not initialized, will auto-select all tools
   selectedMcpServers: string[] | null;  // null = not initialized, will auto-select default_enabled
   isRunning: boolean;
+  isRestoringSession: boolean;  // True while restoring session messages from server
   maxTurns: number;
   uploadedFiles: UploadedFile[];
   selectedAgentPreset: string | null;  // Currently selected agent preset ID
@@ -42,9 +43,11 @@ interface ChatState {
 
   // Actions
   addMessage: (message: ChatMessage) => void;
+  setMessages: (messages: ChatMessage[]) => void;  // Batch replace all messages (avoids N re-renders)
   updateMessage: (id: string, updates: Partial<ChatMessage>) => void;
   removeMessages: (ids: string[]) => void;
   clearMessages: () => void;
+  setIsRestoringSession: (restoring: boolean) => void;
   setSessionId: (id: string | null) => void;
   newSession: () => void;  // Clear messages + sessionId + files, keep config
   setSelectedSkills: (skills: string[]) => void;
@@ -77,6 +80,7 @@ export const useChatStore = create<ChatState>()(
       selectedTools: null,  // null = not initialized, will auto-select all tools
       selectedMcpServers: null,  // null = not initialized, will auto-select default_enabled
       isRunning: false,
+      isRestoringSession: false,
       maxTurns: 60,
       uploadedFiles: [],
       selectedAgentPreset: null,
@@ -89,6 +93,8 @@ export const useChatStore = create<ChatState>()(
         set((state) => ({
           messages: [...state.messages, message],
         })),
+
+      setMessages: (messages) => set({ messages }),
 
       updateMessage: (id, updates) =>
         set((state) => ({
@@ -103,6 +109,8 @@ export const useChatStore = create<ChatState>()(
         })),
 
       clearMessages: () => set({ messages: [] }),
+
+      setIsRestoringSession: (restoring) => set({ isRestoringSession: restoring }),
 
       setSessionId: (id) => set({ sessionId: id }),
 
@@ -174,6 +182,7 @@ export const useChatStore = create<ChatState>()(
         maxTurns: 60,
         uploadedFiles: [],
         isRunning: false,
+        isRestoringSession: false,
         selectedAgentPreset: null,
         systemPrompt: null,
         selectedModelProvider: null,

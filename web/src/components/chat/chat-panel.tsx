@@ -3,7 +3,7 @@
 import React from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
-import { RotateCcw, Paperclip, X, Wrench, Plug, ChevronDown, ChevronUp, Square, Bot, Cpu, Maximize2, Server, Plus, Settings, AlertTriangle } from "lucide-react";
+import { RotateCcw, Paperclip, X, Wrench, Plug, ChevronDown, ChevronUp, Square, Bot, Cpu, Maximize2, Server, Plus, Settings, AlertTriangle, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
@@ -46,6 +46,7 @@ export function ChatPanel({ isOpen, onClose, defaultSkills = [] }: ChatPanelProp
     selectedTools,
     selectedMcpServers,
     isRunning,
+    isRestoringSession,
     maxTurns,
     uploadedFiles,
     selectedAgentPreset,
@@ -473,7 +474,12 @@ export function ChatPanel({ isOpen, onClose, defaultSkills = [] }: ChatPanelProp
 
       {/* Messages */}
       <div className="flex-1 overflow-auto p-4 space-y-4">
-        {messages.length === 0 ? (
+        {isRestoringSession ? (
+          <div className="flex flex-col items-center justify-center py-8 gap-3">
+            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+            <p className="text-sm text-muted-foreground">{t('session.restoring')}</p>
+          </div>
+        ) : messages.length === 0 ? (
           <div className="text-center text-muted-foreground py-8">
             <p>{t('startConversation')}.</p>
             <p className="text-sm mt-2">{t('selectSkillsHint')}</p>

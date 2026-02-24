@@ -108,6 +108,10 @@
     "button": "Steer",
     "label": "Steering"
   },
+  "session": {
+    "restoring": "Restoring session...",
+    "switching": "Loading conversation..."
+  },
   "published": {
     "typeToBegin": "Type a message below to begin.",
     "notAvailable": "This agent is not available.",
