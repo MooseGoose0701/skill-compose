@@ -69,16 +69,15 @@ export default function Home() {
           <div className="relative container px-4 pt-12 pb-8 md:pt-16 md:pb-10">
             <div className="mx-auto max-w-3xl">
               <h1 className="text-3xl font-bold tracking-tight sm:text-4xl md:text-5xl leading-[1.15] [text-wrap:balance]">
-                {t('title_line1')}<br />
-                <span className="gradient-text">{t('title_line2')}</span>
+                {t('title')}
               </h1>
-              <p className="mt-4 text-lg tracking-wide text-muted-foreground italic sm:text-xl">
+              <p className="mt-4 text-lg text-muted-foreground sm:text-xl [text-wrap:balance]">
                 {t('tagline')}
               </p>
               <div className="mt-8 inline-flex flex-col items-center gap-1">
                 <Link
                   href="/agents/new"
-                  className="inline-flex items-center justify-center rounded-lg bg-primary px-8 py-3.5 text-base font-semibold text-primary-foreground shadow-md shadow-primary/20 transition-[transform,box-shadow] hover:shadow-lg hover:shadow-primary/30 hover:scale-[1.02] motion-reduce:transform-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  className="inline-flex items-center justify-center rounded-lg bg-gradient-to-r from-blue-600 to-violet-600 dark:from-blue-500 dark:to-violet-500 px-8 py-3.5 text-base font-semibold text-white shadow-md shadow-blue-500/20 transition-[transform,box-shadow] hover:shadow-lg hover:shadow-violet-500/30 hover:scale-[1.02] motion-reduce:transform-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                 >
                   {t('cta.main')} <ArrowRight className="ml-2 h-5 w-5" />
                 </Link>

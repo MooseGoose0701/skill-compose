@@ -1,8 +1,7 @@
 {
-  "title_line1": "用技能构建 Agent",
-  "title_line2": "从未如此简单",
+  "title": "从技能组合 Agent",
   "description": "描述你的代理，我们来构建它——以及它所需的技能。",
-  "tagline": "描述。组合。进化。",
+  "tagline": "一个生产就绪的平台，用于构建、进化和部署技能驱动的 Agent",
   "cta": {
     "main": "组合你的 Agent",
     "subtext": "按需自动创建技能！",
