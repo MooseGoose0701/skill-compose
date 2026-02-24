@@ -74,6 +74,9 @@
       "source": "https://github.com/blader/humanizer",
       "author": "blader"
     },
+    "ai-writing-detection": {
+      "category": "Content Creation"
+    },
     "canvas-design": {
       "category": "Media & Design"
     },
