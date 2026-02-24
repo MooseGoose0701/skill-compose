@@ -1,8 +1,7 @@
 {
-  "title_line1": "Building agents has never been",
-  "title_line2": "this easy, with skills",
+  "title": "Compose Agents from Skills",
   "description": "Describe your agent. We'll build it — and the skills it needs.",
-  "tagline": "Describe. Compose. Evolve.",
+  "tagline": "A production-ready platform to build, evolve, and deploy skills-driven agents",
   "cta": {
     "main": "Compose Your Agent",
     "subtext": "Auto-creates skills as needed!",

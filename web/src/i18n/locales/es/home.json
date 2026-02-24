@@ -1,8 +1,7 @@
 {
-  "title_line1": "Construir agentes nunca fue",
-  "title_line2": "tan fácil con skills",
+  "title": "Compón Agentes desde Skills",
   "description": "Describe tu agente. Lo construiremos — y las habilidades que necesita.",
-  "tagline": "Describe. Compone. Evoluciona.",
+  "tagline": "Una plataforma lista para producción para construir, evolucionar y desplegar agentes impulsados por skills",
   "cta": {
     "main": "Compón tu Agente",
     "subtext": "¡Crea habilidades automáticamente según sea necesario!",

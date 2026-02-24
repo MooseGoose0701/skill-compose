@@ -63,8 +63,8 @@ export function AppHeader() {
           </Link>
 
           <nav className="flex items-center gap-4">
-            <NavLink href="/skills">{t('nav.skills')}</NavLink>
             <NavLink href="/agents">{t('nav.agents')}</NavLink>
+            <NavLink href="/skills">{t('nav.skills')}</NavLink>
             <NavLink href="/tools">{t('nav.tools')}</NavLink>
             <NavLink href="/mcp">{t('nav.mcp')}</NavLink>
           </nav>
