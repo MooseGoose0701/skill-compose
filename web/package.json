@@ -34,7 +34,6 @@
     "date-fns": "^3.2.0",
     "geist": "^1.7.0",
     "i18next": "^25.8.0",
-    "i18next-resources-to-backend": "^1.2.1",
     "lucide-react": "^0.312.0",
     "next": "^14.2.0",
     "next-themes": "^0.4.6",

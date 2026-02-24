@@ -2,16 +2,12 @@
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ThemeProvider } from 'next-themes';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { ChatProvider } from '@/components/chat/chat-provider';
-import { initI18next } from '@/i18n/client';
+// i18next is initialized synchronously on import — no useEffect needed
+import '@/i18n/client';
 
 export function Providers({ children }: { children: React.ReactNode }) {
-  // Initialize i18next on mount
-  useEffect(() => {
-    initI18next();
-  }, []);
-
   const [queryClient] = useState(
     () =>
       new QueryClient({

@@ -14,6 +14,5 @@ export {
   useTranslation,
   changeLanguage,
   getCurrentLanguage,
-  initI18next,
   setLanguageCookie
 } from './client'
