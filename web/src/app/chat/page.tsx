@@ -42,7 +42,7 @@ export default function FullscreenChatPage() {
 
   useChatSessionRestore();
 
-  const [showConfig, setShowConfig] = React.useState(false);
+  const [showConfig, setShowConfig] = React.useState(true);
   const [showToolsPanel, setShowToolsPanel] = React.useState(false);
   const [showResetDialog, setShowResetDialog] = React.useState(false);
 
@@ -118,14 +118,14 @@ export default function FullscreenChatPage() {
     },
   });
 
-  // Fetch data — defer skills/tools/MCP until config panel is open
-  const { data: skillsData } = useQuery({ queryKey: ["registry-skills-list"], queryFn: () => skillsApi.list(), enabled: showConfig });
+  // Fetch data
+  const { data: skillsData } = useQuery({ queryKey: ["registry-skills-list"], queryFn: () => skillsApi.list() });
   const skills = (skillsData?.skills || []).filter(s => s.skill_type === 'user');
 
   const { data: toolsData } = useQuery({ queryKey: ["tools-list"], queryFn: () => toolsApi.list() });
   const tools = toolsData?.tools || [];
 
-  const { data: mcpData } = useQuery({ queryKey: ["mcp-servers"], queryFn: () => mcpApi.listServers(), enabled: showConfig });
+  const { data: mcpData } = useQuery({ queryKey: ["mcp-servers"], queryFn: () => mcpApi.listServers() });
   const mcpServers = mcpData?.servers || [];
 
   const { data: agentPresetsData, isLoading: isLoadingAgents } = useQuery({ queryKey: ["agent-presets-user"], queryFn: () => agentPresetsApi.list({ is_system: false }) });
@@ -245,10 +245,11 @@ export default function FullscreenChatPage() {
             variant={showConfig ? "default" : "outline"}
             size="sm"
             onClick={() => setShowConfig(!showConfig)}
-            title={t('config')}
+            title={showConfig ? t('hideConfig') : t('showConfig')}
           >
             <Settings className="h-4 w-4 mr-1" />
             {t('config')}
+            {showConfig ? <ChevronUp className="h-3.5 w-3.5 ml-1" /> : <ChevronDown className="h-3.5 w-3.5 ml-1" />}
           </Button>
           <Button variant="outline" size="sm" onClick={() => newSession()} disabled={messages.length === 0 || isRunning} title={t('newChat')}>
             <Plus className="h-4 w-4 mr-1" />
