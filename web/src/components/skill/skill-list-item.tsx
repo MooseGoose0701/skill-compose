@@ -7,10 +7,12 @@ import {
   Tag,
   Settings2,
   Pin,
+  Bot,
 } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import { formatRelativeTime } from '@/lib/utils';
 import { useTogglePin } from '@/hooks/use-skills';
 import { useTranslation } from '@/i18n/client';
@@ -19,11 +21,12 @@ import type { Skill } from '@/types/skill';
 interface SkillListItemProps {
   skill: Skill;
   hasGithubUpdate?: boolean;
+  agentNames?: string[];
 }
 
 const MAX_VISIBLE_TAGS = 2;
 
-export function SkillListItem({ skill, hasGithubUpdate }: SkillListItemProps) {
+export function SkillListItem({ skill, hasGithubUpdate, agentNames }: SkillListItemProps) {
   const { t } = useTranslation('skills');
   const togglePin = useTogglePin();
   const isMeta = skill.skill_type === 'meta';
@@ -103,6 +106,21 @@ export function SkillListItem({ skill, hasGithubUpdate }: SkillListItemProps) {
             <Clock className="h-3 w-3" />
             <span>{formatRelativeTime(skill.updated_at)}</span>
           </div>
+
+          {/* Agent references */}
+          {!isMeta && agentNames && agentNames.length > 0 && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-primary/10 text-primary text-xs font-medium flex-shrink-0">
+                  <Bot className="h-3 w-3" />
+                  <span>{agentNames.length}</span>
+                </div>
+              </TooltipTrigger>
+              <TooltipContent className="max-w-xs">
+                <p>{t('card.usedByAgents', { count: agentNames.length })}: {agentNames.join(', ')}</p>
+              </TooltipContent>
+            </Tooltip>
+          )}
 
           {/* Pin button */}
           {!isMeta && (

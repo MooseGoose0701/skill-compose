@@ -81,7 +81,8 @@
     "noTags": "无标签",
     "pin": "置顶",
     "unpin": "取消置顶",
-    "githubUpdateAvailable": "GitHub 上有新版本可用"
+    "githubUpdateAvailable": "GitHub 上有新版本可用",
+    "usedByAgents": "被 {{count}} 个 Agent 使用"
   },
   "detail": {
     "overview": "概览",

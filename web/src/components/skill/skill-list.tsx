@@ -7,11 +7,13 @@ import { SkillListItem } from './skill-list-item';
 import { LoadingSkeleton } from '@/components/ui/loading-skeleton';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Badge } from '@/components/ui/badge';
+import { TooltipProvider } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import type { Skill } from '@/types/skill';
 import type { ViewMode } from '@/app/skills/page';
 import { useTranslation } from '@/i18n/client';
 import { useGithubUpdateStatus } from '@/hooks/use-skills';
+import { useAgentPresets } from '@/hooks/use-agents';
 
 interface SkillListProps {
   skills: Skill[];
@@ -38,6 +40,24 @@ export function SkillList({
   );
   const { data: githubStatus } = useGithubUpdateStatus(githubSkillNames.length > 0);
   const githubUpdateMap = githubStatus?.results;
+
+  // Build skill → agent names map
+  const { data: agents } = useAgentPresets();
+  const agentReferencesMap = useMemo(() => {
+    const map = new Map<string, string[]>();
+    if (!agents?.presets) return map;
+    for (const agent of agents.presets.filter((a) => !a.is_system)) {
+      if (agent.skill_ids) {
+        for (const skillName of agent.skill_ids) {
+          if (!map.has(skillName)) {
+            map.set(skillName, []);
+          }
+          map.get(skillName)!.push(agent.name);
+        }
+      }
+    }
+    return map;
+  }, [agents]);
 
   // Separate user and meta skills (treat undefined as 'user')
   const userSkills = skills.filter((s) => !s.skill_type || s.skill_type !== 'meta');
@@ -122,7 +142,7 @@ export function SkillList({
   const renderGrid = (items: Skill[]) => (
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
       {items.map((skill) => (
-        <SkillCard key={skill.id} skill={skill} hasGithubUpdate={githubUpdateMap?.[skill.name]?.has_update} />
+        <SkillCard key={skill.id} skill={skill} hasGithubUpdate={githubUpdateMap?.[skill.name]?.has_update} agentNames={agentReferencesMap.get(skill.name)} />
       ))}
     </div>
   );
@@ -130,7 +150,7 @@ export function SkillList({
   const renderList = (items: Skill[]) => (
     <div className="space-y-2">
       {items.map((skill) => (
-        <SkillListItem key={skill.id} skill={skill} hasGithubUpdate={githubUpdateMap?.[skill.name]?.has_update} />
+        <SkillListItem key={skill.id} skill={skill} hasGithubUpdate={githubUpdateMap?.[skill.name]?.has_update} agentNames={agentReferencesMap.get(skill.name)} />
       ))}
     </div>
   );
@@ -140,6 +160,7 @@ export function SkillList({
   const shouldGroupCategories = groupByCategory && categoryGroups && categoryGroups.size > 0;
 
   return (
+    <TooltipProvider delayDuration={300}>
     <div className="space-y-8">
       {/* Pinned User Skills */}
       {pinnedUserSkills.length > 0 && (
@@ -203,5 +224,6 @@ export function SkillList({
         </div>
       )}
     </div>
+    </TooltipProvider>
   );
 }
