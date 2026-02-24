@@ -19,6 +19,8 @@
   "manage": "管理",
   "home": "ホーム",
   "config": "設定",
+  "showConfig": "設定を表示",
+  "hideConfig": "設定を非表示",
   "startConversation": "会話を開始",
   "typeMessageToBegin": "下にメッセージを入力してエージェントとのチャットを開始してください。",
   "clickConfigToCustomize": "上の設定をクリックしてカスタマイズしてください。",

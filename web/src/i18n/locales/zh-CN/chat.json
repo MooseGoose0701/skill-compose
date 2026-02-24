@@ -19,6 +19,8 @@
   "manage": "管理",
   "home": "首页",
   "config": "配置",
+  "showConfig": "显示配置",
+  "hideConfig": "隐藏配置",
   "startConversation": "开始对话",
   "typeMessageToBegin": "在下方输入消息开始与 Agent 对话。",
   "clickConfigToCustomize": "点击上方 配置 按钮自定义设置。",

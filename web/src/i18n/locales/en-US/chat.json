@@ -19,6 +19,8 @@
   "manage": "Manage",
   "home": "Home",
   "config": "Config",
+  "showConfig": "Show config",
+  "hideConfig": "Hide config",
   "startConversation": "Start a conversation",
   "typeMessageToBegin": "Type a message below to begin chatting with the agent.",
   "clickConfigToCustomize": "Click Config above to customize settings.",

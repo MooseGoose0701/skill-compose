@@ -77,7 +77,7 @@ export function ChatPanel({ isOpen, onClose, defaultSkills = [] }: ChatPanelProp
   // Restore session messages from server on mount
   useChatSessionRestore();
 
-  const [showConfigPanel, setShowConfigPanel] = React.useState(false);
+  const [showConfigPanel, setShowConfigPanel] = React.useState(true);
   const [showToolsPanel, setShowToolsPanel] = React.useState(false);
   const [showResetDialog, setShowResetDialog] = React.useState(false);
 
@@ -317,10 +317,11 @@ export function ChatPanel({ isOpen, onClose, defaultSkills = [] }: ChatPanelProp
           variant="ghost"
           size="sm"
           onClick={() => setShowConfigPanel(!showConfigPanel)}
-          className={`h-6 w-6 p-0 shrink-0 ${showConfigPanel ? 'text-primary' : ''}`}
-          title={t('config')}
+          className={`h-6 px-1 py-0 shrink-0 flex items-center gap-0.5 ${showConfigPanel ? 'text-primary' : ''}`}
+          title={showConfigPanel ? t('hideConfig') : t('showConfig')}
         >
           <Settings className="h-3.5 w-3.5" />
+          {showConfigPanel ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
         </Button>
       </div>
 

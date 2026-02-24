@@ -19,6 +19,8 @@
   "manage": "Gerenciar",
   "home": "Início",
   "config": "Configurar",
+  "showConfig": "Mostrar configuração",
+  "hideConfig": "Ocultar configuração",
   "startConversation": "Iniciar uma conversa",
   "typeMessageToBegin": "Digite uma mensagem abaixo para começar a conversar com o agente.",
   "clickConfigToCustomize": "Clique em Configurar acima para personalizar as configurações.",
