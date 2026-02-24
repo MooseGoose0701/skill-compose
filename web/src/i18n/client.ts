@@ -2,10 +2,9 @@
 
 import i18next from 'i18next'
 import { initReactI18next, useTranslation as useTranslationOrg } from 'react-i18next'
-import resourcesToBackend from 'i18next-resources-to-backend'
-import { getOptions, languages, fallbackLng, Language, cookieName } from './settings'
+import { languages, fallbackLng, Language, cookieName, defaultNS } from './settings'
+import { resources } from './resources'
 
-// Initialize i18next for client-side
 const runsOnServerSide = typeof window === 'undefined'
 
 // Get language from cookie
@@ -26,42 +25,27 @@ export function setLanguageCookie(lang: Language) {
   document.cookie = `${cookieName}=${lang};path=/;max-age=31536000` // 1 year
 }
 
-// Initialize i18next once
-let initialized = false
+// Initialize i18next synchronously at module level — no flash on first render
+const language = getLanguageFromCookie()
 
-export function initI18next(lng?: Language) {
-  const language = lng || getLanguageFromCookie()
-
-  if (!initialized) {
-    i18next
-      .use(initReactI18next)
-      .use(
-        resourcesToBackend(
-          (language: string, namespace: string) =>
-            import(`./locales/${language}/${namespace}.json`)
-        )
-      )
-      .init({
-        ...getOptions(language),
-        lng: language,
-        detection: {
-          order: ['cookie'],
-          caches: ['cookie'],
-        },
-        preload: runsOnServerSide ? languages : [],
-      })
-    initialized = true
-  } else if (i18next.language !== language) {
-    i18next.changeLanguage(language)
-  }
-
-  return i18next
-}
+i18next
+  .use(initReactI18next)
+  .init({
+    resources,
+    supportedLngs: languages,
+    fallbackLng,
+    lng: language,
+    fallbackNS: defaultNS,
+    defaultNS,
+    ns: Object.keys(resources[fallbackLng]),
+    interpolation: {
+      escapeValue: false, // React already escapes
+    },
+  })
 
 // Export useTranslation hook
 export function useTranslation(ns?: string | string[], options?: { keyPrefix?: string }) {
-  const i18n = initI18next()
-  return useTranslationOrg(ns, { i18n, ...options })
+  return useTranslationOrg(ns, options)
 }
 
 // Export changeLanguage function
