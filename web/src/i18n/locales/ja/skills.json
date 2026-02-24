@@ -81,7 +81,8 @@
     "noTags": "タグなし",
     "pin": "トップに固定",
     "unpin": "固定を解除",
-    "githubUpdateAvailable": "GitHub に新しいバージョンがあります"
+    "githubUpdateAvailable": "GitHub に新しいバージョンがあります",
+    "usedByAgents": "{{count}} つのエージェントで使用中"
   },
   "detail": {
     "overview": "概要",

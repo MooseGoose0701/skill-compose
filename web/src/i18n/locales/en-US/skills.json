@@ -81,7 +81,9 @@
     "noTags": "No tags",
     "pin": "Pin to top",
     "unpin": "Unpin",
-    "githubUpdateAvailable": "New version available on GitHub"
+    "githubUpdateAvailable": "New version available on GitHub",
+    "usedByAgents": "Used by {{count}} agent",
+    "usedByAgents_other": "Used by {{count}} agents"
   },
   "detail": {
     "overview": "Overview",
