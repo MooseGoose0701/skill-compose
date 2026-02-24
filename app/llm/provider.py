@@ -376,7 +376,7 @@ class LLMClient:
                 for tc in message.tool_calls:
                     try:
                         args = json.loads(tc.function.arguments)
-                    except:
+                    except (json.JSONDecodeError, TypeError):
                         args = {}
 
                     content.append(LLMToolCall(
@@ -671,7 +671,7 @@ class LLMClient:
         for tc_data in accumulated_tool_calls.values():
             try:
                 args = json.loads(tc_data["arguments"])
-            except:
+            except (json.JSONDecodeError, TypeError):
                 args = {}
 
             content.append(LLMToolCall(
@@ -885,7 +885,7 @@ class LLMClient:
         for tc_data in accumulated_tool_calls.values():
             try:
                 args = json.loads(tc_data["arguments"])
-            except:
+            except (json.JSONDecodeError, TypeError):
                 args = {}
             content.append(LLMToolCall(
                 id=tc_data["id"],
