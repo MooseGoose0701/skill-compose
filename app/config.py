@@ -65,6 +65,12 @@ class Settings(BaseSettings):
     database_url: str = ""
     database_echo: bool = False  # Log SQL statements
 
+    # Authentication
+    jwt_secret_key: str = ""  # Auto-generated from database_url if empty
+    jwt_access_token_expire_hours: int = 24
+    jwt_refresh_token_expire_days: int = 7
+    auth_enabled: bool = True  # Set false to disable auth for development
+
     # Meta skills (internal use only, not selectable by users)
     meta_skills: list[str] = ["skill-creator", "skill-updater", "skill-evolver", "skill-finder", "trace-qa", "skills-planner", "planning-with-files", "mcp-builder"]
 
@@ -81,9 +87,91 @@ class Settings(BaseSettings):
         return "postgresql+asyncpg://skills:skills123@localhost:62620/skills_api"
 
     @property
+    def effective_jwt_secret(self) -> str:
+        """Get effective JWT secret.
+
+        Priority:
+        1. Explicit JWT_SECRET_KEY from env/config
+        2. Auto-generated secret persisted to config/.env
+        3. Random fallback (non-persistent, logs warning)
+        """
+        if self.jwt_secret_key:
+            return self.jwt_secret_key
+        # Try to load or generate a persistent secret
+        return _get_or_create_jwt_secret(self.config_dir)
+
+    @property
     def effective_config_path(self) -> str:
         """Get effective MCP config path"""
         return f"{self.config_dir}/mcp.json"
+
+
+def _get_or_create_jwt_secret(config_dir: str) -> str:
+    """Load or generate a persistent JWT secret in config/.env.
+
+    Uses file locking to prevent race conditions when multiple workers start.
+    """
+    import secrets
+    import fcntl
+
+    env_path = Path(config_dir) / ".env"
+    lock_path = Path(config_dir) / ".jwt_secret.lock"
+
+    def _read_secret_from_env() -> str | None:
+        if not env_path.exists():
+            return None
+        try:
+            for line in env_path.read_text(encoding="utf-8").splitlines():
+                line = line.strip()
+                if line.startswith("JWT_SECRET_KEY=") and not line.startswith("#"):
+                    val = line.split("=", 1)[1].strip()
+                    if val:
+                        return val
+        except Exception:
+            pass
+        return None
+
+    # Fast path: read without lock
+    existing = _read_secret_from_env()
+    if existing:
+        return existing
+
+    # Slow path: acquire lock, re-check, generate if needed
+    try:
+        env_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(lock_path, "w") as lock_file:
+            fcntl.flock(lock_file, fcntl.LOCK_EX)
+            try:
+                # Re-check after acquiring lock (another worker may have written)
+                existing = _read_secret_from_env()
+                if existing:
+                    return existing
+
+                new_secret = secrets.token_hex(32)
+                if env_path.exists():
+                    content = env_path.read_text(encoding="utf-8")
+                    if "JWT_SECRET_KEY=" in content:
+                        lines = content.splitlines()
+                        new_lines = []
+                        for line in lines:
+                            if line.strip().startswith("JWT_SECRET_KEY="):
+                                new_lines.append(f"JWT_SECRET_KEY={new_secret}")
+                            else:
+                                new_lines.append(line)
+                        env_path.write_text("\n".join(new_lines) + "\n", encoding="utf-8")
+                    else:
+                        with open(env_path, "a", encoding="utf-8") as f:
+                            f.write(f"\nJWT_SECRET_KEY={new_secret}\n")
+                else:
+                    env_path.write_text(f"JWT_SECRET_KEY={new_secret}\n", encoding="utf-8")
+                print(f"Auto-generated JWT secret key and saved to {env_path}")
+                return new_secret
+            finally:
+                fcntl.flock(lock_file, fcntl.LOCK_UN)
+    except Exception as e:
+        print(f"Warning: Could not persist JWT secret to {env_path}: {e}")
+        # Last resort fallback
+        return secrets.token_hex(32)
 
 
 @lru_cache()

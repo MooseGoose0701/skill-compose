@@ -242,11 +242,50 @@ async def _run_migrations():
             "CREATE INDEX IF NOT EXISTS ix_agent_traces_session_id ON agent_traces (session_id)"
         ))
 
+    # Create users table if not exists
+    async with engine.begin() as conn:
+        await conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS users (
+                id VARCHAR(36) PRIMARY KEY,
+                username VARCHAR(64) UNIQUE NOT NULL,
+                password_hash VARCHAR(256) NOT NULL,
+                display_name VARCHAR(128),
+                role VARCHAR(32) NOT NULL DEFAULT 'user',
+                is_active BOOLEAN NOT NULL DEFAULT TRUE,
+                created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+                updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+            )
+        """))
+        await conn.execute(text(
+            "CREATE INDEX IF NOT EXISTS ix_users_username ON users (username)"
+        ))
+
+    # Add must_change_password column to users table
+    async with engine.begin() as conn:
+        await conn.execute(text("""
+            DO $$ BEGIN
+                ALTER TABLE users ADD COLUMN must_change_password BOOLEAN NOT NULL DEFAULT FALSE;
+            EXCEPTION WHEN duplicate_column THEN NULL;
+            END $$
+        """))
+
+    # Add password_changed_at column to users table
+    async with engine.begin() as conn:
+        await conn.execute(text("""
+            DO $$ BEGIN
+                ALTER TABLE users ADD COLUMN password_changed_at TIMESTAMP DEFAULT NULL;
+            EXCEPTION WHEN duplicate_column THEN NULL;
+            END $$
+        """))
+
     # Ensure meta skills from filesystem are registered in the database
     await _ensure_meta_skills_registered()
 
     # Ensure seed agents are created
     await _ensure_seed_agents_exist()
+
+    # Ensure default admin user exists
+    await _ensure_default_admin()
 
 
 async def _ensure_meta_skills_registered():
@@ -590,6 +629,47 @@ async def _ensure_seed_agents_exist():
                         "updated_at": now,
                     }
                 )
+
+
+async def _ensure_default_admin():
+    """Create default admin user if no users exist."""
+    from sqlalchemy import text
+    import uuid
+
+    async with AsyncSessionLocal() as session:
+        async with session.begin():
+            result = await session.execute(text("SELECT COUNT(*) FROM users"))
+            count = result.scalar()
+            if count == 0:
+                try:
+                    import bcrypt
+                    password_hash = bcrypt.hashpw(b"admin", bcrypt.gensalt()).decode("utf-8")
+                except Exception:
+                    # Fallback if bcrypt not installed yet
+                    password_hash = ""
+                    print("Warning: bcrypt not available, default admin created without password")
+                    return
+
+                from datetime import datetime, timezone
+                now = datetime.now(timezone.utc).replace(tzinfo=None)
+                await session.execute(
+                    text("""
+                        INSERT INTO users (id, username, password_hash, display_name, role, is_active, must_change_password, created_at, updated_at)
+                        VALUES (:id, :username, :password_hash, :display_name, :role, :is_active, :must_change_password, :created_at, :updated_at)
+                    """),
+                    {
+                        "id": str(uuid.uuid4()),
+                        "username": "admin",
+                        "password_hash": password_hash,
+                        "display_name": "Administrator",
+                        "role": "admin",
+                        "is_active": True,
+                        "must_change_password": True,
+                        "created_at": now,
+                        "updated_at": now,
+                    }
+                )
+                print("Created default admin user (admin/admin) - password change required on first login")
 
 
 async def drop_db():

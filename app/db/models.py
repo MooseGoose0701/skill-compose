@@ -35,6 +35,47 @@ def generate_uuid() -> str:
     return str(uuid.uuid4())
 
 
+class UserDB(Base):
+    """
+    User accounts for authentication.
+    """
+    __tablename__ = "users"
+
+    id: Mapped[str] = mapped_column(
+        String(36), primary_key=True, default=generate_uuid
+    )
+    username: Mapped[str] = mapped_column(
+        String(64), unique=True, nullable=False, index=True
+    )
+    password_hash: Mapped[str] = mapped_column(
+        String(256), nullable=False
+    )
+    display_name: Mapped[Optional[str]] = mapped_column(
+        String(128), nullable=True
+    )
+    role: Mapped[str] = mapped_column(
+        String(32), default="user", nullable=False
+    )  # "admin" or "user"
+    is_active: Mapped[bool] = mapped_column(
+        Boolean, default=True, nullable=False
+    )
+    must_change_password: Mapped[bool] = mapped_column(
+        Boolean, default=False, nullable=False
+    )
+    password_changed_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime, nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow, nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
+    )
+
+    def __repr__(self) -> str:
+        return f"<User(username={self.username}, role={self.role})>"
+
+
 class SkillDB(Base):
     """
     Main skill registry table.

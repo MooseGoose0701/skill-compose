@@ -6,8 +6,8 @@ import { AppHeader } from './app-header';
 export function ConditionalHeader() {
   const pathname = usePathname();
 
-  // Hide header on published agent pages and fullscreen chat
-  if (pathname.startsWith('/published/') || pathname === '/chat') {
+  // Hide header on published agent pages, fullscreen chat, and login
+  if (pathname.startsWith('/published/') || pathname === '/chat' || pathname === '/login') {
     return null;
   }
 
