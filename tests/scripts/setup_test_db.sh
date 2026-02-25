@@ -22,8 +22,5 @@ docker exec -i "$DB_CONTAINER" psql -U "$DB_USER" -d postgres -c \
 docker exec -i "$DB_CONTAINER" psql -U "$DB_USER" -d postgres -c \
     "CREATE DATABASE ${DB_NAME} OWNER ${DB_USER};"
 
-docker exec -i "$DB_CONTAINER" psql -U "$DB_USER" -d "$DB_NAME" -c \
-    "CREATE EXTENSION IF NOT EXISTS vector;"
-
 echo "Test database '${DB_NAME}' is ready."
 echo "Connection string: postgresql+asyncpg://${DB_USER}:${DB_PASSWORD}@localhost:5432/${DB_NAME}"

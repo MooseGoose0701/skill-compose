@@ -51,7 +51,6 @@ async def session_env():
     engine = create_async_engine(TEST_DATABASE_URL, echo=False, pool_size=3)
 
     async with engine.begin() as conn:
-        await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
         await conn.run_sync(Base.metadata.create_all)
 
     factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)

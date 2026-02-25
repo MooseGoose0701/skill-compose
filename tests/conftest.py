@@ -2,7 +2,7 @@
 Root test configuration.
 
 Sets up:
-- PostgreSQL test database (skills_api_test) with pgvector
+- PostgreSQL test database (skills_api_test)
 - AsyncClient for FastAPI testing
 - Database session fixtures with per-test table creation/teardown
 - Lifespan is skipped in tests (no init_db / filesystem sync)
@@ -22,7 +22,7 @@ import pytest_asyncio
 # Auto-create test database if it doesn't exist (runs once per session)
 # ---------------------------------------------------------------------------
 def _ensure_test_database():
-    """Create skills_api_test database + pgvector extension if missing.
+    """Create skills_api_test database if missing.
 
     Uses psycopg2 (sync) to connect to the default 'postgres' database and
     create the test DB.  This runs before any async engine is created.
@@ -40,16 +40,6 @@ def _ensure_test_database():
         cur.execute("CREATE DATABASE skills_api_test OWNER skills")
     cur.close()
     conn.close()
-
-    # Enable pgvector in the test database
-    conn2 = psycopg2.connect(
-        host="localhost", port=62620, user="skills", password="skills123", dbname="skills_api_test",
-    )
-    conn2.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
-    cur2 = conn2.cursor()
-    cur2.execute("CREATE EXTENSION IF NOT EXISTS vector")
-    cur2.close()
-    conn2.close()
 
 
 # Run at import time (before any fixture or test)
@@ -146,7 +136,6 @@ async def db_session():
     )
 
     async with engine.begin() as conn:
-        await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
         await conn.run_sync(Base.metadata.create_all)
 
     session = async_sessionmaker(

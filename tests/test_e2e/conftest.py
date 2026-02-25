@@ -140,7 +140,6 @@ async def e2e_db_session():
     )
 
     async with engine.begin() as conn:
-        await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
         await conn.run_sync(Base.metadata.create_all)
 
     session_factory = async_sessionmaker(
