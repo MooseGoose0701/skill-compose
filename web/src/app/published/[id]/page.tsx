@@ -18,6 +18,7 @@ import { sessionMessagesToChatMessages } from "@/lib/session-utils";
 import { SessionSidebar } from "@/components/published/session-sidebar";
 import { useQueryClient } from "@tanstack/react-query";
 import { publishedSessionKeys } from "@/hooks/use-published-sessions";
+import { LanguageSwitcher } from "@/components/layout/language-switcher";
 
 type LocalMessage = ChatMessage;
 
@@ -297,6 +298,7 @@ export default function PublishedChatPage() {
             {agentDescription && <p className="text-sm text-muted-foreground truncate">{agentDescription}</p>}
           </div>
           <SessionIdBadge sessionId={sessionId} label={t('published.sessionId')} copiedText={t('published.sessionIdCopied')} />
+          <LanguageSwitcher />
           <Button variant="outline" size="sm" onClick={handleNewChat} disabled={isRunning} title={t('newChat')}>
             <MessageSquarePlus className="h-4 w-4 sm:mr-1" />
             <span className="hidden sm:inline">{t('newChat')}</span>
