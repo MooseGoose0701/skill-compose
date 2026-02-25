@@ -3650,3 +3650,344 @@ class TestAskUserE2E:
         # The non-streaming ask_user end-turn logic is in the agent loop itself.
         assert resp.status_code == 200
         assert resp.json()["success"] is True
+
+
+# ===================================================================
+# Class: Session Display Format (ChatMessage format)
+# ===================================================================
+
+@pytest.mark.e2e
+@pytest.mark.asyncio(loop_scope="class")
+class TestSessionDisplayFormatE2E:
+    """Verify that sessions store display messages in ChatMessage format
+    (with streamEvents and attachedFiles), not raw Anthropic format.
+
+    Tests both streaming (agent.py) and non-streaming endpoints.
+    """
+
+    _state: dict = {}
+
+    async def test_01_create_preset(self, e2e_client: AsyncClient):
+        """Create an agent preset for display format tests."""
+        resp = await e2e_client.post("/api/v1/agents", json={
+            "name": "e2e-display-format",
+            "description": "Test session display format",
+            "max_turns": 5,
+        })
+        assert resp.status_code == 200
+        type(self)._state["preset_id"] = resp.json()["id"]
+
+    @patch("app.api.v1.agent.pre_compress_if_needed", new_callable=AsyncMock, return_value=[])
+    @patch("app.api.v1.agent.save_session_checkpoint", new_callable=AsyncMock)
+    @patch("app.api.v1.agent.save_session_messages", new_callable=AsyncMock)
+    @patch("app.api.v1.agent.load_or_create_session", new_callable=AsyncMock)
+    @patch("app.api.v1.agent.SkillsAgent")
+    async def test_02_streaming_display_has_stream_events(
+        self, MockAgent, MockLoadSession, MockSaveMessages, MockCheckpoint, MockPreCompress,
+        e2e_client: AsyncClient, e2e_db_session,
+    ):
+        """Streaming: final display_replace_messages uses ChatMessage format with streamEvents."""
+        session_id = str(uuid.uuid4())
+        MockLoadSession.return_value = SessionData(
+            session_id=session_id,
+            display_messages=[],
+        )
+
+        events = [
+            StreamEvent(event_type="turn_start", turn=1, data={"turn": 1, "max_turns": 5}),
+            StreamEvent(event_type="tool_call", turn=1, data={
+                "tool_name": "execute_code", "tool_input": {"code": "print(42)"},
+            }),
+            StreamEvent(event_type="tool_result", turn=1, data={
+                "tool_name": "execute_code", "tool_result": "42",
+            }),
+            StreamEvent(event_type="turn_complete", turn=1, data={
+                "messages_snapshot": [{"role": "user", "content": "Compute"}],
+            }),
+            StreamEvent(event_type="assistant", turn=2, data={"content": "The answer is 42"}),
+            StreamEvent(event_type="complete", turn=2, data={
+                "success": True,
+                "answer": "The answer is 42",
+                "total_turns": 2,
+                "total_input_tokens": 200,
+                "total_output_tokens": 30,
+                "skills_used": [],
+                "final_messages": [
+                    {"role": "user", "content": "Compute"},
+                    {"role": "assistant", "content": [{"type": "text", "text": "The answer is 42"}]},
+                ],
+            }),
+        ]
+        MockAgent.return_value = _make_streaming_mock_agent(events=events, answer="The answer is 42")
+
+        pid = type(self)._state["preset_id"]
+        resp = await e2e_client.post("/api/v1/agent/run/stream", json={
+            "request": "Compute",
+            "session_id": session_id,
+            "agent_id": pid,
+        })
+        assert resp.status_code == 200
+
+        # Check final save uses display_replace_messages with ChatMessage format
+        assert MockSaveMessages.call_count >= 1
+        call_kwargs = MockSaveMessages.call_args.kwargs
+        display = call_kwargs.get("display_replace_messages")
+        assert display is not None
+        # Should be: [user_msg, assistant_with_streamEvents]
+        assert len(display) == 2
+        assert display[0]["role"] == "user"
+        assert display[0]["content"] == "Compute"
+        assert display[1]["role"] == "assistant"
+        assert "streamEvents" in display[1]
+        event_types = [e["type"] for e in display[1]["streamEvents"]]
+        assert "turn_start" in event_types
+        assert "tool_call" in event_types
+        assert "tool_result" in event_types
+        assert "assistant" in event_types
+        assert "complete" in event_types
+
+    @patch("app.api.v1.agent.save_session_messages", new_callable=AsyncMock)
+    @patch("app.api.v1.agent.load_or_create_session", new_callable=AsyncMock)
+    @patch("app.api.v1.agent.SkillsAgent")
+    async def test_03_non_streaming_display_has_stream_events(
+        self, MockAgent, MockLoadSession, MockSaveMessages,
+        e2e_client: AsyncClient, e2e_db_session,
+    ):
+        """Non-streaming: display_append_messages uses ChatMessage format with streamEvents."""
+        session_id = str(uuid.uuid4())
+        MockLoadSession.return_value = SessionData(
+            session_id=session_id,
+            display_messages=[],
+        )
+        MockAgent.return_value = _make_mock_agent()
+
+        pid = type(self)._state["preset_id"]
+        resp = await e2e_client.post("/api/v1/agent/run", json={
+            "request": "Hello",
+            "session_id": session_id,
+            "agent_id": pid,
+        })
+        assert resp.status_code == 200
+
+        # Check display_append_messages
+        assert MockSaveMessages.call_count >= 1
+        call_kwargs = MockSaveMessages.call_args.kwargs
+        display = call_kwargs.get("display_append_messages")
+        assert display is not None
+        # Should be: [user_msg, assistant_with_streamEvents]
+        assert len(display) == 2
+        assert display[0]["role"] == "user"
+        assert display[0]["content"] == "Hello"
+        assert display[1]["role"] == "assistant"
+        assert "streamEvents" in display[1]
+        # Should have at least a complete event
+        event_types = [e["type"] for e in display[1]["streamEvents"]]
+        assert "complete" in event_types
+
+    @patch("app.api.v1.agent.pre_compress_if_needed", new_callable=AsyncMock, return_value=[])
+    @patch("app.api.v1.agent.save_session_checkpoint", new_callable=AsyncMock)
+    @patch("app.api.v1.agent.save_session_messages", new_callable=AsyncMock)
+    @patch("app.api.v1.agent.load_or_create_session", new_callable=AsyncMock)
+    @patch("app.api.v1.agent.SkillsAgent")
+    async def test_04_uploaded_files_stored_as_attached_files(
+        self, MockAgent, MockLoadSession, MockSaveMessages, MockCheckpoint, MockPreCompress,
+        e2e_client: AsyncClient, e2e_db_session,
+    ):
+        """Uploaded files produce attachedFiles in the user message (not [Uploaded Files] text)."""
+        session_id = str(uuid.uuid4())
+        MockLoadSession.return_value = SessionData(
+            session_id=session_id,
+            display_messages=[],
+        )
+
+        events = [
+            StreamEvent(event_type="assistant", turn=1, data={"content": "Got it"}),
+            StreamEvent(event_type="complete", turn=1, data={
+                "success": True, "answer": "Got it", "total_turns": 1,
+                "total_input_tokens": 100, "total_output_tokens": 20,
+                "skills_used": [],
+                "final_messages": [],
+            }),
+        ]
+        MockAgent.return_value = _make_streaming_mock_agent(events=events, answer="Got it")
+
+        pid = type(self)._state["preset_id"]
+        resp = await e2e_client.post("/api/v1/agent/run/stream", json={
+            "request": "Analyze this file",
+            "session_id": session_id,
+            "agent_id": pid,
+            "uploaded_files": [
+                {"file_id": "f1", "filename": "data.csv", "path": "/tmp/data.csv", "content_type": "text/csv"},
+            ],
+        })
+        assert resp.status_code == 200
+
+        # Check the display messages have attachedFiles
+        assert MockSaveMessages.call_count >= 1
+        display = MockSaveMessages.call_args.kwargs.get("display_replace_messages")
+        assert display is not None
+        user_msg = display[0]
+        assert user_msg["role"] == "user"
+        assert user_msg["content"] == "Analyze this file"
+        assert "attachedFiles" in user_msg
+        assert user_msg["attachedFiles"] == [
+            {"file_id": "f1", "filename": "data.csv"},
+        ]
+        # Crucially, no "[Uploaded Files]" text in content
+        assert "[Uploaded Files]" not in user_msg["content"]
+
+    @patch("app.api.v1.agent.pre_compress_if_needed", new_callable=AsyncMock, return_value=[])
+    @patch("app.api.v1.agent.save_session_checkpoint", new_callable=AsyncMock)
+    @patch("app.api.v1.agent.save_session_messages", new_callable=AsyncMock)
+    @patch("app.api.v1.agent.load_or_create_session", new_callable=AsyncMock)
+    @patch("app.api.v1.agent.SkillsAgent")
+    async def test_05_ask_user_event_in_display(
+        self, MockAgent, MockLoadSession, MockSaveMessages, MockCheckpoint, MockPreCompress,
+        e2e_client: AsyncClient, e2e_db_session,
+    ):
+        """ask_user events are stored in streamEvents for proper UI rendering on refresh."""
+        session_id = str(uuid.uuid4())
+        MockLoadSession.return_value = SessionData(
+            session_id=session_id,
+            display_messages=[],
+        )
+
+        events = [
+            StreamEvent(event_type="turn_start", turn=1, data={"turn": 1, "max_turns": 5}),
+            StreamEvent(event_type="ask_user", turn=1, data={
+                "prompt_id": "p1", "question": "Which format?", "options": ["CSV", "JSON"],
+            }),
+            StreamEvent(event_type="complete", turn=1, data={
+                "success": True,
+                "answer": "[Waiting for user response: Which format?]",
+                "total_turns": 1,
+                "total_input_tokens": 100,
+                "total_output_tokens": 20,
+                "skills_used": [],
+                "final_messages": [],
+            }),
+        ]
+        MockAgent.return_value = _make_streaming_mock_agent(events=events, answer="[Waiting for user response]")
+
+        pid = type(self)._state["preset_id"]
+        resp = await e2e_client.post("/api/v1/agent/run/stream", json={
+            "request": "Do something",
+            "session_id": session_id,
+            "agent_id": pid,
+        })
+        assert resp.status_code == 200
+
+        display = MockSaveMessages.call_args.kwargs.get("display_replace_messages")
+        assert display is not None
+        assistant_events = display[1]["streamEvents"]
+        event_types = [e["type"] for e in assistant_events]
+        assert "ask_user" in event_types
+        ask_evt = next(e for e in assistant_events if e["type"] == "ask_user")
+        assert ask_evt["data"]["question"] == "Which format?"
+        assert ask_evt["data"]["options"] == ["CSV", "JSON"]
+
+    @patch("app.api.v1.agent.pre_compress_if_needed", new_callable=AsyncMock, return_value=[])
+    @patch("app.api.v1.agent.save_session_checkpoint", new_callable=AsyncMock)
+    @patch("app.api.v1.agent.save_session_messages", new_callable=AsyncMock)
+    @patch("app.api.v1.agent.load_or_create_session", new_callable=AsyncMock)
+    @patch("app.api.v1.agent.SkillsAgent")
+    async def test_06_output_file_event_in_display(
+        self, MockAgent, MockLoadSession, MockSaveMessages, MockCheckpoint, MockPreCompress,
+        e2e_client: AsyncClient, e2e_db_session,
+    ):
+        """output_file events are stored in streamEvents for download buttons on refresh."""
+        session_id = str(uuid.uuid4())
+        MockLoadSession.return_value = SessionData(
+            session_id=session_id,
+            display_messages=[],
+        )
+
+        events = [
+            StreamEvent(event_type="turn_start", turn=1, data={"turn": 1, "max_turns": 5}),
+            StreamEvent(event_type="output_file", turn=1, data={
+                "file_id": "of1", "filename": "chart.png", "size": 2048,
+                "content_type": "image/png", "download_url": "/download/of1",
+            }),
+            StreamEvent(event_type="complete", turn=1, data={
+                "success": True, "answer": "Done", "total_turns": 1,
+                "total_input_tokens": 100, "total_output_tokens": 20,
+                "skills_used": [], "final_messages": [],
+            }),
+        ]
+        MockAgent.return_value = _make_streaming_mock_agent(events=events, answer="Done")
+
+        pid = type(self)._state["preset_id"]
+        resp = await e2e_client.post("/api/v1/agent/run/stream", json={
+            "request": "Generate chart",
+            "session_id": session_id,
+            "agent_id": pid,
+        })
+        assert resp.status_code == 200
+
+        display = MockSaveMessages.call_args.kwargs.get("display_replace_messages")
+        assert display is not None
+        assistant_events = display[1]["streamEvents"]
+        event_types = [e["type"] for e in assistant_events]
+        assert "output_file" in event_types
+        of_evt = next(e for e in assistant_events if e["type"] == "output_file")
+        assert of_evt["data"]["fileId"] == "of1"
+        assert of_evt["data"]["filename"] == "chart.png"
+        assert of_evt["data"]["downloadUrl"] == "/download/of1"
+
+    @patch("app.api.v1.agent.pre_compress_if_needed", new_callable=AsyncMock, return_value=[])
+    @patch("app.api.v1.agent.save_session_checkpoint", new_callable=AsyncMock)
+    @patch("app.api.v1.agent.save_session_messages", new_callable=AsyncMock)
+    @patch("app.api.v1.agent.load_or_create_session", new_callable=AsyncMock)
+    @patch("app.api.v1.agent.SkillsAgent")
+    async def test_07_display_appends_to_existing_session(
+        self, MockAgent, MockLoadSession, MockSaveMessages, MockCheckpoint, MockPreCompress,
+        e2e_client: AsyncClient, e2e_db_session,
+    ):
+        """Second turn: display_base preserves previous ChatMessage-format messages."""
+        session_id = str(uuid.uuid4())
+        existing_display = [
+            {"role": "user", "content": "First Q"},
+            {"role": "assistant", "content": "", "streamEvents": [
+                {"type": "complete", "data": {"success": True, "answer": "First A", "totalTurns": 1}},
+            ]},
+        ]
+        MockLoadSession.return_value = SessionData(
+            session_id=session_id,
+            display_messages=existing_display,
+            agent_context=[{"role": "user", "content": "First Q"}],
+        )
+
+        events = [
+            StreamEvent(event_type="assistant", turn=1, data={"content": "Second A"}),
+            StreamEvent(event_type="complete", turn=1, data={
+                "success": True, "answer": "Second A", "total_turns": 1,
+                "total_input_tokens": 100, "total_output_tokens": 20,
+                "skills_used": [], "final_messages": [],
+            }),
+        ]
+        MockAgent.return_value = _make_streaming_mock_agent(events=events, answer="Second A")
+
+        pid = type(self)._state["preset_id"]
+        resp = await e2e_client.post("/api/v1/agent/run/stream", json={
+            "request": "Second Q",
+            "session_id": session_id,
+            "agent_id": pid,
+        })
+        assert resp.status_code == 200
+
+        display = MockSaveMessages.call_args.kwargs.get("display_replace_messages")
+        assert display is not None
+        # Should be: existing 2 + new user + new assistant = 4
+        assert len(display) == 4
+        assert display[0] == existing_display[0]
+        assert display[1] == existing_display[1]
+        assert display[2]["role"] == "user"
+        assert display[2]["content"] == "Second Q"
+        assert display[3]["role"] == "assistant"
+        assert "streamEvents" in display[3]
+
+    async def test_08_cleanup(self, e2e_client: AsyncClient):
+        """Clean up test agent."""
+        pid = type(self)._state.get("preset_id")
+        if pid:
+            await e2e_client.delete(f"/api/v1/agents/{pid}")

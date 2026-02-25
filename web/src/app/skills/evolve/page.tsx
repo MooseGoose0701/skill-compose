@@ -798,7 +798,7 @@ export default function SkillEvolvePage() {
               <p className="text-lg">{t("evolve.startConversation")}</p>
             </div>
           ) : (
-            messages.map((message) => (
+            messages.map((message, idx) => (
               <div key={message.id} className="max-w-4xl mx-auto">
                 <ChatMessageItem
                   message={message}
@@ -817,6 +817,7 @@ export default function SkillEvolvePage() {
                       ? currentOutputFiles
                       : undefined
                   }
+                  askUserAnswer={message.role === 'assistant' && messages[idx + 1]?.role === 'user' ? messages[idx + 1].content : undefined}
                 />
               </div>
             ))

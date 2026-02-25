@@ -1783,8 +1783,17 @@ class TestIncrementalDisplaySaveE2E:
         cp_call = MockCheckpoint.call_args_list[0]
         assert cp_call.args[0] == session_id  # session_id
         assert cp_call.args[1] == snapshot_msgs  # agent_context
-        # display_messages keyword arg should be the snapshot (display_base=[] + snapshot[0:])
-        assert cp_call.kwargs.get("display_messages") == snapshot_msgs
+        # display_messages is now ChatMessage format (from DisplayMessageBuilder)
+        cp_display = cp_call.kwargs.get("display_messages")
+        assert cp_display is not None
+        assert len(cp_display) == 2  # user + assistant-with-events
+        assert cp_display[0]["role"] == "user"
+        assert cp_display[0]["content"] == "Analyze data"
+        assert cp_display[1]["role"] == "assistant"
+        assert "streamEvents" in cp_display[1]
+        event_types = [e["type"] for e in cp_display[1]["streamEvents"]]
+        assert "turn_start" in event_types
+        assert "tool_result" in event_types
 
     @patch("app.api.v1.agent.pre_compress_if_needed", new_callable=AsyncMock, return_value=[])
     @patch("app.api.v1.agent.save_session_checkpoint", new_callable=AsyncMock)
@@ -1874,16 +1883,19 @@ class TestIncrementalDisplaySaveE2E:
         )
         assert resp.status_code == 200
 
-        # Verify checkpoint display = existing_display + new turns
+        # Verify checkpoint display = existing_display + new ChatMessage-format turns
         assert MockCheckpoint.call_count >= 1
         cp_call = MockCheckpoint.call_args_list[0]
         cp_display = cp_call.kwargs.get("display_messages")
         assert cp_display is not None
-        # Should be existing 2 msgs + 3 new turn msgs = 5
-        assert len(cp_display) == 5
+        # Should be existing 2 msgs + 2 new (user + assistant-with-events) = 4
+        assert len(cp_display) == 4
         assert cp_display[0] == existing_display[0]
         assert cp_display[1] == existing_display[1]
+        assert cp_display[2]["role"] == "user"
         assert cp_display[2]["content"] == "New Q"
+        assert cp_display[3]["role"] == "assistant"
+        assert "streamEvents" in cp_display[3]
 
     async def test_03_checkpoint_func_accepts_display(self):
         """save_session_checkpoint passes display_messages to DB when provided."""
@@ -2076,12 +2088,21 @@ class TestIncrementalDisplaySaveE2E:
         )
         assert resp.status_code == 200
 
-        # Verify checkpoint was called with display_messages
+        # Verify checkpoint was called with display_messages (ChatMessage format)
         assert MockCheckpoint.call_count >= 1
         cp_call = MockCheckpoint.call_args_list[0]
         assert cp_call.args[0] == session_id
         assert cp_call.args[1] == snapshot_msgs
-        assert cp_call.kwargs.get("display_messages") == snapshot_msgs
+        cp_display = cp_call.kwargs.get("display_messages")
+        assert cp_display is not None
+        assert len(cp_display) == 2  # user + assistant-with-events
+        assert cp_display[0]["role"] == "user"
+        assert cp_display[0]["content"] == "Search web"
+        assert cp_display[1]["role"] == "assistant"
+        assert "streamEvents" in cp_display[1]
+        event_types = [e["type"] for e in cp_display[1]["streamEvents"]]
+        assert "turn_start" in event_types
+        assert "tool_result" in event_types
 
     @patch("app.api.v1.published.pre_compress_if_needed", new_callable=AsyncMock, return_value=[])
     @patch("app.api.v1.published.save_session_checkpoint", new_callable=AsyncMock)
@@ -2204,13 +2225,23 @@ class TestIncrementalDisplaySaveE2E:
         # Should have 2 checkpoint calls (one per turn_complete)
         assert MockCheckpoint.call_count >= 2
 
-        # First checkpoint: turn 1 snapshot
+        # First checkpoint: user + assistant with turn_start(1) events
         cp1_display = MockCheckpoint.call_args_list[0].kwargs.get("display_messages")
-        assert cp1_display == turn1_snapshot
+        assert cp1_display is not None
+        assert len(cp1_display) == 2  # user + assistant-with-events
+        assert cp1_display[0]["role"] == "user"
+        assert cp1_display[0]["content"] == "Step 1"
+        assert cp1_display[1]["role"] == "assistant"
+        assert "streamEvents" in cp1_display[1]
 
-        # Second checkpoint: turn 2 snapshot (all completed turns)
+        # Second checkpoint: same user + assistant now with both turn_start events
         cp2_display = MockCheckpoint.call_args_list[1].kwargs.get("display_messages")
-        assert cp2_display == turn2_snapshot
+        assert cp2_display is not None
+        assert len(cp2_display) == 2  # still user + assistant
+        # Assistant events should now contain both turn_start records
+        cp2_events = cp2_display[1]["streamEvents"]
+        turn_start_events = [e for e in cp2_events if e["type"] == "turn_start"]
+        assert len(turn_start_events) == 2
 
     async def test_08_cleanup(self, e2e_client: AsyncClient):
         """Clean up test agents."""

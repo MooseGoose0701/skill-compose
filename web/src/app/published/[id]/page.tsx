@@ -319,7 +319,7 @@ export default function PublishedChatPage() {
               <p className="text-sm mt-2">{t('published.typeToBegin')}</p>
             </div>
           ) : (
-            messages.map((message) => (
+            messages.map((message, idx) => (
               <div key={message.id} className="max-w-4xl mx-auto">
                 <ChatMessageItem
                   message={message}
@@ -328,6 +328,7 @@ export default function PublishedChatPage() {
                   streamingOutputFiles={message.id === engine.streamingMessageId ? engine.currentOutputFiles : undefined}
                   hideTraceLink
                   onAskUserRespond={engine.handleRespond}
+                  askUserAnswer={message.role === 'assistant' && messages[idx + 1]?.role === 'user' ? messages[idx + 1].content : undefined}
                 />
               </div>
             ))

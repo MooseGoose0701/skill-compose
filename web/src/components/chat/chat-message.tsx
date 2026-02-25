@@ -22,6 +22,8 @@ interface ChatMessageItemProps {
   hideTraceLink?: boolean;
   /** Callback when user responds to an ask_user prompt */
   onAskUserRespond?: (promptId: string, answer: string) => void;
+  /** Pre-filled answer for ask_user events (inferred from next user message) */
+  askUserAnswer?: string;
 }
 
 export function ChatMessageItem({
@@ -31,6 +33,7 @@ export function ChatMessageItem({
   streamingEvents,
   hideTraceLink,
   onAskUserRespond,
+  askUserAnswer,
 }: ChatMessageItemProps) {
   const [showSteps, setShowSteps] = React.useState(false);
 
@@ -79,7 +82,7 @@ export function ChatMessageItem({
         ) : (
           <>
             {hasStructuredEvents ? (
-              <StreamEventsRenderer events={events} isStreaming={isStreaming} onAskUserRespond={onAskUserRespond} />
+              <StreamEventsRenderer events={events} isStreaming={isStreaming} onAskUserRespond={onAskUserRespond} askUserAnswer={askUserAnswer} />
             ) : (
               <pre className="text-sm whitespace-pre-wrap font-sans overflow-x-auto">{displayContent}</pre>
             )}

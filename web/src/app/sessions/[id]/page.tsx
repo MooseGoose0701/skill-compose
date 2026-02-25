@@ -135,11 +135,12 @@ export default function SessionDetailPage() {
               {chatMessages.length === 0 ? (
                 <p className="text-center text-muted-foreground py-12">{t('detail.noMessages')}</p>
               ) : (
-                chatMessages.map((msg) => (
+                chatMessages.map((msg, idx) => (
                   <ChatMessageItem
                     key={msg.id}
                     message={msg}
                     hideTraceLink
+                    askUserAnswer={msg.role === 'assistant' && chatMessages[idx + 1]?.role === 'user' ? chatMessages[idx + 1].content : undefined}
                   />
                 ))
               )}

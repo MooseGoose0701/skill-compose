@@ -1468,6 +1468,17 @@ class SkillsAgent:
                             }
                         ))
 
+                    # Add tool_results for any remaining tool_use blocks in the same
+                    # assistant message so the conversation history stays valid (every
+                    # tool_use must have a matching tool_result).
+                    current_idx = tool_calls.index(tool_call)
+                    for remaining in tool_calls[current_idx + 1:]:
+                        tool_results.append({
+                            "type": "tool_result",
+                            "tool_use_id": remaining["id"],
+                            "content": json.dumps({"status": "skipped", "reason": "ask_user interrupted"}),
+                        })
+
                     # Append tool_result to messages
                     messages.append({"role": "user", "content": tool_results})
                     # Append synthetic assistant message to maintain alternating roles in session
