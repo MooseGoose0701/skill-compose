@@ -483,7 +483,7 @@ export function ChatPanel({ isOpen, onClose, defaultSkills = [] }: ChatPanelProp
             <p className="text-sm mt-1">{t('multiTurnHint')}</p>
           </div>
         ) : (
-          messages.map((message) => (
+          messages.map((message, idx) => (
             <ChatMessageItem
               key={message.id}
               message={message}
@@ -491,6 +491,7 @@ export function ChatPanel({ isOpen, onClose, defaultSkills = [] }: ChatPanelProp
               streamingEvents={message.id === engine.streamingMessageId ? engine.streamingEvents : undefined}
               streamingOutputFiles={message.id === engine.streamingMessageId ? engine.currentOutputFiles : undefined}
               onAskUserRespond={engine.handleRespond}
+              askUserAnswer={message.role === 'assistant' && messages[idx + 1]?.role === 'user' ? messages[idx + 1].content : undefined}
             />
           ))
         )}

@@ -250,7 +250,7 @@ export function SkillFinderChat({
             </div>
           </div>
         ) : (
-          messages.map((message) => (
+          messages.map((message, idx) => (
             <div key={message.id} className="max-w-4xl mx-auto">
               <ChatMessageItem
                 message={message}
@@ -258,6 +258,7 @@ export function SkillFinderChat({
                 streamingEvents={engine.streamingMessageId === message.id ? engine.streamingEvents : undefined}
                 streamingOutputFiles={engine.streamingMessageId === message.id ? engine.currentOutputFiles : undefined}
                 onAskUserRespond={engine.handleRespond}
+                askUserAnswer={message.role === 'assistant' && messages[idx + 1]?.role === 'user' ? messages[idx + 1].content : undefined}
               />
             </div>
           ))

@@ -375,7 +375,7 @@ export default function FullscreenChatPage() {
             {!showConfig && <p className="text-sm mt-1">{t('clickConfigToCustomize')}</p>}
           </div>
         ) : (
-          messages.map((message) => (
+          messages.map((message, idx) => (
             <div key={message.id} className="max-w-4xl mx-auto">
               <ChatMessageItem
                 message={message}
@@ -383,6 +383,7 @@ export default function FullscreenChatPage() {
                 streamingEvents={message.id === engine.streamingMessageId ? engine.streamingEvents : undefined}
                 streamingOutputFiles={message.id === engine.streamingMessageId ? engine.currentOutputFiles : undefined}
                 onAskUserRespond={engine.handleRespond}
+                askUserAnswer={message.role === 'assistant' && messages[idx + 1]?.role === 'user' ? messages[idx + 1].content : undefined}
               />
             </div>
           ))

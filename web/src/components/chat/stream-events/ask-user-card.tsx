@@ -10,12 +10,14 @@ import { useTranslation } from "@/i18n/client";
 interface AskUserCardProps {
   data: AskUserData;
   onRespond?: (promptId: string, answer: string) => void;
+  /** Pre-filled answer (inferred from next user message on session restore) */
+  selectedAnswer?: string;
 }
 
-export function AskUserCard({ data, onRespond }: AskUserCardProps) {
+export function AskUserCard({ data, onRespond, selectedAnswer }: AskUserCardProps) {
   const { t } = useTranslation("chat");
-  const [submitted, setSubmitted] = React.useState(false);
-  const [localAnswer, setLocalAnswer] = React.useState("");
+  const [submitted, setSubmitted] = React.useState(!!selectedAnswer);
+  const [localAnswer, setLocalAnswer] = React.useState(selectedAnswer || "");
   const inputRef = React.useRef<HTMLInputElement>(null);
 
   const handleSubmit = React.useCallback(

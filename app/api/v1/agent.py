@@ -15,6 +15,7 @@ from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agent import SkillsAgent, EventStream, write_steering_message, poll_steering_messages, cleanup_steering_dir
+from app.api.v1.display_builder import DisplayMessageBuilder
 from app.api.v1.sessions import load_or_create_session, save_session_messages, save_session_checkpoint, save_session_checkpoint_sync, pre_compress_if_needed, CHAT_SENTINEL_AGENT_ID
 from app.db.database import get_db, AsyncSessionLocal, SyncSessionLocal
 from app.db.models import AgentTraceDB, AgentPresetDB
@@ -341,7 +342,6 @@ async def run_agent(request: AgentRequest, db: AsyncSession = Depends(get_db)):
     session_data = await load_or_create_session(request.session_id, agent_id)
     session_id = session_data.session_id
     history = session_data.agent_context  # Use agent_context for the agent
-    history_len = len(history) if history else 0
 
     # Create agent with session_id as workspace_id for deterministic mapping
     agent = _create_agent(config, workspace_id=session_id)
@@ -388,12 +388,10 @@ async def run_agent(request: AgentRequest, db: AsyncSession = Depends(get_db)):
         db.add(trace)
         await db.commit()
 
-        # Build display messages from new turns only
+        # Build display messages using DisplayMessageBuilder
         final_msgs = getattr(result, "final_messages", None)
-        if final_msgs and history_len is not None:
-            new_display = final_msgs[history_len:]
-        else:
-            new_display = None  # fallback to simple user+assistant pair
+        display_builder = DisplayMessageBuilder.from_agent_result(result, request.request, request.uploaded_files)
+        new_display = display_builder.get_messages()
 
         # Save session (dual-store)
         await save_session_messages(
@@ -401,7 +399,7 @@ async def run_agent(request: AgentRequest, db: AsyncSession = Depends(get_db)):
             result.answer,
             request.request,
             final_messages=final_msgs,
-            display_append_messages=new_display if new_display else None,
+            display_append_messages=new_display,
         )
 
         return AgentResponse(
@@ -458,7 +456,6 @@ async def run_agent_stream(request: AgentRequest, db: AsyncSession = Depends(get
     session_data = await load_or_create_session(request.session_id, agent_id_for_session)
     session_id = session_data.session_id
     history = session_data.agent_context  # Use agent_context for the agent
-    history_len = len(history) if history else 0
     display_base = session_data.display_messages or []  # Snapshot of display history for incremental saves
 
     # Pre-compress if context exceeds threshold
@@ -539,11 +536,11 @@ async def run_agent_stream(request: AgentRequest, db: AsyncSession = Depends(get
 
         last_complete_event = None
         last_messages_snapshot = None  # Incremental checkpoint for resilient save
-        last_snapshot_for_display = None  # Last snapshot before compression (for display extraction)
-        compression_happened = False  # Track if context_compressed event was seen
         collected_steps = []  # Collect steps during streaming
         current_text_buffer = ""  # Accumulate text_delta chunks
         was_cancelled = False
+        display_builder = DisplayMessageBuilder()
+        display_builder.add_user_message(request.request, request.uploaded_files)
 
         try:
             async for event in event_stream:
@@ -552,27 +549,21 @@ async def run_agent_stream(request: AgentRequest, db: AsyncSession = Depends(get
                     yield ": heartbeat\n\n"
                     continue
 
+                # Feed to display builder (before turn_complete check)
+                display_builder.add_event(event.event_type, event.turn, event.data)
+
                 # Intercept turn_complete for incremental checkpoint (not forwarded to client)
                 if event.event_type == "turn_complete":
                     snapshot = event.data.get("messages_snapshot")
                     last_messages_snapshot = snapshot
-                    # Track pre-compression snapshot for display extraction
-                    if not compression_happened and snapshot:
-                        last_snapshot_for_display = snapshot
-                    # Save checkpoint: agent_context + display messages (makes completed turns durable)
+                    # Checkpoint: agent_context (snapshot) + display (builder snapshot)
                     if session_id and snapshot:
                         try:
-                            display_to_save = None
-                            if not compression_happened:
-                                display_to_save = display_base + snapshot[history_len:]
+                            display_to_save = display_base + display_builder.get_snapshot()
                             await save_session_checkpoint(session_id, snapshot, display_messages=display_to_save)
                         except Exception:
                             pass  # fire-and-forget
                     continue
-
-                # Intercept context_compressed to set flag (still forward to client)
-                if event.event_type == "context_compressed":
-                    compression_happened = True
 
                 event_data = {
                     "event_type": event.event_type,
@@ -677,17 +668,9 @@ async def run_agent_stream(request: AgentRequest, db: AsyncSession = Depends(get
                     final_answer = last_complete_event.get("answer", "")
                     final_msgs = last_complete_event.get("final_messages")
 
-                    # Compute full display messages (display_base + new turns).
-                    # Must whole-replace (not append) because incremental turn_complete
-                    # saves already wrote partial display to the messages column.
-                    new_display = None
-                    if final_msgs and not compression_happened:
-                        new_display = final_msgs[history_len:]
-                    elif last_snapshot_for_display:
-                        # Compression happened — use pre-compression snapshot for correct offset
-                        new_display = last_snapshot_for_display[history_len:]
-
-                    full_display = (display_base + new_display) if new_display else None
+                    # Whole-replace display with builder output (builder is independent
+                    # of agent snapshots, so compression doesn't affect it).
+                    full_display = display_base + display_builder.get_messages()
 
                     await save_session_messages(
                         session_id,
@@ -700,21 +683,11 @@ async def run_agent_stream(request: AgentRequest, db: AsyncSession = Depends(get
                     # Cancelled or interrupted — save what we have (agent_context + display)
                     # Use sync DB to avoid orphaned async connections in cancelled context
                     try:
-                        # Compute display to persist
-                        display_delta = None
-                        snapshot = last_messages_snapshot
-                        if snapshot:
-                            if not compression_happened:
-                                display_delta = snapshot[history_len:]
-                            elif last_snapshot_for_display:
-                                display_delta = last_snapshot_for_display[history_len:]
-
-                        display_to_save = (display_base + display_delta) if display_delta else None
-
-                        if not display_to_save:
-                            # No snapshot at all (very early cancel) — save at least user message
+                        display_to_save = display_base + display_builder.get_snapshot()
+                        if not display_to_save or display_to_save == display_base:
                             display_to_save = display_base + [{"role": "user", "content": request.request}]
 
+                        snapshot = last_messages_snapshot
                         save_session_checkpoint_sync(
                             session_id,
                             snapshot if snapshot else (history or []) + [{"role": "user", "content": actual_request}],

@@ -20,12 +20,14 @@ interface StreamEventsRendererProps {
   isStreaming?: boolean;
   /** Callback when user responds to an ask_user prompt */
   onAskUserRespond?: (promptId: string, answer: string) => void;
+  /** Pre-filled answer for ask_user (inferred from next user message on session restore) */
+  askUserAnswer?: string;
 }
 
 /**
  * Renders a list of stream events as structured UI components
  */
-export function StreamEventsRenderer({ events, expandAll = false, isStreaming = false, onAskUserRespond }: StreamEventsRendererProps) {
+export function StreamEventsRenderer({ events, expandAll = false, isStreaming = false, onAskUserRespond, askUserAnswer }: StreamEventsRendererProps) {
   // Find the index of the last assistant event for streaming optimization
   let lastAssistantIndex = -1;
   if (isStreaming) {
@@ -71,6 +73,7 @@ export function StreamEventsRenderer({ events, expandAll = false, isStreaming = 
                 key={event.id}
                 data={event.data}
                 onRespond={onAskUserRespond}
+                selectedAnswer={askUserAnswer}
               />
             );
 
