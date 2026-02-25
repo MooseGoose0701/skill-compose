@@ -1,11 +1,11 @@
 {
   "title": "会话",
-  "description": "查看和管理已发布代理的聊天会话",
+  "description": "查看和管理已发布智能体的聊天会话",
   "empty": "暂无会话",
-  "emptyDescription": "与已发布的代理聊天以创建会话",
+  "emptyDescription": "与已发布的智能体聊天以创建会话",
   "filters": {
-    "allAgents": "所有代理",
-    "byAgent": "按代理筛选",
+    "allAgents": "所有智能体",
+    "byAgent": "按智能体筛选",
     "chatSessions": "聊天",
     "chatBadge": "聊天"
   },
@@ -24,7 +24,7 @@
   },
   "deleteAll": {
     "title": "删除所有会话",
-    "confirm": "确定要删除该代理的所有会话吗？",
+    "confirm": "确定要删除该智能体的所有会话吗？",
     "success": "所有会话已删除",
     "error": "删除会话失败"
   },

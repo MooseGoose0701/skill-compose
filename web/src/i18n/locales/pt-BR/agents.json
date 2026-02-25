@@ -201,5 +201,31 @@
     "name": "Nome do Modelo",
     "selectProvider": "Selecionar provedor",
     "selectModel": "Selecionar modelo"
+  },
+  "seedDescriptions": {
+    "agent-builder": "Constrói agentes personalizados com base nos requisitos do usuário. Analisa necessidades, planeja habilidades necessárias, cria novas se preciso e gera configurações de preset.",
+    "skill-evolve-helper": "Assistente interativo de evolução de habilidades. Analisa rastros de execução, propõe um plano de evolução, aguarda confirmação do usuário e aplica as mudanças.",
+    "ArticleToSlides": "Converte artigos (URL ou texto) em apresentações PPTX com ilustrações geradas por IA. Busca conteúdo, planeja storyboard, gera imagens via Gemini e monta PowerPoint.",
+    "ChemScout": "Assistente de descoberta de fármacos em estágio inicial. Recupera dados de compostos do PubChem, calcula similaridade com fármacos, desenha estruturas 2D, compara moléculas e pesquisa literatura no PubMed.",
+    "3D-Music-Visualizer": "Crie vídeos impressionantes de visualização musical 3D com Remotion — esferas reativas ao baixo, barras de espectro, formas de onda e movimento de câmera cinematográfico.",
+    "DiagramArchitect": "Gera diagramas de arquitetura, ER, sequência, classes e fluxo a partir de repositórios de código ou GitHub usando Mermaid.js.",
+    "skill-finder": "Descubra e instale habilidades de agentes do ecossistema aberto skills.sh. Pesquise habilidades da comunidade por palavra-chave, baixe do GitHub e registre-as.",
+    "BrandGenesis": "Crie um pacote completo de identidade visual a partir de uma descrição de projeto: filosofia da marca, sistema de logo, cartão de visita, capa de redes sociais e documento de especificações.",
+    "RemotionCreator": "Crie vídeos programáticos com Remotion e React — demos de produto, vídeos explicativos, infográficos animados, clipes para redes sociais e motion graphics.",
+    "StealthWriter": "Transforma texto gerado por IA em prosa humana natural. Fluxo fechado: detectar padrões de IA, humanizar, re-detectar, verificar.",
+    "PDF2Tweet": "Transforma documentos PDF (artigos, papers, relatórios) em threads envolventes no Twitter/X. Extrai insights principais, cria threads com ganchos e conclusões, e gera imagens para o thread."
+  },
+  "seedNames": {
+    "agent-builder": "Construtor de Agentes",
+    "skill-evolve-helper": "Assistente de Evolução",
+    "ArticleToSlides": "Artigo para Slides",
+    "ChemScout": "Explorador Químico",
+    "3D-Music-Visualizer": "Visualizador Musical 3D",
+    "DiagramArchitect": "Arquiteto de Diagramas",
+    "skill-finder": "Buscador de Skills",
+    "BrandGenesis": "Gênese da Marca",
+    "RemotionCreator": "Criador Remotion",
+    "StealthWriter": "Escritor Furtivo",
+    "PDF2Tweet": "PDF para Tweets"
   }
 }

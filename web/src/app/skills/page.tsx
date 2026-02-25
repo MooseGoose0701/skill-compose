@@ -12,6 +12,7 @@ import { UnregisteredSkillsBanner } from '@/components/skill/unregistered-skills
 import { GithubTokenHint } from '@/components/skill/github-token-hint';
 import { useSkills, useCategories } from '@/hooks/use-skills';
 import { useTranslation } from '@/i18n/client';
+import { getSkillDescription } from '@/lib/seed-descriptions';
 import { SKILL_VIEW_MODE_KEY } from '@/lib/constants';
 import {
   Select,
@@ -64,11 +65,13 @@ export default function SkillsPage() {
 
   // Client-side filtering: search + category
   const filteredSkills = data?.skills.filter((skill) => {
-    // Search filter
+    // Search filter (match both raw DB description and translated description)
+    const translatedDesc = getSkillDescription(t, skill.name, skill.description);
     const matchesSearch =
       !searchQuery ||
       skill.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      skill.description?.toLowerCase().includes(searchQuery.toLowerCase());
+      skill.description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      translatedDesc?.toLowerCase().includes(searchQuery.toLowerCase());
 
     if (!matchesSearch) return false;
 

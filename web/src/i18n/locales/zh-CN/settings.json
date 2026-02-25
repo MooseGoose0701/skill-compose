@@ -63,12 +63,12 @@
   "system": {
     "title": "系统",
     "export": "导出系统数据",
-    "exportDescription": "将所有技能和代理导出为 ZIP 文件",
+    "exportDescription": "将所有技能和智能体导出为 ZIP 文件",
     "exporting": "导出中...",
     "exportSuccess": "系统数据导出成功",
     "exportError": "导出系统数据失败",
     "import": "导入系统数据",
-    "importDescription": "从 ZIP 文件导入技能和代理",
+    "importDescription": "从 ZIP 文件导入技能和智能体",
     "importing": "导入中...",
     "importSuccess": "系统数据导入成功",
     "importError": "导入系统数据失败"

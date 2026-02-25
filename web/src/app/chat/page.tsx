@@ -23,11 +23,14 @@ import { useChatEngine } from "@/hooks/use-chat-engine";
 import { ChatMessageItem } from "@/components/chat/chat-message";
 import { ModelSelect, AgentPresetSelect, ExecutorSelect } from "@/components/chat/selects";
 import { useTranslation } from "@/i18n/client";
+import { getSkillDescription, getAgentDisplayName } from "@/lib/seed-descriptions";
 import { generateUUID } from "@/lib/utils";
 
 export default function FullscreenChatPage() {
   const { t } = useTranslation('chat');
   const { t: tc } = useTranslation('common');
+  const { t: ts } = useTranslation('skills');
+  const { t: ta } = useTranslation('agents');
 
   const {
     messages, selectedSkills, selectedTools, selectedMcpServers, isRunning, maxTurns,
@@ -181,8 +184,11 @@ export default function FullscreenChatPage() {
     setSelectedExecutorName(preset.executor_name || null);
   };
 
-  const currentAgentName = selectedAgentPreset
-    ? agentPresets.find((p) => p.id === selectedAgentPreset)?.name || "Custom"
+  const selectedPresetName = selectedAgentPreset
+    ? agentPresets.find((p) => p.id === selectedAgentPreset)?.name
+    : null;
+  const currentAgentName = selectedPresetName
+    ? getAgentDisplayName(ta, selectedPresetName)
     : t('configuration.customConfig');
 
   return (
@@ -287,7 +293,7 @@ export default function FullscreenChatPage() {
             <div className="flex items-center gap-2">
               <span className="text-sm text-muted-foreground">{t('configuration.skills')}:</span>
               <MultiSelect
-                options={skills.map((s) => ({ value: s.name, label: s.name, description: s.description?.slice(0, 50) }))}
+                options={skills.map((s) => ({ value: s.name, label: s.name, description: getSkillDescription(ts, s.name, s.description)?.slice(0, 50) }))}
                 selected={selectedSkills}
                 onChange={(s) => { setSelectedSkills(s); setSelectedAgentPreset(null); }}
                 placeholder={t('configuration.selectSkills')} emptyText="None"

@@ -331,5 +331,37 @@
       "invalidJson": "Invalid JSON in {{name}}",
       "skillMdRequired": "SKILL.md content is required"
     }
+  },
+  "seedDescriptions": {
+    "skill-creator": "Guide for creating effective skills that extend agent capabilities with specialized knowledge, workflows, or tool integrations.",
+    "skill-evolver": "Analyze skill execution traces to identify issues and automatically evolve/improve skills based on real execution data.",
+    "skill-updater": "Update existing skills based on user feedback about what needs to change or improve.",
+    "mcp-builder": "Guide for creating MCP (Model Context Protocol) servers that enable LLMs to interact with external services through well-designed tools.",
+    "skill-finder": "Discover and install agent skills from the skills.sh open ecosystem. Search community skills by keyword and install them directly.",
+    "skills-planner": "Plan which skills are needed to fulfill user requirements. Recommends existing skills, identifies new skills to create, and composes system prompts.",
+    "trace-qa": "Analyze and answer questions about agent execution traces. Debug failed runs, understand agent behavior, and analyze token usage.",
+    "planning-with-files": "Implements file-based planning for complex tasks. Creates task_plan.md, findings.md, and progress.md for multi-step projects.",
+    "pdf": "Read, create, and review PDF files with rendering and layout support using reportlab, pdfplumber, and pypdf.",
+    "doc": "Read, create, and edit .docx documents with formatting and layout fidelity using python-docx.",
+    "speech": "Text-to-speech narration and voiceover generation via the OpenAI Audio API with built-in voices.",
+    "spreadsheet": "Create, edit, analyze, and format spreadsheets (.xlsx, .csv, .tsv) using openpyxl and pandas.",
+    "sora": "Generate, remix, and manage Sora videos via OpenAI's video API with the bundled CLI.",
+    "imagegen": "Generate and edit images via the OpenAI Image API — generation, inpainting, background removal, product shots, and batch variants.",
+    "gemini-imagegen": "Generate and edit images using Google Gemini's native image generation models. Supports text-to-image, image editing, and multi-image composition.",
+    "pubmed-database": "Direct REST API access to PubMed. Advanced Boolean/MeSH queries, E-utilities API, batch processing, and citation management.",
+    "pdb-database": "Access RCSB PDB for 3D protein/nucleic acid structures. Search, download coordinates, and retrieve metadata for structural biology.",
+    "rdkit": "Cheminformatics toolkit for molecular control. SMILES/SDF parsing, descriptors, fingerprints, substructure search, and similarity analysis.",
+    "biopython": "Comprehensive molecular biology toolkit. Sequence manipulation, file parsing, phylogenetics, and programmatic NCBI/PubMed access.",
+    "media-downloader": "Download videos and audio from 1500+ websites including YouTube, Bilibili, TikTok, Twitter/X, and more using yt-dlp.",
+    "audio-extractor": "Extract audio from videos and download audio-only content from 1500+ websites. Convert to MP3, FLAC, WAV, or OPUS.",
+    "remotion-best-practices": "Best practices for Remotion — video creation in React.",
+    "humanizer": "Remove signs of AI-generated writing from text. Detects and fixes patterns like inflated symbolism, promotional language, and AI vocabulary.",
+    "ai-writing-detection": "Comprehensive AI writing detection patterns and methodology. Vocabulary lists, structural patterns, and model-specific fingerprints.",
+    "canvas-design": "Create beautiful visual art in .png and .pdf documents using design philosophy. Posters, art, and original visual designs.",
+    "brand-identity": "Create a complete brand visual identity system — logos, color palettes, typography, business cards, social media assets, and brand guidelines.",
+    "copywriting": "Generate brand-aligned copy with precise constraints for every touchpoint — taglines, brand philosophy, social media bios, and manifestos.",
+    "code-to-diagram": "Generate architecture diagrams, ER diagrams, sequence diagrams, flowcharts, and class diagrams from codebases using Mermaid.js.",
+    "markdown-to-storyboard": "Convert markdown content into a structured storyboard CSV for slide decks, video scripts, or sequential visual media.",
+    "storyboard-to-slides": "Assemble a PPTX slide deck from a storyboard CSV and images using python-pptx with multiple slide layouts and custom themes."
   }
 }

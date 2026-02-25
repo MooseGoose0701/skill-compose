@@ -1,6 +1,6 @@
 {
   "title": "内置工具",
-  "description": "Agent 始终可用的核心工具",
+  "description": "智能体始终可用的核心工具",
   "availableTools": "可用工具",
   "builtinInfo": "内置工具是具有 Python 实现的核心能力。无法通过界面修改。",
   "toolsCount": "{{count}} 个工具",

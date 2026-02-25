@@ -13,9 +13,10 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
-import { formatRelativeTime } from '@/lib/utils';
+import { formatRelativeTime } from '@/lib/formatters';
 import { useTogglePin } from '@/hooks/use-skills';
 import { useTranslation } from '@/i18n/client';
+import { getSkillDescription } from '@/lib/seed-descriptions';
 import type { Skill } from '@/types/skill';
 
 interface SkillListItemProps {
@@ -28,6 +29,7 @@ const MAX_VISIBLE_TAGS = 2;
 
 export function SkillListItem({ skill, hasGithubUpdate, agentNames }: SkillListItemProps) {
   const { t } = useTranslation('skills');
+  const { t: tc } = useTranslation('common');
   const togglePin = useTogglePin();
   const isMeta = skill.skill_type === 'meta';
   const tags = skill.tags || [];
@@ -63,7 +65,7 @@ export function SkillListItem({ skill, hasGithubUpdate, agentNames }: SkillListI
 
           {/* Description */}
           <p className="text-sm text-muted-foreground truncate flex-1 min-w-0">
-            {skill.description || '\u00A0'}
+            {getSkillDescription(t, skill.name, skill.description) || '\u00A0'}
           </p>
 
           {/* Category badge */}
@@ -104,7 +106,7 @@ export function SkillListItem({ skill, hasGithubUpdate, agentNames }: SkillListI
           {/* Updated time */}
           <div className="flex items-center gap-1 text-xs text-muted-foreground flex-shrink-0 w-24">
             <Clock className="h-3 w-3" />
-            <span>{formatRelativeTime(skill.updated_at)}</span>
+            <span>{formatRelativeTime(skill.updated_at, tc)}</span>
           </div>
 
           {/* Agent references */}
