@@ -362,6 +362,9 @@
     "copywriting": "Generate brand-aligned copy with precise constraints for every touchpoint — taglines, brand philosophy, social media bios, and manifestos.",
     "code-to-diagram": "Generate architecture diagrams, ER diagrams, sequence diagrams, flowcharts, and class diagrams from codebases using Mermaid.js.",
     "markdown-to-storyboard": "Convert markdown content into a structured storyboard CSV for slide decks, video scripts, or sequential visual media.",
-    "storyboard-to-slides": "Assemble a PPTX slide deck from a storyboard CSV and images using python-pptx with multiple slide layouts and custom themes."
+    "storyboard-to-slides": "Assemble a PPTX slide deck from a storyboard CSV and images using python-pptx with multiple slide layouts and custom themes.",
+    "invoice-organizer": "Automatically organize invoices and receipts for tax preparation. Read files, extract key info, rename consistently, and sort into logical folders with a summary CSV.",
+    "twitter-algorithm-optimizer": "Analyze and optimize tweets for maximum reach using Twitter's open-source algorithm insights. Rewrite and edit tweets to improve engagement based on ranking signals.",
+    "slack-gif-creator": "Toolkit for creating animated GIFs optimized for Slack. Validators for size constraints, composable animation primitives, and helper utilities for message and emoji GIFs."
   }
 }

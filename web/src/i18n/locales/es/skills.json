@@ -362,6 +362,9 @@
     "copywriting": "Genera textos alineados con la marca con restricciones precisas — eslóganes, filosofía de marca, bios de redes sociales y manifiestos.",
     "code-to-diagram": "Genera diagramas de arquitectura, ER, secuencia, flujo y clases desde código usando Mermaid.js.",
     "markdown-to-storyboard": "Convierte contenido Markdown en un CSV de storyboard estructurado para presentaciones, guiones de video o medios visuales secuenciales.",
-    "storyboard-to-slides": "Ensambla una presentación PPTX desde un CSV de storyboard e imágenes usando python-pptx con múltiples diseños y temas personalizados."
+    "storyboard-to-slides": "Ensambla una presentación PPTX desde un CSV de storyboard e imágenes usando python-pptx con múltiples diseños y temas personalizados.",
+    "invoice-organizer": "Organiza automáticamente facturas y recibos para la declaración de impuestos. Lee archivos, extrae información clave, renombra de forma consistente y clasifica en carpetas lógicas con un CSV resumen.",
+    "twitter-algorithm-optimizer": "Analiza y optimiza tweets para máximo alcance usando conocimientos del algoritmo de código abierto de Twitter. Reescribe y edita tweets para mejorar el engagement basándose en señales de ranking.",
+    "slack-gif-creator": "Kit de herramientas para crear GIFs animados optimizados para Slack. Validadores de restricciones de tamaño, primitivas de animación componibles y utilidades para GIFs de mensaje y emoji."
   }
 }

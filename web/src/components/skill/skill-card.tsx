@@ -122,7 +122,10 @@ export function SkillCard({ skill, hasGithubUpdate, agentNames }: SkillCardProps
             </div>
             {/* Title and badge - vertically centered */}
             <div className="flex-1 min-w-0 flex items-center gap-2">
-              <h3 className="font-semibold truncate">{skill.name}</h3>
+              <h3
+                className="font-semibold truncate select-text cursor-text"
+                onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
+              >{skill.name}</h3>
               {isMeta && (
                 <Badge variant="outline" className="text-xs flex-shrink-0">Meta</Badge>
               )}

@@ -57,7 +57,10 @@ export function SkillListItem({ skill, hasGithubUpdate, agentNames }: SkillListI
 
           {/* Name */}
           <div className="flex items-center gap-2 min-w-0 w-48 flex-shrink-0">
-            <span className="font-medium truncate text-sm">{skill.name}</span>
+            <span
+              className="font-medium truncate text-sm select-text cursor-text"
+              onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
+            >{skill.name}</span>
             {isMeta && (
               <Badge variant="outline" className="text-xs flex-shrink-0">Meta</Badge>
             )}

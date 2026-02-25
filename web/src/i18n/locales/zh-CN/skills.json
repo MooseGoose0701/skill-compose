@@ -361,6 +361,9 @@
     "copywriting": "为每个触点生成品牌一致的文案 — 标语、品牌理念、社交媒体简介和宣言。",
     "code-to-diagram": "使用 Mermaid.js 从代码库生成架构图、ER 图、时序图、流程图和类图。",
     "markdown-to-storyboard": "将 Markdown 内容转换为结构化的故事板 CSV，用于幻灯片、视频脚本或连续视觉媒体。",
-    "storyboard-to-slides": "使用 python-pptx 从故事板 CSV 和图片组装 PPTX 幻灯片，支持多种布局和自定义主题。"
+    "storyboard-to-slides": "使用 python-pptx 从故事板 CSV 和图片组装 PPTX 幻灯片，支持多种布局和自定义主题。",
+    "invoice-organizer": "自动整理发票和收据，为报税做准备。读取文件、提取关键信息，统一重命名并按逻辑分类归档，生成汇总 CSV。",
+    "twitter-algorithm-optimizer": "基于 Twitter 开源算法洞察分析和优化推文。改写和编辑推文，根据排名信号提升互动率和可见度。",
+    "slack-gif-creator": "为 Slack 优化的动画 GIF 创建工具包。尺寸约束验证器、可组合的动画原语，以及消息 GIF 和表情 GIF 的辅助工具。"
   }
 }
