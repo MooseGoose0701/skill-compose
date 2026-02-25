@@ -393,6 +393,7 @@ async def published_chat(agent_id: str, request: PublishedChatRequest):
     session_id = session_data.session_id
     history = session_data.agent_context  # Use agent_context for the agent
     history_len = len(history) if history else 0
+    display_base = session_data.display_messages or []  # Snapshot of display history for incremental saves
 
     # Pre-compress if context exceeds threshold
     pre_provider = config.get("model_provider") or settings.default_model_provider
@@ -497,10 +498,13 @@ async def published_chat(agent_id: str, request: PublishedChatRequest):
                     # Track pre-compression snapshot for display extraction
                     if not compression_happened and snapshot:
                         last_snapshot_for_display = snapshot
-                    # Save checkpoint: only updates agent_context, not display messages
+                    # Save checkpoint: agent_context + display messages (makes completed turns durable)
                     if session_id and snapshot:
                         try:
-                            await save_session_checkpoint(session_id, snapshot)
+                            display_to_save = None
+                            if not compression_happened:
+                                display_to_save = display_base + snapshot[history_len:]
+                            await save_session_checkpoint(session_id, snapshot, display_messages=display_to_save)
                         except Exception:
                             pass  # fire-and-forget
                     continue
@@ -606,29 +610,49 @@ async def published_chat(agent_id: str, request: PublishedChatRequest):
                     # Normal completion — definitive save
                     final_msgs = last_complete_event.get("final_messages")
 
-                    # Compute new display messages (only the new turns from this request)
-                    # Priority: final_messages > pre-compression snapshot
-                    # turn_complete snapshots miss the final assistant text (emitted before last LLM turn)
+                    # Compute full display messages (display_base + new turns).
+                    # Must whole-replace (not append) because incremental turn_complete
+                    # saves already wrote partial display to the messages column.
                     new_display = None
-                    if final_msgs and not compression_happened and history_len is not None:
+                    if final_msgs and not compression_happened:
                         new_display = final_msgs[history_len:]
-                    elif last_snapshot_for_display and history_len is not None:
+                    elif last_snapshot_for_display:
                         # Compression happened — use pre-compression snapshot for correct offset
                         new_display = last_snapshot_for_display[history_len:]
-                    # else: fallback to simple user+assistant pair (handled by save_session_messages)
+
+                    full_display = (display_base + new_display) if new_display else None
 
                     await save_session_messages(
                         session_id,
                         final_answer,
                         request.request,
                         final_messages=final_msgs,
-                        display_append_messages=new_display if new_display else None,
+                        display_replace_messages=full_display,
                     )
-                elif last_messages_snapshot:
-                    # Cancelled or interrupted — save last checkpoint (agent_context only)
+                else:
+                    # Cancelled or interrupted — save what we have (agent_context + display)
                     # Use sync DB to avoid orphaned async connections in cancelled context
                     try:
-                        save_session_checkpoint_sync(session_id, last_messages_snapshot)
+                        # Compute display to persist
+                        display_delta = None
+                        snapshot = last_messages_snapshot
+                        if snapshot:
+                            if not compression_happened:
+                                display_delta = snapshot[history_len:]
+                            elif last_snapshot_for_display:
+                                display_delta = last_snapshot_for_display[history_len:]
+
+                        display_to_save = (display_base + display_delta) if display_delta else None
+
+                        if not display_to_save:
+                            # No snapshot at all (very early cancel) — save at least user message
+                            display_to_save = display_base + [{"role": "user", "content": request.request}]
+
+                        save_session_checkpoint_sync(
+                            session_id,
+                            snapshot if snapshot else (history or []) + [{"role": "user", "content": actual_request}],
+                            display_messages=display_to_save,
+                        )
                     except Exception:
                         pass
 
