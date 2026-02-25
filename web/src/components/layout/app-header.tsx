@@ -14,6 +14,7 @@ import {
   Archive,
   MessageSquare,
   Activity,
+  Users,
 } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { Button } from '@/components/ui/button';
@@ -32,6 +33,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { LanguageSwitcher } from './language-switcher';
+import { UserMenu } from './user-menu';
 import { NavLink } from './nav-link';
 import { useTranslation } from '@/i18n/client';
 
@@ -44,6 +46,7 @@ const MORE_SYSTEM_ITEMS = [
   { href: '/executors', icon: Container, labelKey: 'nav.executors' },
   { href: '/files', icon: Folder, labelKey: 'nav.files' },
   { href: '/environment', icon: Terminal, labelKey: 'nav.environment' },
+  { href: '/accounts', icon: Users, labelKey: 'nav.accounts' },
   { href: '/backup', icon: Archive, labelKey: 'nav.backup' },
 ];
 
@@ -163,6 +166,8 @@ export function AppHeader() {
                 <p>{t('tooltips.toggleTheme')}</p>
               </TooltipContent>
             </Tooltip>
+
+            <UserMenu />
           </div>
         </TooltipProvider>
       </div>

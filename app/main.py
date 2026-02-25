@@ -18,6 +18,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.config import get_settings
 from app.api.v1.router import api_router
@@ -128,6 +129,72 @@ async def lifespan(app: FastAPI):
     # Shutdown: Nothing to clean up for now
 
 
+# Public path prefixes that bypass auth
+_PUBLIC_PATHS = (
+    "/health",
+    "/docs",
+    "/redoc",
+    "/openapi.json",
+    "/api/v1/auth/login",
+    "/api/v1/auth/refresh",
+    "/api/v1/auth/status",
+    "/api/v1/published/",
+)
+
+
+class AuthMiddleware(BaseHTTPMiddleware):
+    """Global JWT authentication middleware.
+
+    Skips authentication for:
+    - OPTIONS requests (CORS preflight)
+    - Public paths (login, refresh, status, published agents, docs)
+    - When AUTH_ENABLED=false
+    """
+
+    async def dispatch(self, request: Request, call_next):
+        settings = get_settings()
+
+        # Skip if auth disabled
+        if not settings.auth_enabled:
+            return await call_next(request)
+
+        # Skip CORS preflight
+        if request.method == "OPTIONS":
+            return await call_next(request)
+
+        # Skip public paths
+        path = request.url.path
+        if path == "/" or any(path.startswith(p) for p in _PUBLIC_PATHS):
+            return await call_next(request)
+
+        # Validate JWT
+        auth_header = request.headers.get("authorization", "")
+        if not auth_header.startswith("Bearer "):
+            return JSONResponse(
+                status_code=401,
+                content={"detail": "Not authenticated"},
+            )
+
+        token = auth_header[7:]  # Strip "Bearer "
+        try:
+            from app.services.auth_service import decode_token
+            payload = decode_token(token, settings.effective_jwt_secret)
+            if payload.get("type") != "access":
+                raise ValueError("Invalid token type")
+        except Exception:
+            return JSONResponse(
+                status_code=401,
+                content={"detail": "Invalid or expired token"},
+            )
+
+        # Store user info in request state
+        request.state.user_id = payload.get("sub")
+        request.state.username = payload.get("username")
+        request.state.role = payload.get("role")
+
+        return await call_next(request)
+
+
 def create_app() -> FastAPI:
     settings = get_settings()
 
@@ -148,6 +215,9 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    # Auth middleware (applied after CORS so preflight works)
+    app.add_middleware(AuthMiddleware)
 
     # Global exception handler for debugging
     @app.exception_handler(Exception)

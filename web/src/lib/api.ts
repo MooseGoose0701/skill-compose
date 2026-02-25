@@ -48,12 +48,129 @@ class ApiError extends Error {
   }
 }
 
+/**
+ * Get auth headers from persisted Zustand store.
+ * Reads directly from localStorage to avoid circular imports with the store.
+ */
+function getAuthHeaders(): Record<string, string> {
+  if (typeof window === 'undefined') return {};
+  try {
+    const raw = localStorage.getItem('skill-compose-auth');
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    const token = parsed?.state?.accessToken;
+    if (token) return { Authorization: `Bearer ${token}` };
+  } catch {
+    // ignore
+  }
+  return {};
+}
+
+/**
+ * Handle 401 Unauthorized — use Zustand store for clean logout.
+ */
+async function _handleUnauthorized() {
+  if (typeof window === 'undefined') return;
+  // Use Zustand store for clean state update
+  try {
+    const { useAuthStore } = await import('@/stores/auth-store');
+    useAuthStore.getState().logout();
+  } catch {
+    // Fallback: clear localStorage directly
+    try {
+      const raw = localStorage.getItem('skill-compose-auth');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        parsed.state = { accessToken: null, refreshToken: null, user: null, isAuthenticated: false };
+        localStorage.setItem('skill-compose-auth', JSON.stringify(parsed));
+      }
+    } catch { /* ignore */ }
+  }
+  if (!window.location.pathname.startsWith('/login')) {
+    window.location.href = '/login';
+  }
+}
+
+/**
+ * Authenticated fetch wrapper — injects auth headers, auto-refreshes on 401.
+ */
+let _refreshPromise: Promise<boolean> | null = null;
+
+async function _tryRefreshToken(): Promise<boolean> {
+  if (typeof window === 'undefined') return false;
+  try {
+    const raw = localStorage.getItem('skill-compose-auth');
+    if (!raw) return false;
+    const parsed = JSON.parse(raw);
+    const refreshToken = parsed?.state?.refreshToken;
+    if (!refreshToken) return false;
+
+    const response = await fetch(`${AUTH_API_BASE}/auth/refresh`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refresh_token: refreshToken }),
+    });
+    if (!response.ok) return false;
+
+    const data = await response.json();
+    // Update token in localStorage (Zustand persist format)
+    parsed.state.accessToken = data.access_token;
+    localStorage.setItem('skill-compose-auth', JSON.stringify(parsed));
+    // Also update Zustand store if available
+    try {
+      const { useAuthStore } = await import('@/stores/auth-store');
+      useAuthStore.getState().updateAccessToken(data.access_token);
+    } catch { /* ignore */ }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function authedFetch(url: string, options: RequestInit = {}): Promise<Response> {
+  const response = await fetch(url, {
+    ...options,
+    headers: {
+      ...getAuthHeaders(),
+      ...options.headers,
+    },
+  });
+
+  // Auto-refresh on 401 (skip for auth and published endpoints)
+  if (response.status === 401 && !url.includes('/auth/') && !url.includes('/published/')) {
+    // Deduplicate concurrent refresh attempts
+    if (!_refreshPromise) {
+      _refreshPromise = _tryRefreshToken().finally(() => {
+        // Keep resolved promise available briefly for concurrent callers
+        setTimeout(() => { _refreshPromise = null; }, 200);
+      });
+    }
+
+    const refreshed = await _refreshPromise;
+    if (refreshed) {
+      // Retry the original request with new token
+      return fetch(url, {
+        ...options,
+        headers: {
+          ...getAuthHeaders(),
+          ...options.headers,
+        },
+      });
+    }
+
+    // Refresh failed — log out
+    await _handleUnauthorized();
+  }
+
+  return response;
+}
+
 async function fetchApi<T>(
   endpoint: string,
   options: RequestInit = {}
 ): Promise<T> {
   const url = `${API_BASE}${endpoint}`;
-  const response = await fetch(url, {
+  const response = await authedFetch(url, {
     ...options,
     headers: {
       'Content-Type': 'application/json',
@@ -175,7 +292,7 @@ export const skillsApi = {
     error?: string;
   }> => {
     const backendUrl = BACKEND_API_BASE;
-    const response = await fetch(`${backendUrl}/registry/tasks/${encodeURIComponent(taskId)}`);
+    const response = await authedFetch(`${backendUrl}/registry/tasks/${encodeURIComponent(taskId)}`);
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({}));
@@ -231,7 +348,7 @@ export const skillsApi = {
     if (params.traceIds?.length) body.trace_ids = params.traceIds;
     if (params.feedback?.trim()) body.feedback = params.feedback.trim();
 
-    const response = await fetch(`${backendUrl}/registry/skills/${encodeURIComponent(name)}/evolve-via-traces`, {
+    const response = await authedFetch(`${backendUrl}/registry/skills/${encodeURIComponent(name)}/evolve-via-traces`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -255,7 +372,7 @@ export const skillsApi = {
     const formData = new FormData();
     formData.append('file', file);
 
-    const response = await fetch(`${API_BASE}/skills/${encodeURIComponent(skillName)}/icon`, {
+    const response = await authedFetch(`${API_BASE}/skills/${encodeURIComponent(skillName)}/icon`, {
       method: 'POST',
       body: formData,
     });
@@ -272,7 +389,7 @@ export const skillsApi = {
   },
 
   deleteIcon: async (skillName: string): Promise<void> => {
-    const response = await fetch(`${API_BASE}/skills/${encodeURIComponent(skillName)}/icon`, {
+    const response = await authedFetch(`${API_BASE}/skills/${encodeURIComponent(skillName)}/icon`, {
       method: 'DELETE',
     });
 
@@ -289,7 +406,7 @@ export const skillsApi = {
     const body: { prompt?: string } = {};
     if (prompt) body.prompt = prompt;
 
-    const response = await fetch(`${API_BASE}/skills/${encodeURIComponent(skillName)}/generate-icon`, {
+    const response = await authedFetch(`${API_BASE}/skills/${encodeURIComponent(skillName)}/generate-icon`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
@@ -314,7 +431,7 @@ export const skillsApi = {
     message: string;
     changes: string[] | null;
   }> => {
-    const response = await fetch(`${API_BASE}/skills/${encodeURIComponent(skillName)}/update-from-github`, {
+    const response = await authedFetch(`${API_BASE}/skills/${encodeURIComponent(skillName)}/update-from-github`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
     });
@@ -331,7 +448,7 @@ export const skillsApi = {
   },
 
   updateFromSourceGitHub: async (skillName: string, url: string): Promise<UpdateFromSourceResult> => {
-    const response = await fetch(`${API_BASE}/skills/${encodeURIComponent(skillName)}/update-from-source-github`, {
+    const response = await authedFetch(`${API_BASE}/skills/${encodeURIComponent(skillName)}/update-from-source-github`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ url }),
@@ -349,7 +466,7 @@ export const skillsApi = {
     const formData = new FormData();
     formData.append('file', file);
 
-    const response = await fetch(`${API_BASE}/skills/${encodeURIComponent(skillName)}/update-from-source-file`, {
+    const response = await authedFetch(`${API_BASE}/skills/${encodeURIComponent(skillName)}/update-from-source-file`, {
       method: 'POST',
       body: formData,
     });
@@ -369,7 +486,7 @@ export const skillsApi = {
       formData.append('files', file);
     }
 
-    const response = await fetch(`${API_BASE}/skills/${encodeURIComponent(skillName)}/update-from-source-folder`, {
+    const response = await authedFetch(`${API_BASE}/skills/${encodeURIComponent(skillName)}/update-from-source-folder`, {
       method: 'POST',
       body: formData,
     });
@@ -491,7 +608,7 @@ export const changelogsApi = {
 // Export/Import API
 export const transferApi = {
   exportSkill: async (skillName: string): Promise<Blob> => {
-    const response = await fetch(
+    const response = await authedFetch(
       `${API_BASE}/skills/${encodeURIComponent(skillName)}/export`
     );
     if (!response.ok) {
@@ -504,7 +621,7 @@ export const transferApi = {
     const formData = new FormData();
     formData.append('file', file);
 
-    const response = await fetch(`${API_BASE}/import`, {
+    const response = await authedFetch(`${API_BASE}/import`, {
       method: 'POST',
       body: formData,
     });
@@ -537,7 +654,7 @@ export const transferApi = {
     if (params.checkOnly !== undefined) body.check_only = params.checkOnly;
     if (params.conflictAction) body.conflict_action = params.conflictAction;
 
-    const response = await fetch(`${API_BASE}/import-github`, {
+    const response = await authedFetch(`${API_BASE}/import-github`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
@@ -594,7 +711,7 @@ const SKILLS_API_BASE = BACKEND_API_BASE;
 
 export const filesystemSkillsApi = {
   list: async (): Promise<FilesystemSkillsResponse> => {
-    const response = await fetch(`${SKILLS_API_BASE}/skills/`);
+    const response = await authedFetch(`${SKILLS_API_BASE}/skills/`);
     if (!response.ok) {
       throw new ApiError(response.status, 'Failed to fetch skills');
     }
@@ -602,7 +719,7 @@ export const filesystemSkillsApi = {
   },
 
   get: async (skillName: string): Promise<SkillWithResources> => {
-    const response = await fetch(`${SKILLS_API_BASE}/skills/${encodeURIComponent(skillName)}`);
+    const response = await authedFetch(`${SKILLS_API_BASE}/skills/${encodeURIComponent(skillName)}`);
     if (!response.ok) {
       throw new ApiError(response.status, 'Failed to fetch skill resources');
     }
@@ -610,7 +727,7 @@ export const filesystemSkillsApi = {
   },
 
   getFileContent: async (skillName: string, resourceType: string, filename: string): Promise<string> => {
-    const response = await fetch(
+    const response = await authedFetch(
       `${SKILLS_API_BASE}/skills/${encodeURIComponent(skillName)}/resources/${encodeURIComponent(resourceType)}/${encodeURIComponent(filename)}`
     );
     if (!response.ok) {
@@ -640,7 +757,7 @@ export const filesApi = {
     const formData = new FormData();
     formData.append('file', file);
 
-    const response = await fetch(`${FILES_API_BASE}/files/upload`, {
+    const response = await authedFetch(`${FILES_API_BASE}/files/upload`, {
       method: 'POST',
       body: formData,
     });
@@ -657,7 +774,7 @@ export const filesApi = {
   },
 
   delete: async (fileId: string): Promise<void> => {
-    const response = await fetch(`${FILES_API_BASE}/files/${encodeURIComponent(fileId)}`, {
+    const response = await authedFetch(`${FILES_API_BASE}/files/${encodeURIComponent(fileId)}`, {
       method: 'DELETE',
     });
 
@@ -765,7 +882,7 @@ export interface OutputFileInfo {
 export const agentApi = {
   run: async (request: AgentRequest): Promise<AgentResponse> => {
     // Call backend directly to avoid Next.js proxy timeout for long-running requests
-    const response = await fetch(`${AGENT_API_BASE}/agent/run`, {
+    const response = await authedFetch(`${AGENT_API_BASE}/agent/run`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -789,7 +906,7 @@ export const agentApi = {
     onEvent: (event: StreamEvent) => void,
     signal?: AbortSignal
   ): Promise<void> => {
-    const response = await fetch(`${AGENT_API_BASE}/agent/run/stream`, {
+    const response = await authedFetch(`${AGENT_API_BASE}/agent/run/stream`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -841,7 +958,7 @@ export const agentApi = {
   },
 
   steerAgent: async (traceId: string, message: string): Promise<void> => {
-    const response = await fetch(
+    const response = await authedFetch(
       `${AGENT_API_BASE}/agent/run/stream/${encodeURIComponent(traceId)}/steer`,
       {
         method: 'POST',
@@ -856,7 +973,7 @@ export const agentApi = {
   },
 
   getSession: async (sessionId: string): Promise<SessionMessages> => {
-    const response = await fetch(
+    const response = await authedFetch(
       `${AGENT_API_BASE}/published/sessions/${encodeURIComponent(sessionId)}/detail`
     );
     if (!response.ok) {
@@ -866,7 +983,7 @@ export const agentApi = {
   },
 
   getSessionTraceIds: async (sessionId: string): Promise<string[]> => {
-    const response = await fetch(
+    const response = await authedFetch(
       `${AGENT_API_BASE}/traces/by-session/${encodeURIComponent(sessionId)}`
     );
     if (!response.ok) {
@@ -935,7 +1052,7 @@ export const tracesApi = {
     if (params?.limit !== undefined) searchParams.set('limit', String(params.limit));
 
     const query = searchParams.toString();
-    const response = await fetch(`${TRACES_API_BASE}/traces${query ? `?${query}` : ''}`);
+    const response = await authedFetch(`${TRACES_API_BASE}/traces${query ? `?${query}` : ''}`);
     if (!response.ok) {
       throw new ApiError(response.status, await response.text());
     }
@@ -943,7 +1060,7 @@ export const tracesApi = {
   },
 
   get: async (traceId: string): Promise<TraceDetail> => {
-    const response = await fetch(`${TRACES_API_BASE}/traces/${encodeURIComponent(traceId)}`);
+    const response = await authedFetch(`${TRACES_API_BASE}/traces/${encodeURIComponent(traceId)}`);
     if (!response.ok) {
       throw new ApiError(response.status, await response.text());
     }
@@ -951,7 +1068,7 @@ export const tracesApi = {
   },
 
   delete: async (traceId: string): Promise<void> => {
-    const response = await fetch(`${TRACES_API_BASE}/traces/${encodeURIComponent(traceId)}`, {
+    const response = await authedFetch(`${TRACES_API_BASE}/traces/${encodeURIComponent(traceId)}`, {
       method: 'DELETE',
     });
     if (!response.ok) {
@@ -971,7 +1088,7 @@ export const tracesApi = {
     success?: boolean;
     limit?: number;
   }): Promise<Blob> => {
-    const response = await fetch(`${TRACES_API_BASE}/traces/export`, {
+    const response = await authedFetch(`${TRACES_API_BASE}/traces/export`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -991,7 +1108,7 @@ const TOOLS_API_BASE = BACKEND_API_BASE;
 export const toolsApi = {
   list: async (category?: string): Promise<ToolListResponse> => {
     const params = category ? `?category=${encodeURIComponent(category)}` : '';
-    const response = await fetch(`${TOOLS_API_BASE}/tools/registry${params}`);
+    const response = await authedFetch(`${TOOLS_API_BASE}/tools/registry${params}`);
     if (!response.ok) {
       throw new ApiError(response.status, 'Failed to fetch tools');
     }
@@ -999,7 +1116,7 @@ export const toolsApi = {
   },
 
   get: async (toolId: string): Promise<Tool> => {
-    const response = await fetch(`${TOOLS_API_BASE}/tools/registry/${encodeURIComponent(toolId)}`);
+    const response = await authedFetch(`${TOOLS_API_BASE}/tools/registry/${encodeURIComponent(toolId)}`);
     if (!response.ok) {
       throw new ApiError(response.status, 'Failed to fetch tool');
     }
@@ -1053,7 +1170,7 @@ export interface MCPServerCreateRequest {
 
 export const mcpApi = {
   listServers: async (): Promise<MCPServersListResponse> => {
-    const response = await fetch(`${MCP_API_BASE}/mcp/servers`);
+    const response = await authedFetch(`${MCP_API_BASE}/mcp/servers`);
     if (!response.ok) {
       throw new ApiError(response.status, 'Failed to fetch MCP servers');
     }
@@ -1061,7 +1178,7 @@ export const mcpApi = {
   },
 
   getServer: async (name: string): Promise<MCPServerInfo> => {
-    const response = await fetch(`${MCP_API_BASE}/mcp/servers/${encodeURIComponent(name)}`);
+    const response = await authedFetch(`${MCP_API_BASE}/mcp/servers/${encodeURIComponent(name)}`);
     if (!response.ok) {
       throw new ApiError(response.status, 'Failed to fetch MCP server');
     }
@@ -1069,7 +1186,7 @@ export const mcpApi = {
   },
 
   createServer: async (request: MCPServerCreateRequest): Promise<MCPServerInfo> => {
-    const response = await fetch(`${MCP_API_BASE}/mcp/servers`, {
+    const response = await authedFetch(`${MCP_API_BASE}/mcp/servers`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(request),
@@ -1082,7 +1199,7 @@ export const mcpApi = {
   },
 
   deleteServer: async (name: string): Promise<void> => {
-    const response = await fetch(`${MCP_API_BASE}/mcp/servers/${encodeURIComponent(name)}`, {
+    const response = await authedFetch(`${MCP_API_BASE}/mcp/servers/${encodeURIComponent(name)}`, {
       method: 'DELETE',
     });
     if (!response.ok) {
@@ -1099,7 +1216,7 @@ export const mcpApi = {
     tools_count: number;
     error?: string;
   }> => {
-    const response = await fetch(
+    const response = await authedFetch(
       `${MCP_API_BASE}/mcp/servers/${encodeURIComponent(name)}/discover-tools`,
       { method: 'POST' }
     );
@@ -1112,7 +1229,7 @@ export const mcpApi = {
 
   // Secrets management
   setSecret: async (serverName: string, keyName: string, value: string): Promise<{ message: string; source: string }> => {
-    const response = await fetch(
+    const response = await authedFetch(
       `${MCP_API_BASE}/mcp/servers/${encodeURIComponent(serverName)}/secrets/${encodeURIComponent(keyName)}`,
       {
         method: 'PUT',
@@ -1128,7 +1245,7 @@ export const mcpApi = {
   },
 
   deleteSecret: async (serverName: string, keyName: string): Promise<void> => {
-    const response = await fetch(
+    const response = await authedFetch(
       `${MCP_API_BASE}/mcp/servers/${encodeURIComponent(serverName)}/secrets/${encodeURIComponent(keyName)}`,
       {
         method: 'DELETE',
@@ -1202,7 +1319,7 @@ export const agentPresetsApi = {
       searchParams.set('is_system', String(params.is_system));
     }
     const query = searchParams.toString();
-    const response = await fetch(`${AGENTS_API_BASE}/agents${query ? `?${query}` : ''}`);
+    const response = await authedFetch(`${AGENTS_API_BASE}/agents${query ? `?${query}` : ''}`);
     if (!response.ok) {
       throw new ApiError(response.status, await response.text());
     }
@@ -1210,7 +1327,7 @@ export const agentPresetsApi = {
   },
 
   get: async (id: string): Promise<AgentPreset> => {
-    const response = await fetch(`${AGENTS_API_BASE}/agents/${encodeURIComponent(id)}`);
+    const response = await authedFetch(`${AGENTS_API_BASE}/agents/${encodeURIComponent(id)}`);
     if (!response.ok) {
       throw new ApiError(response.status, await response.text());
     }
@@ -1218,7 +1335,7 @@ export const agentPresetsApi = {
   },
 
   getByName: async (name: string): Promise<AgentPreset> => {
-    const response = await fetch(`${AGENTS_API_BASE}/agents/by-name/${encodeURIComponent(name)}`);
+    const response = await authedFetch(`${AGENTS_API_BASE}/agents/by-name/${encodeURIComponent(name)}`);
     if (!response.ok) {
       throw new ApiError(response.status, await response.text());
     }
@@ -1226,7 +1343,7 @@ export const agentPresetsApi = {
   },
 
   create: async (data: AgentPresetCreateRequest): Promise<AgentPreset> => {
-    const response = await fetch(`${AGENTS_API_BASE}/agents`, {
+    const response = await authedFetch(`${AGENTS_API_BASE}/agents`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
@@ -1239,7 +1356,7 @@ export const agentPresetsApi = {
   },
 
   update: async (id: string, data: AgentPresetUpdateRequest): Promise<AgentPreset> => {
-    const response = await fetch(`${AGENTS_API_BASE}/agents/${encodeURIComponent(id)}`, {
+    const response = await authedFetch(`${AGENTS_API_BASE}/agents/${encodeURIComponent(id)}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
@@ -1252,7 +1369,7 @@ export const agentPresetsApi = {
   },
 
   delete: async (id: string): Promise<void> => {
-    const response = await fetch(`${AGENTS_API_BASE}/agents/${encodeURIComponent(id)}`, {
+    const response = await authedFetch(`${AGENTS_API_BASE}/agents/${encodeURIComponent(id)}`, {
       method: 'DELETE',
     });
     if (!response.ok) {
@@ -1265,7 +1382,7 @@ export const agentPresetsApi = {
     id: string,
     data: { api_response_mode: 'streaming' | 'non_streaming' }
   ): Promise<AgentPreset> => {
-    const response = await fetch(`${AGENTS_API_BASE}/agents/${encodeURIComponent(id)}/publish`, {
+    const response = await authedFetch(`${AGENTS_API_BASE}/agents/${encodeURIComponent(id)}/publish`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
@@ -1278,7 +1395,7 @@ export const agentPresetsApi = {
   },
 
   unpublish: async (id: string): Promise<AgentPreset> => {
-    const response = await fetch(`${AGENTS_API_BASE}/agents/${encodeURIComponent(id)}/unpublish`, {
+    const response = await authedFetch(`${AGENTS_API_BASE}/agents/${encodeURIComponent(id)}/unpublish`, {
       method: 'POST',
     });
     if (!response.ok) {
@@ -1332,7 +1449,7 @@ const PUBLISHED_API_BASE = BACKEND_API_BASE;
 
 export const publishedAgentApi = {
   getInfo: async (agentId: string): Promise<PublishedAgentInfo> => {
-    const response = await fetch(`${PUBLISHED_API_BASE}/published/${encodeURIComponent(agentId)}`);
+    const response = await authedFetch(`${PUBLISHED_API_BASE}/published/${encodeURIComponent(agentId)}`);
     if (!response.ok) {
       throw new ApiError(response.status, 'Published agent not found');
     }
@@ -1340,7 +1457,7 @@ export const publishedAgentApi = {
   },
 
   getSession: async (agentId: string, sessionId: string): Promise<SessionMessages> => {
-    const response = await fetch(
+    const response = await authedFetch(
       `${PUBLISHED_API_BASE}/published/${encodeURIComponent(agentId)}/sessions/${encodeURIComponent(sessionId)}`
     );
     if (!response.ok) {
@@ -1355,7 +1472,7 @@ export const publishedAgentApi = {
     onEvent: (event: StreamEvent) => void,
     signal?: AbortSignal
   ): Promise<void> => {
-    const response = await fetch(`${PUBLISHED_API_BASE}/published/${encodeURIComponent(agentId)}/chat`, {
+    const response = await authedFetch(`${PUBLISHED_API_BASE}/published/${encodeURIComponent(agentId)}/chat`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -1404,7 +1521,7 @@ export const publishedAgentApi = {
   },
 
   steerAgent: async (agentId: string, traceId: string, message: string): Promise<void> => {
-    const response = await fetch(
+    const response = await authedFetch(
       `${PUBLISHED_API_BASE}/published/${encodeURIComponent(agentId)}/chat/${encodeURIComponent(traceId)}/steer`,
       {
         method: 'POST',
@@ -1428,7 +1545,7 @@ export const publishedAgentApi = {
     if (params?.offset !== undefined) searchParams.set('offset', String(params.offset));
     if (params?.limit !== undefined) searchParams.set('limit', String(params.limit));
     const query = searchParams.toString();
-    const response = await fetch(`${PUBLISHED_API_BASE}/published/sessions/list${query ? `?${query}` : ''}`);
+    const response = await authedFetch(`${PUBLISHED_API_BASE}/published/sessions/list${query ? `?${query}` : ''}`);
     if (!response.ok) {
       throw new ApiError(response.status, 'Failed to fetch sessions');
     }
@@ -1436,7 +1553,7 @@ export const publishedAgentApi = {
   },
 
   getSessionDetail: async (sessionId: string): Promise<SessionMessages> => {
-    const response = await fetch(
+    const response = await authedFetch(
       `${PUBLISHED_API_BASE}/published/sessions/${encodeURIComponent(sessionId)}/detail`
     );
     if (!response.ok) {
@@ -1446,7 +1563,7 @@ export const publishedAgentApi = {
   },
 
   deleteSession: async (sessionId: string): Promise<void> => {
-    const response = await fetch(
+    const response = await authedFetch(
       `${PUBLISHED_API_BASE}/published/sessions/${encodeURIComponent(sessionId)}`,
       { method: 'DELETE' }
     );
@@ -1456,7 +1573,7 @@ export const publishedAgentApi = {
   },
 
   deleteAgentSessions: async (agentId: string): Promise<{ deleted_count: number }> => {
-    const response = await fetch(
+    const response = await authedFetch(
       `${PUBLISHED_API_BASE}/published/${encodeURIComponent(agentId)}/sessions`,
       { method: 'DELETE' }
     );
@@ -1478,7 +1595,7 @@ export const publishedAgentApi = {
     trace_id?: string;
     session_id?: string;
   }> => {
-    const response = await fetch(`${PUBLISHED_API_BASE}/published/${encodeURIComponent(agentId)}/chat/sync`, {
+    const response = await authedFetch(`${PUBLISHED_API_BASE}/published/${encodeURIComponent(agentId)}/chat/sync`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -1614,7 +1731,7 @@ export const skillDependenciesApi = {
     onEvent: (event: InstallStreamEvent) => void,
     signal?: AbortSignal
   ): Promise<void> => {
-    const response = await fetch(`${API_BASE}/skills/${encodeURIComponent(skillName)}/install-dependencies/stream`, {
+    const response = await authedFetch(`${API_BASE}/skills/${encodeURIComponent(skillName)}/install-dependencies/stream`, {
       method: 'POST',
       signal,
     });
@@ -1697,7 +1814,7 @@ const BROWSER_API_BASE = BACKEND_API_BASE;
 export const browserApi = {
   listDirectory: async (path: string = ''): Promise<BrowserDirectoryContents> => {
     const params = path ? `?path=${encodeURIComponent(path)}` : '';
-    const response = await fetch(`${BROWSER_API_BASE}/browser/list${params}`);
+    const response = await authedFetch(`${BROWSER_API_BASE}/browser/list${params}`);
     if (!response.ok) {
       const error = await response.json().catch(() => ({}));
       throw new ApiError(response.status, error.detail || 'Failed to list directory');
@@ -1706,7 +1823,7 @@ export const browserApi = {
   },
 
   previewFile: async (path: string): Promise<BrowserFilePreview> => {
-    const response = await fetch(`${BROWSER_API_BASE}/browser/preview?path=${encodeURIComponent(path)}`);
+    const response = await authedFetch(`${BROWSER_API_BASE}/browser/preview?path=${encodeURIComponent(path)}`);
     if (!response.ok) {
       const error = await response.json().catch(() => ({}));
       throw new ApiError(response.status, error.detail || 'Failed to preview file');
@@ -1727,7 +1844,7 @@ export const browserApi = {
     formData.append('file', file);
 
     const params = targetPath ? `?path=${encodeURIComponent(targetPath)}` : '';
-    const response = await fetch(`${BROWSER_API_BASE}/browser/upload${params}`, {
+    const response = await authedFetch(`${BROWSER_API_BASE}/browser/upload${params}`, {
       method: 'POST',
       body: formData,
     });
@@ -1741,7 +1858,7 @@ export const browserApi = {
   },
 
   deleteFile: async (path: string): Promise<void> => {
-    const response = await fetch(`${BROWSER_API_BASE}/browser/delete?path=${encodeURIComponent(path)}`, {
+    const response = await authedFetch(`${BROWSER_API_BASE}/browser/delete?path=${encodeURIComponent(path)}`, {
       method: 'DELETE',
     });
     if (!response.ok) {
@@ -1782,7 +1899,7 @@ const MODELS_API_BASE = BACKEND_API_BASE;
 export const modelsApi = {
   list: async (provider?: string): Promise<ModelsListResponse> => {
     const params = provider ? `?provider=${encodeURIComponent(provider)}` : '';
-    const response = await fetch(`${MODELS_API_BASE}/models${params}`);
+    const response = await authedFetch(`${MODELS_API_BASE}/models${params}`);
     if (!response.ok) {
       throw new ApiError(response.status, 'Failed to fetch models');
     }
@@ -1790,7 +1907,7 @@ export const modelsApi = {
   },
 
   listProviders: async (): Promise<ProvidersListResponse> => {
-    const response = await fetch(`${MODELS_API_BASE}/models/providers`);
+    const response = await authedFetch(`${MODELS_API_BASE}/models/providers`);
     if (!response.ok) {
       throw new ApiError(response.status, 'Failed to fetch providers');
     }
@@ -1831,7 +1948,7 @@ const EXECUTORS_API_BASE = BACKEND_API_BASE;
 
 export const executorsApi = {
   list: async (): Promise<ExecutorListResponse> => {
-    const response = await fetch(`${EXECUTORS_API_BASE}/executors`);
+    const response = await authedFetch(`${EXECUTORS_API_BASE}/executors`);
     if (!response.ok) {
       throw new ApiError(response.status, 'Failed to fetch executors');
     }
@@ -1839,7 +1956,7 @@ export const executorsApi = {
   },
 
   get: async (name: string): Promise<Executor> => {
-    const response = await fetch(`${EXECUTORS_API_BASE}/executors/${encodeURIComponent(name)}`);
+    const response = await authedFetch(`${EXECUTORS_API_BASE}/executors/${encodeURIComponent(name)}`);
     if (!response.ok) {
       throw new ApiError(response.status, 'Executor not found');
     }
@@ -1847,7 +1964,7 @@ export const executorsApi = {
   },
 
   health: async (name: string): Promise<ExecutorHealthResponse> => {
-    const response = await fetch(`${EXECUTORS_API_BASE}/executors/${encodeURIComponent(name)}/health`);
+    const response = await authedFetch(`${EXECUTORS_API_BASE}/executors/${encodeURIComponent(name)}/health`);
     if (!response.ok) {
       throw new ApiError(response.status, 'Health check failed');
     }
@@ -1893,7 +2010,7 @@ const BACKUP_API_BASE = BACKEND_API_BASE;
 export const backupApi = {
   create: async (params?: { includeEnv?: boolean }): Promise<Blob> => {
     const includeEnv = params?.includeEnv !== false;
-    const response = await fetch(
+    const response = await authedFetch(
       `${BACKUP_API_BASE}/backup/create?include_env=${includeEnv}`,
       { method: 'POST' }
     );
@@ -1905,7 +2022,7 @@ export const backupApi = {
   },
 
   list: async (): Promise<BackupListResponse> => {
-    const response = await fetch(`${BACKUP_API_BASE}/backup/list`);
+    const response = await authedFetch(`${BACKUP_API_BASE}/backup/list`);
     if (!response.ok) {
       throw new ApiError(response.status, 'Failed to list backups');
     }
@@ -1915,7 +2032,7 @@ export const backupApi = {
   restoreFromUpload: async (file: File): Promise<RestoreResponse> => {
     const formData = new FormData();
     formData.append('file', file);
-    const response = await fetch(`${BACKUP_API_BASE}/backup/restore`, {
+    const response = await authedFetch(`${BACKUP_API_BASE}/backup/restore`, {
       method: 'POST',
       body: formData,
     });
@@ -1927,7 +2044,7 @@ export const backupApi = {
   },
 
   restoreFromServer: async (filename: string): Promise<RestoreResponse> => {
-    const response = await fetch(
+    const response = await authedFetch(
       `${BACKUP_API_BASE}/backup/restore/${encodeURIComponent(filename)}`,
       { method: 'POST' }
     );
@@ -1962,7 +2079,7 @@ export interface EnvConfigResponse {
 
 export const settingsApi = {
   getEnv: async (): Promise<EnvConfigResponse> => {
-    const response = await fetch(`${BACKEND_API_BASE}/settings/env`);
+    const response = await authedFetch(`${BACKEND_API_BASE}/settings/env`);
     if (!response.ok) {
       throw new ApiError(response.status, 'Failed to load environment variables');
     }
@@ -1970,7 +2087,7 @@ export const settingsApi = {
   },
 
   createEnv: async (key: string, value: string): Promise<void> => {
-    const response = await fetch(`${BACKEND_API_BASE}/settings/env`, {
+    const response = await authedFetch(`${BACKEND_API_BASE}/settings/env`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ key, value }),
@@ -1982,7 +2099,7 @@ export const settingsApi = {
   },
 
   updateEnv: async (key: string, value: string): Promise<void> => {
-    const response = await fetch(`${BACKEND_API_BASE}/settings/env`, {
+    const response = await authedFetch(`${BACKEND_API_BASE}/settings/env`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ key, value }),
@@ -1994,12 +2111,111 @@ export const settingsApi = {
   },
 
   deleteEnv: async (key: string): Promise<void> => {
-    const response = await fetch(`${BACKEND_API_BASE}/settings/env/${encodeURIComponent(key)}`, {
+    const response = await authedFetch(`${BACKEND_API_BASE}/settings/env/${encodeURIComponent(key)}`, {
       method: 'DELETE',
     });
     if (!response.ok) {
       const error = await response.json().catch(() => ({}));
       throw new ApiError(response.status, error.detail || 'Failed to delete variable');
+    }
+  },
+};
+
+// Auth API
+const AUTH_API_BASE = BACKEND_API_BASE;
+
+export const authApi = {
+  status: async (): Promise<{ auth_enabled: boolean; has_users: boolean }> => {
+    const response = await fetch(`${AUTH_API_BASE}/auth/status`);
+    if (!response.ok) throw new ApiError(response.status, 'Failed to check auth status');
+    return response.json();
+  },
+
+  login: async (username: string, password: string): Promise<{
+    access_token: string;
+    refresh_token: string;
+    user: { id: string; username: string; display_name: string | null; role: string; is_active: boolean; created_at: string | null };
+    must_change_password: boolean;
+  }> => {
+    const response = await fetch(`${AUTH_API_BASE}/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password }),
+    });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new ApiError(response.status, error.detail || 'Login failed');
+    }
+    return response.json();
+  },
+
+  refresh: async (refreshToken: string): Promise<{ access_token: string }> => {
+    const response = await fetch(`${AUTH_API_BASE}/auth/refresh`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refresh_token: refreshToken }),
+    });
+    if (!response.ok) throw new ApiError(response.status, 'Token refresh failed');
+    return response.json();
+  },
+
+  getMe: async (): Promise<{ id: string; username: string; display_name: string | null; role: string; is_active: boolean; created_at: string | null }> => {
+    const response = await authedFetch(`${AUTH_API_BASE}/auth/me`);
+    if (!response.ok) throw new ApiError(response.status, 'Failed to get user info');
+    return response.json();
+  },
+
+  changePassword: async (currentPassword: string, newPassword: string): Promise<void> => {
+    const response = await authedFetch(`${AUTH_API_BASE}/auth/change-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
+    });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new ApiError(response.status, error.detail || 'Failed to change password');
+    }
+  },
+
+  listUsers: async (): Promise<Array<{ id: string; username: string; display_name: string | null; role: string; is_active: boolean; created_at: string | null }>> => {
+    const response = await authedFetch(`${AUTH_API_BASE}/auth/users`);
+    if (!response.ok) throw new ApiError(response.status, 'Failed to list users');
+    return response.json();
+  },
+
+  createUser: async (data: { username: string; password: string; display_name?: string; role?: string }): Promise<{ id: string; username: string; display_name: string | null; role: string; is_active: boolean }> => {
+    const response = await authedFetch(`${AUTH_API_BASE}/auth/users`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new ApiError(response.status, error.detail || 'Failed to create user');
+    }
+    return response.json();
+  },
+
+  updateUser: async (userId: string, data: { display_name?: string; role?: string; is_active?: boolean; password?: string }): Promise<{ id: string; username: string; display_name: string | null; role: string; is_active: boolean }> => {
+    const response = await authedFetch(`${AUTH_API_BASE}/auth/users/${encodeURIComponent(userId)}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new ApiError(response.status, error.detail || 'Failed to update user');
+    }
+    return response.json();
+  },
+
+  deleteUser: async (userId: string): Promise<void> => {
+    const response = await authedFetch(`${AUTH_API_BASE}/auth/users/${encodeURIComponent(userId)}`, {
+      method: 'DELETE',
+    });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new ApiError(response.status, error.detail || 'Failed to delete user');
     }
   },
 };

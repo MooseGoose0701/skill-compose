@@ -12,6 +12,7 @@ import os
 # Set env vars before any app imports
 os.environ["DATABASE_URL"] = "postgresql+asyncpg://skills:skills123@localhost:62620/skills_api_test"
 os.environ["ANTHROPIC_API_KEY"] = "test-key-not-real"
+os.environ["AUTH_ENABLED"] = "false"
 
 import pytest
 import pytest_asyncio

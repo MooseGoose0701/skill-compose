@@ -32,6 +32,7 @@ from app.db.models import (
     AgentPresetDB,
     AgentTraceDB,
     PublishedSessionDB,
+    UserDB,
 )
 from app.config import settings
 
@@ -301,6 +302,24 @@ async def _create_backup_zip(
         })
     stats.published_sessions = len(sessions_data)
 
+    # Users
+    result = await db.execute(sa_select(UserDB).order_by(UserDB.created_at))
+    users = result.scalars().all()
+    users_data = []
+    for u in users:
+        users_data.append({
+            "id": u.id,
+            "username": u.username,
+            "password_hash": u.password_hash,
+            "display_name": u.display_name,
+            "role": u.role,
+            "is_active": u.is_active,
+            "must_change_password": u.must_change_password,
+            "password_changed_at": _serialize_datetime(u.password_changed_at),
+            "created_at": _serialize_datetime(u.created_at),
+            "updated_at": _serialize_datetime(u.updated_at),
+        })
+
     # 2. Build manifest
     timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
     filename = f"{filename_prefix}_{timestamp}.zip"
@@ -325,6 +344,7 @@ async def _create_backup_zip(
         zf.writestr("db/agent_presets.json", json.dumps(presets_data, ensure_ascii=False))
         zf.writestr("db/agent_traces.json", json.dumps(traces_data, ensure_ascii=False))
         zf.writestr("db/published_sessions.json", json.dumps(sessions_data, ensure_ascii=False))
+        zf.writestr("db/users.json", json.dumps(users_data, ensure_ascii=False))
 
         # Config files
         config_dir = Path(settings.config_dir).resolve()
@@ -430,6 +450,7 @@ async def _restore_from_zip(
     presets_data = _read_json("agent_presets.json")
     traces_data = _read_json("agent_traces.json")
     sessions_data = _read_json("published_sessions.json")
+    users_data = _read_json("users.json")
 
     # Clear DB tables (children first due to FK constraints)
     try:
@@ -444,6 +465,7 @@ async def _restore_from_zip(
         await db.execute(sa_delete(SkillVersionDB))
         await db.execute(sa_delete(AgentPresetDB))
         await db.execute(sa_delete(SkillDB))
+        await db.execute(sa_delete(UserDB))
         await db.flush()
     except Exception as e:
         await db.rollback()
@@ -452,6 +474,28 @@ async def _restore_from_zip(
 
     # Insert DB records (parents first)
     restored = BackupStats()
+
+    # Users (insert first, no FK dependencies)
+    for u in users_data:
+        try:
+            from app.services.auth_service import hash_password as _hash_pw
+            user = UserDB(
+                id=u["id"],
+                username=u["username"],
+                password_hash=u.get("password_hash") or _hash_pw("changeme"),
+                display_name=u.get("display_name"),
+                role=u.get("role", "user"),
+                is_active=u.get("is_active", True),
+                must_change_password=True if not u.get("password_hash") else u.get("must_change_password", False),
+                password_changed_at=datetime.fromisoformat(u["password_changed_at"]) if u.get("password_changed_at") else None,
+                created_at=datetime.fromisoformat(u["created_at"]) if u.get("created_at") else datetime.utcnow(),
+                updated_at=datetime.fromisoformat(u["updated_at"]) if u.get("updated_at") else datetime.utcnow(),
+            )
+            db.add(user)
+        except Exception as e:
+            errors.append(f"Failed to restore user '{u.get('username')}': {e}")
+
+    await db.flush()
 
     # Skills
     for s in skills_data:

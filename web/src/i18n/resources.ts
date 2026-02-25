@@ -17,6 +17,7 @@ import enExecutors from './locales/en-US/executors.json'
 import enImport from './locales/en-US/import.json'
 import enSessions from './locales/en-US/sessions.json'
 import enTerminal from './locales/en-US/terminal.json'
+import enAuth from './locales/en-US/auth.json'
 
 // zh-CN
 import zhCommon from './locales/zh-CN/common.json'
@@ -34,6 +35,7 @@ import zhExecutors from './locales/zh-CN/executors.json'
 import zhImport from './locales/zh-CN/import.json'
 import zhSessions from './locales/zh-CN/sessions.json'
 import zhTerminal from './locales/zh-CN/terminal.json'
+import zhAuth from './locales/zh-CN/auth.json'
 
 // ja
 import jaCommon from './locales/ja/common.json'
@@ -51,6 +53,7 @@ import jaExecutors from './locales/ja/executors.json'
 import jaImport from './locales/ja/import.json'
 import jaSessions from './locales/ja/sessions.json'
 import jaTerminal from './locales/ja/terminal.json'
+import jaAuth from './locales/ja/auth.json'
 
 // es
 import esCommon from './locales/es/common.json'
@@ -68,6 +71,7 @@ import esExecutors from './locales/es/executors.json'
 import esImport from './locales/es/import.json'
 import esSessions from './locales/es/sessions.json'
 import esTerminal from './locales/es/terminal.json'
+import esAuth from './locales/es/auth.json'
 
 // pt-BR
 import ptCommon from './locales/pt-BR/common.json'
@@ -85,6 +89,7 @@ import ptExecutors from './locales/pt-BR/executors.json'
 import ptImport from './locales/pt-BR/import.json'
 import ptSessions from './locales/pt-BR/sessions.json'
 import ptTerminal from './locales/pt-BR/terminal.json'
+import ptAuth from './locales/pt-BR/auth.json'
 
 export const resources = {
   'en-US': {
@@ -103,6 +108,7 @@ export const resources = {
     import: enImport,
     sessions: enSessions,
     terminal: enTerminal,
+    auth: enAuth,
   },
   'zh-CN': {
     common: zhCommon,
@@ -120,6 +126,7 @@ export const resources = {
     import: zhImport,
     sessions: zhSessions,
     terminal: zhTerminal,
+    auth: zhAuth,
   },
   ja: {
     common: jaCommon,
@@ -137,6 +144,7 @@ export const resources = {
     import: jaImport,
     sessions: jaSessions,
     terminal: jaTerminal,
+    auth: jaAuth,
   },
   es: {
     common: esCommon,
@@ -154,6 +162,7 @@ export const resources = {
     import: esImport,
     sessions: esSessions,
     terminal: esTerminal,
+    auth: esAuth,
   },
   'pt-BR': {
     common: ptCommon,
@@ -171,5 +180,6 @@ export const resources = {
     import: ptImport,
     sessions: ptSessions,
     terminal: ptTerminal,
+    auth: ptAuth,
   },
 } as const
