@@ -21,10 +21,10 @@ name: skills-api
 
 services:
   # ============================================================================
-  # Database Service - PostgreSQL + pgvector
+  # Database Service - PostgreSQL
   # ============================================================================
   db:
-    image: pgvector/pgvector:pg16  # PostgreSQL 16 with pgvector extension pre-installed
+    image: postgres:16
     container_name: skills-db
     restart: unless-stopped
     environment:

@@ -108,8 +108,6 @@ async def init_db():
     from sqlalchemy import text
 
     async with engine.begin() as conn:
-        # Enable pgvector extension
-        await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
         await conn.run_sync(Base.metadata.create_all)
 
     # Run migrations for existing databases
@@ -127,6 +125,9 @@ async def _run_migrations():
     from sqlalchemy import text
 
     async with engine.begin() as conn:
+        # Remove unused pgvector extension (migrated to plain postgres:16)
+        await conn.execute(text("DROP EXTENSION IF EXISTS vector"))
+
         # Safely add columns using DO blocks (ignores duplicate_column errors)
         await conn.execute(text("""
             DO $$ BEGIN

@@ -22,7 +22,7 @@ Developer-oriented testing operations guide, including environment setup, runnin
 ### 1.1 Prerequisites
 
 - Python 3.10+
-- Docker (for PostgreSQL + pgvector)
+- Docker (for PostgreSQL)
 - Node.js 18+ (only needed for E2E tests)
 
 ### 1.2 Install Test Dependencies
@@ -52,8 +52,6 @@ cd docker && docker compose up -d db
 # Create test database
 docker exec skills-db psql -U skills -d postgres -c "CREATE DATABASE skills_api_test OWNER skills;"
 
-# Enable pgvector extension
-docker exec skills-db psql -U skills -d skills_api_test -c "CREATE EXTENSION IF NOT EXISTS vector;"
 ```
 
 ### 1.4 Verify Environment
@@ -494,7 +492,7 @@ jobs:
     runs-on: ubuntu-latest
     services:
       postgres:
-        image: pgvector/pgvector:pg16
+        image: postgres:16
         env:
           POSTGRES_USER: skills
           POSTGRES_PASSWORD: skills123
@@ -517,11 +515,6 @@ jobs:
         run: |
           pip install -e ".[dev]"
           pip install pytest-cov
-
-      - name: Enable pgvector
-        run: |
-          PGPASSWORD=skills123 psql -h localhost -U skills -d skills_api_test \
-            -c "CREATE EXTENSION IF NOT EXISTS vector;"
 
       - name: Run tests
         env:
@@ -576,16 +569,6 @@ asyncpg.InvalidCatalogNameError: database "skills_api_test" does not exist
 ```bash
 bash tests/scripts/setup_test_db.sh
 ```
-
-### 8.3 pgvector Extension Issue
-
-```
-sqlalchemy.exc.ProgrammingError: extension "vector" is not available
-```
-
-**Cause**: Docker image doesn't include pgvector.
-
-**Solution**: Ensure you're using `pgvector/pgvector:pg16` image instead of plain `postgres` image.
 
 ### 8.4 Event Loop Conflict
 

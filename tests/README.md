@@ -74,15 +74,13 @@ Production: postgresql+asyncpg://skills:skills123@localhost:62620/skills_api
 Test:       postgresql+asyncpg://skills:skills123@localhost:62620/skills_api_test
 ```
 
-pgvector extension is also enabled in the test database to ensure full ORM model compatibility.
-
 ### Test Isolation Strategy
 
 Each test case runs independently without interference:
 
 ```
 Test starts
-  → CREATE EXTENSION IF NOT EXISTS vector
+
   → Base.metadata.create_all()     # Create tables
   → Run test
   → Base.metadata.drop_all()       # Drop tables
@@ -222,4 +220,3 @@ markers = ["slow: slow tests"]
 1. **Streaming tests use mock session**: `/agent/run/stream` endpoint directly uses `AsyncSessionLocal`, tests use mock replacement, actual trace writing not verified
 2. **E2E tests require running services**: Playwright tests need frontend and backend services running on localhost:62600/62610
 3. **No real LLM calls**: All Agent tests mock Claude API, actual LLM interaction quality not verified
-4. **pgvector features not deeply tested**: Vector search related features not covered in unit tests
