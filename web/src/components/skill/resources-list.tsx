@@ -202,13 +202,13 @@ function CreateFileDialog({
 
     try {
       await versionsApi.create(skillName, {
-        commit_message: commitMessage || `Created ${normalized}`,
+        commit_message: commitMessage || t('files.createdFile', { filename: normalized }),
         files_content: { [normalized]: content },
       });
       handleClose();
       onVersionCreated?.();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to create file");
+      setError(err instanceof Error ? err.message : t('files.failedToCreateFile'));
     } finally {
       setIsSaving(false);
     }
@@ -275,7 +275,7 @@ export function ResourcesList({
   const [showCreateDialog, setShowCreateDialog] = React.useState(false);
 
   if (isLoading) {
-    return <p className="text-muted-foreground">Loading resources...</p>;
+    return <p className="text-muted-foreground">{t('files.loadingResources')}</p>;
   }
 
   // Combine all files into a single list with full paths
@@ -299,7 +299,7 @@ export function ResourcesList({
       {/* SKILL.md - Always show, expanded by default */}
       <div>
         <h4 className="text-sm font-medium mb-2 flex items-center gap-2">
-          <span className="text-orange-500">📄</span> Skill Definition
+          <span className="text-orange-500">📄</span> {t('files.skillDefinition')}
         </h4>
         <div className="space-y-2">
           <ResourceItem
@@ -318,7 +318,7 @@ export function ResourcesList({
       <div>
         <div className="flex items-center justify-between mb-2">
           <h4 className="text-sm font-medium flex items-center gap-2">
-            <span className="text-blue-500">📁</span> Files
+            <span className="text-blue-500">📁</span> {t('files.title')}
           </h4>
           {currentVersion && (
             <Button
@@ -358,7 +358,7 @@ export function ResourcesList({
           </div>
         ) : (
           <p className="text-muted-foreground text-sm">
-            {currentVersion ? t('files.empty') : "No resources available. Create a version first."}
+            {currentVersion ? t('files.empty') : t('files.noResources')}
           </p>
         )}
       </div>

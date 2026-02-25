@@ -127,7 +127,7 @@ export function SkillCard({ skill, hasGithubUpdate, agentNames }: SkillCardProps
                 onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
               >{skill.name}</h3>
               {isMeta && (
-                <Badge variant="outline" className="text-xs flex-shrink-0">Meta</Badge>
+                <Badge variant="outline" className="text-xs flex-shrink-0">{t('type.meta')}</Badge>
               )}
             </div>
             {/* Pin button */}

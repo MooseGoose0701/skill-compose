@@ -143,6 +143,7 @@ function InlineEdit({
 
 function CategoryEdit({ skill }: { skill: Skill }) {
   const queryClient = useQueryClient();
+  const { t } = useTranslation('skills');
   const { data: existingCategories } = useCategories();
   const [editing, setEditing] = useState(false);
   const [input, setInput] = useState(skill.category || '');
@@ -205,7 +206,7 @@ function CategoryEdit({ skill }: { skill: Skill }) {
   return (
     <div>
       <div className="flex items-center gap-2">
-        <h4 className="text-sm font-medium text-muted-foreground">Category</h4>
+        <h4 className="text-sm font-medium text-muted-foreground">{t('overview.category')}</h4>
         {!editing && (
           <Button
             variant="ghost"
@@ -227,7 +228,7 @@ function CategoryEdit({ skill }: { skill: Skill }) {
                 setShowSuggestions(true);
               }}
               onFocus={() => setShowSuggestions(true)}
-              placeholder="Type or select category..."
+              placeholder={t('overview.categoryPlaceholder')}
               className="text-sm"
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
@@ -268,7 +269,7 @@ function CategoryEdit({ skill }: { skill: Skill }) {
                   save('');
                 }}
               >
-                Uncategorized
+                {t('overview.noCategory')}
               </button>
               {filtered.map((cat) => (
                 <button
@@ -290,7 +291,7 @@ function CategoryEdit({ skill }: { skill: Skill }) {
         </div>
       ) : (
         <p className="mt-1 text-sm">
-          {skill.category || <span className="text-muted-foreground">Uncategorized</span>}
+          {skill.category || <span className="text-muted-foreground">{t('overview.noCategory')}</span>}
         </p>
       )}
     </div>
@@ -379,7 +380,7 @@ export function SkillOverview({ skill }: { skill: Skill }) {
         {/* Row 1: Source and Author */}
         <div className="col-span-2 sm:col-span-1">
           <InlineEdit
-            label="Source"
+            label={ts('overview.source')}
             value={skill.source}
             fieldKey="source"
             skillName={skill.name}
@@ -414,7 +415,7 @@ export function SkillOverview({ skill }: { skill: Skill }) {
                 className="gap-2"
               >
                 <RefreshCw className={`h-4 w-4 ${updating ? 'animate-spin' : ''}`} />
-                {updating ? 'Checking...' : 'Update from GitHub'}
+                {updating ? ts('overview.checking') : ts('overview.updateFromGitHub')}
               </Button>
               {updateMessage && (
                 <p
@@ -432,7 +433,7 @@ export function SkillOverview({ skill }: { skill: Skill }) {
         </div>
         <div>
           <InlineEdit
-            label="Author"
+            label={ts('overview.author')}
             value={skill.author}
             fieldKey="author"
             skillName={skill.name}
@@ -442,7 +443,7 @@ export function SkillOverview({ skill }: { skill: Skill }) {
 
         {/* Row 2: Type and Category */}
         <div>
-          <h4 className="text-sm font-medium text-muted-foreground">Type</h4>
+          <h4 className="text-sm font-medium text-muted-foreground">{ts('overview.type')}</h4>
           <div className="mt-1">
             <SkillTypeBadge skillType={skill.skill_type} />
           </div>
@@ -454,31 +455,31 @@ export function SkillOverview({ skill }: { skill: Skill }) {
         {/* Row 3: Current Version */}
         <div>
           <h4 className="text-sm font-medium text-muted-foreground">
-            Current Version
+            {ts('overview.currentVersion')}
           </h4>
           <p className="mt-1 text-sm">
-            {skill.current_version || 'No version yet'}
+            {skill.current_version || ts('overview.noVersion')}
           </p>
         </div>
 
         {/* Row 4: Created and Updated */}
         <div>
-          <h4 className="text-sm font-medium text-muted-foreground">Created</h4>
+          <h4 className="text-sm font-medium text-muted-foreground">{ts('overview.createdAt')}</h4>
           <p className="mt-1 text-sm">{formatDateTime(skill.created_at)}</p>
         </div>
         <div>
-          <h4 className="text-sm font-medium text-muted-foreground">Updated</h4>
+          <h4 className="text-sm font-medium text-muted-foreground">{ts('overview.updatedAt')}</h4>
           <p className="mt-1 text-sm">{formatDateTime(skill.updated_at)}</p>
         </div>
       </div>
 
       {/* Description - always shown, editable */}
       <InlineEdit
-        label="Description"
+        label={ts('overview.description')}
         value={skill.description}
         fieldKey="description"
         skillName={skill.name}
-        placeholder="No description"
+        placeholder={ts('overview.noDescription')}
         multiline
         renderValue={(val) => {
           const desc = getSkillDescription(ts, skill.name, val || null);
@@ -488,7 +489,7 @@ export function SkillOverview({ skill }: { skill: Skill }) {
 
       <div>
         <div className="flex items-center gap-2 mb-1">
-          <h4 className="text-sm font-medium text-muted-foreground">Tags</h4>
+          <h4 className="text-sm font-medium text-muted-foreground">{ts('overview.tags')}</h4>
           {!editingTags && (
             <Button
               variant="ghost"
@@ -505,7 +506,7 @@ export function SkillOverview({ skill }: { skill: Skill }) {
             <Input
               value={tagInput}
               onChange={(e) => setTagInput(e.target.value)}
-              placeholder="tag1, tag2, tag3"
+              placeholder={ts('overview.tagsPlaceholder')}
               className="text-sm"
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
@@ -545,7 +546,7 @@ export function SkillOverview({ skill }: { skill: Skill }) {
                 </Badge>
               ))
             ) : (
-              <p className="text-sm text-muted-foreground">No tags</p>
+              <p className="text-sm text-muted-foreground">{ts('overview.noTags')}</p>
             )}
           </div>
         )}

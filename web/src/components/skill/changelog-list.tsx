@@ -1,7 +1,10 @@
+"use client";
+
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import type { SkillChangelog } from "@/types/skill";
+import { useTranslation } from "@/i18n/client";
 import { formatDateTime } from "@/lib/formatters";
+import type { SkillChangelog } from "@/types/skill";
 
 interface ChangelogListProps {
   changelogs: SkillChangelog[];
@@ -9,12 +12,14 @@ interface ChangelogListProps {
 }
 
 export function ChangelogList({ changelogs, isLoading }: ChangelogListProps) {
+  const { t } = useTranslation('skills');
+
   if (isLoading) {
-    return <p className="text-muted-foreground">Loading changelog...</p>;
+    return <p className="text-muted-foreground">{t('changelog.loading')}</p>;
   }
 
   if (changelogs.length === 0) {
-    return <p className="text-muted-foreground">No changelog entries</p>;
+    return <p className="text-muted-foreground">{t('changelog.empty')}</p>;
   }
 
   const changeTypeVariants: Record<string, "success" | "info" | "warning" | "error" | "secondary"> = {
@@ -52,7 +57,7 @@ export function ChangelogList({ changelogs, isLoading }: ChangelogListProps) {
               </div>
               <div className="text-right text-sm text-muted-foreground">
                 <p>{formatDateTime(entry.changed_at)}</p>
-                {entry.changed_by && <p>by {entry.changed_by}</p>}
+                {entry.changed_by && <p>{t('changelog.by', { user: entry.changed_by })}</p>}
               </div>
             </div>
           </CardContent>

@@ -62,7 +62,7 @@ export function SkillListItem({ skill, hasGithubUpdate, agentNames }: SkillListI
               onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
             >{skill.name}</span>
             {isMeta && (
-              <Badge variant="outline" className="text-xs flex-shrink-0">Meta</Badge>
+              <Badge variant="outline" className="text-xs flex-shrink-0">{t('type.meta')}</Badge>
             )}
           </div>
 
