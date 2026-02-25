@@ -104,13 +104,17 @@ async def save_session_messages(
     request_text: str,
     final_messages: Optional[list] = None,
     display_append_messages: Optional[list] = None,
+    display_replace_messages: Optional[list] = None,
 ) -> None:
     """Save conversation data to session (dual-store).
 
     - `agent_context`: whole-replaced with *final_messages* (the agent's working
       message list, which may include compression summaries).
-    - `messages`: *display_append_messages* are appended to the existing display
-      history.  If not provided, falls back to appending a simple user+assistant pair.
+    - `messages`: if *display_replace_messages* is provided, whole-replace the
+      display history (used when incremental turn_complete saves already wrote
+      partial display, so append would cause duplicates).  Otherwise
+      *display_append_messages* are appended to the existing display history.
+      If neither is provided, falls back to appending a simple user+assistant pair.
     """
     try:
         async with AsyncSessionLocal() as session_db:
@@ -130,18 +134,21 @@ async def save_session_messages(
             if final_messages is not None:
                 values["agent_context"] = final_messages
 
-            # messages — append display data
-            current_display = session_record.messages or []
-            if display_append_messages:
-                current_display = current_display + display_append_messages
+            # messages — whole-replace or append display data
+            if display_replace_messages is not None:
+                values["messages"] = display_replace_messages
             else:
-                # Fallback: append simple user+assistant pair
-                if request_text:
-                    current_display = list(current_display)
-                    current_display.append({"role": "user", "content": request_text})
-                    if final_answer:
-                        current_display.append({"role": "assistant", "content": final_answer})
-            values["messages"] = current_display
+                current_display = session_record.messages or []
+                if display_append_messages:
+                    current_display = current_display + display_append_messages
+                else:
+                    # Fallback: append simple user+assistant pair
+                    if request_text:
+                        current_display = list(current_display)
+                        current_display.append({"role": "user", "content": request_text})
+                        if final_answer:
+                            current_display.append({"role": "assistant", "content": final_answer})
+                values["messages"] = current_display
 
             await session_db.execute(
                 update(PublishedSessionDB)
@@ -156,21 +163,26 @@ async def save_session_messages(
 async def save_session_checkpoint(
     session_id: str,
     agent_context: list,
+    display_messages: Optional[list] = None,
 ) -> None:
-    """Incremental checkpoint: update only agent_context (turn_complete saves).
+    """Incremental checkpoint: update agent_context, optionally display messages.
 
-    This does NOT touch `messages` — display history is only appended at the
-    final save to avoid partial/duplicate entries during streaming.
+    When *display_messages* is provided the `messages` column is whole-replaced
+    in the same UPDATE — no extra DB round-trip.  This makes completed turns
+    durable immediately so they survive stop/refresh/network errors.
     """
     try:
         async with AsyncSessionLocal() as session_db:
+            values: dict = {
+                "agent_context": agent_context,
+                "updated_at": datetime.utcnow(),
+            }
+            if display_messages is not None:
+                values["messages"] = display_messages
             await session_db.execute(
                 update(PublishedSessionDB)
                 .where(PublishedSessionDB.id == session_id)
-                .values(
-                    agent_context=agent_context,
-                    updated_at=datetime.utcnow(),
-                )
+                .values(**values)
             )
             await session_db.commit()
     except Exception:
@@ -180,6 +192,7 @@ async def save_session_checkpoint(
 def save_session_checkpoint_sync(
     session_id: str,
     agent_context: list,
+    display_messages: Optional[list] = None,
 ) -> None:
     """Sync version of save_session_checkpoint — safe to call from cancelled async contexts.
 
@@ -189,13 +202,16 @@ def save_session_checkpoint_sync(
     from app.db.database import SyncSessionLocal
     try:
         with SyncSessionLocal() as db:
+            values: dict = {
+                "agent_context": agent_context,
+                "updated_at": datetime.utcnow(),
+            }
+            if display_messages is not None:
+                values["messages"] = display_messages
             db.execute(
                 update(PublishedSessionDB)
                 .where(PublishedSessionDB.id == session_id)
-                .values(
-                    agent_context=agent_context,
-                    updated_at=datetime.utcnow(),
-                )
+                .values(**values)
             )
             db.commit()
     except Exception:

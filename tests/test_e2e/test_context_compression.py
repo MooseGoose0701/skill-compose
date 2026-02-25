@@ -9,6 +9,7 @@ Covers:
 - Serialization of messages for summarization
 - Published Agent session saves full messages (tool_use/tool_result)
 - Session history restoration with full context
+- Incremental display save on turn_complete (stop/refresh resilience)
 
 Run:
     pytest tests/test_e2e/test_context_compression.py -v
@@ -1656,3 +1657,565 @@ class TestShouldCompressE2E:
         agent = self._make_agent(200_000)
         assert agent._should_compress(140_001) is True
         assert agent._should_compress(180_000) is True
+
+
+# ---------------------------------------------------------------------------
+# Class 8: Incremental display save on stop/refresh/cancel
+# ---------------------------------------------------------------------------
+
+@pytest.mark.e2e
+@pytest.mark.asyncio(loop_scope="class")
+class TestIncrementalDisplaySaveE2E:
+    """Verify that display messages are saved incrementally on turn_complete
+    and on cancellation, so they survive stop/refresh/network errors.
+
+    Tests both the chat panel (agent.py) and published agent (published.py).
+
+    Cancellation tests use unit-level testing of the checkpoint functions
+    rather than httpx streaming disconnection, since ASGITransport doesn't
+    reliably propagate disconnect as CancelledError in test contexts.
+    """
+
+    _state: dict = {}
+
+    # ---- Chat panel (agent.py) tests ----
+
+    @patch("app.api.v1.agent.pre_compress_if_needed", new_callable=AsyncMock, return_value=[])
+    @patch("app.api.v1.agent.save_session_checkpoint", new_callable=AsyncMock)
+    @patch("app.api.v1.agent.save_session_messages", new_callable=AsyncMock)
+    @patch("app.api.v1.agent.load_or_create_session", new_callable=AsyncMock)
+    @patch("app.api.v1.agent.SkillsAgent")
+    async def test_01_turn_complete_saves_display(
+        self, MockAgent, MockLoadSession, MockSaveMessages, MockCheckpoint, MockPreCompress,
+        e2e_client: AsyncClient, e2e_db_session,
+    ):
+        """turn_complete checkpoint includes display_messages (agent.py)."""
+        session_id = str(uuid.uuid4())
+        MockLoadSession.return_value = SessionData(
+            session_id=session_id,
+            display_messages=[],  # Fresh session
+        )
+
+        # Messages snapshot that would be in turn_complete
+        snapshot_msgs = [
+            {"role": "user", "content": "Analyze data"},
+            {"role": "assistant", "content": [
+                {"type": "tool_use", "id": "tc:0", "name": "execute_code", "input": {"code": "print(1)"}},
+            ]},
+            {"role": "user", "content": [
+                {"type": "tool_result", "tool_use_id": "tc:0", "content": "1"},
+            ]},
+        ]
+
+        events = [
+            StreamEvent(event_type="turn_start", turn=1, data={"turn": 1}),
+            StreamEvent(event_type="tool_result", turn=1, data={
+                "tool_name": "execute_code", "tool_input": {"code": "print(1)"}, "tool_result": "1",
+            }),
+            # turn_complete includes messages_snapshot
+            StreamEvent(event_type="turn_complete", turn=1, data={
+                "messages_snapshot": snapshot_msgs,
+            }),
+            StreamEvent(event_type="assistant", turn=2, data={
+                "content": "Result is 1", "turn": 2,
+            }),
+            StreamEvent(event_type="complete", turn=2, data={
+                "success": True,
+                "answer": "Result is 1",
+                "total_turns": 2,
+                "total_input_tokens": 200,
+                "total_output_tokens": 30,
+                "skills_used": [],
+                "final_messages": snapshot_msgs + [
+                    {"role": "assistant", "content": [{"type": "text", "text": "Result is 1"}]},
+                ],
+            }),
+        ]
+
+        mock_instance = MagicMock()
+        mock_instance.model = "kimi-k2.5"
+        mock_instance.model_provider = "kimi"
+        mock_instance.cleanup = MagicMock()
+
+        async def mock_run(request, conversation_history=None, image_contents=None,
+                           event_stream=None, cancellation_event=None):
+            if event_stream:
+                for event in events:
+                    await event_stream.push(event)
+                await event_stream.close()
+            from app.agent.agent import AgentResult
+            return AgentResult(
+                success=True, answer="Result is 1",
+                total_turns=2, total_input_tokens=200, total_output_tokens=30,
+                skills_used=[], final_messages=snapshot_msgs + [
+                    {"role": "assistant", "content": [{"type": "text", "text": "Result is 1"}]},
+                ],
+            )
+
+        mock_instance.run = AsyncMock(side_effect=mock_run)
+        MockAgent.return_value = mock_instance
+
+        # Create a real preset so _resolve_agent_config works
+        from app.db.models import AgentPresetDB
+        preset = AgentPresetDB(
+            name="e2e-display-save-test",
+            description="Test incremental display",
+            max_turns=5,
+        )
+        e2e_db_session.add(preset)
+        await e2e_db_session.commit()
+        await e2e_db_session.refresh(preset)
+        type(self)._state["preset_id"] = preset.id
+
+        resp = await e2e_client.post(
+            "/api/v1/agent/run/stream",
+            json={
+                "request": "Analyze data",
+                "session_id": session_id,
+                "agent_id": preset.id,
+            },
+        )
+        assert resp.status_code == 200
+
+        # Verify save_session_checkpoint was called with display_messages
+        assert MockCheckpoint.call_count >= 1
+        # First checkpoint call (from turn_complete)
+        cp_call = MockCheckpoint.call_args_list[0]
+        assert cp_call.args[0] == session_id  # session_id
+        assert cp_call.args[1] == snapshot_msgs  # agent_context
+        # display_messages keyword arg should be the snapshot (display_base=[] + snapshot[0:])
+        assert cp_call.kwargs.get("display_messages") == snapshot_msgs
+
+    @patch("app.api.v1.agent.pre_compress_if_needed", new_callable=AsyncMock, return_value=[])
+    @patch("app.api.v1.agent.save_session_checkpoint", new_callable=AsyncMock)
+    @patch("app.api.v1.agent.save_session_messages", new_callable=AsyncMock)
+    @patch("app.api.v1.agent.load_or_create_session", new_callable=AsyncMock)
+    @patch("app.api.v1.agent.SkillsAgent")
+    async def test_02_turn_complete_appends_to_existing_display(
+        self, MockAgent, MockLoadSession, MockSaveMessages, MockCheckpoint, MockPreCompress,
+        e2e_client: AsyncClient, e2e_db_session,
+    ):
+        """turn_complete with existing display_base: display_base + new turns (agent.py)."""
+        session_id = str(uuid.uuid4())
+        existing_display = [
+            {"role": "user", "content": "Previous Q"},
+            {"role": "assistant", "content": [{"type": "text", "text": "Previous A"}]},
+        ]
+        existing_context = list(existing_display)
+        MockLoadSession.return_value = SessionData(
+            session_id=session_id,
+            display_messages=existing_display,
+            agent_context=existing_context,
+        )
+
+        # Snapshot includes history + new turn
+        snapshot_msgs = existing_context + [
+            {"role": "user", "content": "New Q"},
+            {"role": "assistant", "content": [
+                {"type": "tool_use", "id": "t:0", "name": "bash", "input": {"command": "ls"}},
+            ]},
+            {"role": "user", "content": [
+                {"type": "tool_result", "tool_use_id": "t:0", "content": "file.txt"},
+            ]},
+        ]
+
+        events = [
+            StreamEvent(event_type="turn_start", turn=1, data={"turn": 1}),
+            StreamEvent(event_type="tool_result", turn=1, data={
+                "tool_name": "bash", "tool_input": {"command": "ls"}, "tool_result": "file.txt",
+            }),
+            StreamEvent(event_type="turn_complete", turn=1, data={
+                "messages_snapshot": snapshot_msgs,
+            }),
+            StreamEvent(event_type="complete", turn=2, data={
+                "success": True,
+                "answer": "Listed files",
+                "total_turns": 2,
+                "total_input_tokens": 200,
+                "total_output_tokens": 30,
+                "skills_used": [],
+                "final_messages": snapshot_msgs + [
+                    {"role": "assistant", "content": [{"type": "text", "text": "Listed files"}]},
+                ],
+            }),
+        ]
+
+        mock_instance = MagicMock()
+        mock_instance.model = "kimi-k2.5"
+        mock_instance.model_provider = "kimi"
+        mock_instance.cleanup = MagicMock()
+
+        async def mock_run(request, conversation_history=None, image_contents=None,
+                           event_stream=None, cancellation_event=None):
+            if event_stream:
+                for event in events:
+                    await event_stream.push(event)
+                await event_stream.close()
+            from app.agent.agent import AgentResult
+            return AgentResult(
+                success=True, answer="Listed files",
+                total_turns=2, total_input_tokens=200, total_output_tokens=30,
+                skills_used=[], final_messages=snapshot_msgs + [
+                    {"role": "assistant", "content": [{"type": "text", "text": "Listed files"}]},
+                ],
+            )
+
+        mock_instance.run = AsyncMock(side_effect=mock_run)
+        MockAgent.return_value = mock_instance
+
+        pid = type(self)._state["preset_id"]
+        resp = await e2e_client.post(
+            "/api/v1/agent/run/stream",
+            json={
+                "request": "New Q",
+                "session_id": session_id,
+                "agent_id": pid,
+            },
+        )
+        assert resp.status_code == 200
+
+        # Verify checkpoint display = existing_display + new turns
+        assert MockCheckpoint.call_count >= 1
+        cp_call = MockCheckpoint.call_args_list[0]
+        cp_display = cp_call.kwargs.get("display_messages")
+        assert cp_display is not None
+        # Should be existing 2 msgs + 3 new turn msgs = 5
+        assert len(cp_display) == 5
+        assert cp_display[0] == existing_display[0]
+        assert cp_display[1] == existing_display[1]
+        assert cp_display[2]["content"] == "New Q"
+
+    async def test_03_checkpoint_func_accepts_display(self):
+        """save_session_checkpoint passes display_messages to DB when provided."""
+        from app.api.v1.sessions import save_session_checkpoint, save_session_checkpoint_sync
+
+        # Test that the function signatures accept the new parameter
+        import inspect
+        async_sig = inspect.signature(save_session_checkpoint)
+        assert "display_messages" in async_sig.parameters
+        assert async_sig.parameters["display_messages"].default is None
+
+        sync_sig = inspect.signature(save_session_checkpoint_sync)
+        assert "display_messages" in sync_sig.parameters
+        assert sync_sig.parameters["display_messages"].default is None
+
+    async def test_04_checkpoint_sync_func_accepts_display(self):
+        """save_session_checkpoint_sync builds correct UPDATE when display_messages provided."""
+        # Directly test the sync function with a mocked DB
+        from app.api.v1.sessions import save_session_checkpoint_sync
+        from unittest.mock import patch as sync_patch
+
+        captured_values = {}
+
+        class MockSyncSession:
+            def execute(self, stmt):
+                # Extract values from the UPDATE statement
+                if hasattr(stmt, 'compile'):
+                    compiled = stmt.compile(compile_kwargs={"literal_binds": False})
+                    captured_values.update(compiled.params or {})
+
+            def commit(self):
+                pass
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                pass
+
+        # SyncSessionLocal is imported inside the function body, so mock at database module level
+        with sync_patch("app.db.database.SyncSessionLocal", return_value=MockSyncSession()):
+            save_session_checkpoint_sync(
+                "test-session",
+                [{"role": "user", "content": "ctx"}],
+                display_messages=[{"role": "user", "content": "display"}],
+            )
+
+        assert "messages" in captured_values
+        assert captured_values["messages"] == [{"role": "user", "content": "display"}]
+        assert "agent_context" in captured_values
+
+    # ---- Published agent (published.py) tests ----
+
+    async def test_05_create_and_publish(self, e2e_client: AsyncClient):
+        """Create and publish an agent for published display-save tests."""
+        resp = await e2e_client.post("/api/v1/agents", json={
+            "name": "e2e-display-save-pub",
+            "description": "Test incremental display save (published)",
+            "max_turns": 5,
+        })
+        assert resp.status_code == 200
+        pid = resp.json()["id"]
+        type(self)._state["pub_preset_id"] = pid
+
+        resp = await e2e_client.post(
+            f"/api/v1/agents/{pid}/publish",
+            json={"api_response_mode": "streaming"},
+        )
+        assert resp.status_code == 200
+
+    @patch("app.api.v1.published.pre_compress_if_needed", new_callable=AsyncMock, return_value=[])
+    @patch("app.api.v1.published.save_session_checkpoint", new_callable=AsyncMock)
+    @patch("app.api.v1.published.save_session_messages", new_callable=AsyncMock)
+    @patch("app.api.v1.published.load_or_create_session", new_callable=AsyncMock)
+    @patch("app.api.v1.published.SkillsAgent")
+    @patch("app.api.v1.published.AsyncSessionLocal")
+    async def test_06_published_turn_complete_saves_display(
+        self, MockSL, MockAgent, MockLoadSession, MockSaveMessages, MockCheckpoint, MockPreCompress,
+        e2e_client: AsyncClient,
+    ):
+        """turn_complete checkpoint includes display_messages (published.py)."""
+        pid = type(self)._state["pub_preset_id"]
+        session_id = str(uuid.uuid4())
+        MockLoadSession.return_value = SessionData(
+            session_id=session_id,
+            display_messages=[],
+        )
+
+        snapshot_msgs = [
+            {"role": "user", "content": "Search web"},
+            {"role": "assistant", "content": [
+                {"type": "tool_use", "id": "ws:0", "name": "web_search", "input": {"query": "test"}},
+            ]},
+            {"role": "user", "content": [
+                {"type": "tool_result", "tool_use_id": "ws:0", "content": "results"},
+            ]},
+        ]
+
+        events_to_push = [
+            StreamEvent(event_type="turn_start", turn=1, data={"turn": 1}),
+            StreamEvent(event_type="tool_result", turn=1, data={
+                "tool_name": "web_search", "tool_input": {"query": "test"}, "tool_result": "results",
+            }),
+            StreamEvent(event_type="turn_complete", turn=1, data={
+                "messages_snapshot": snapshot_msgs,
+            }),
+            StreamEvent(event_type="assistant", turn=2, data={
+                "content": "Found results", "turn": 2,
+            }),
+            StreamEvent(event_type="complete", turn=2, data={
+                "success": True,
+                "answer": "Found results",
+                "total_turns": 2,
+                "total_input_tokens": 200,
+                "total_output_tokens": 30,
+                "skills_used": [],
+                "final_messages": snapshot_msgs + [
+                    {"role": "assistant", "content": [{"type": "text", "text": "Found results"}]},
+                ],
+            }),
+        ]
+
+        mock_instance = MagicMock()
+        mock_instance.cleanup = MagicMock()
+        mock_instance.model = "kimi-k2.5"
+        mock_instance.model_provider = "kimi"
+
+        async def mock_run(request, conversation_history=None, image_contents=None,
+                           event_stream=None, cancellation_event=None):
+            if event_stream:
+                for event in events_to_push:
+                    await event_stream.push(event)
+                await event_stream.close()
+            from app.agent.agent import AgentResult
+            return AgentResult(
+                success=True, answer="Found results",
+                total_turns=2, total_input_tokens=200, total_output_tokens=30,
+                skills_used=[], final_messages=snapshot_msgs + [
+                    {"role": "assistant", "content": [{"type": "text", "text": "Found results"}]},
+                ],
+            )
+
+        mock_instance.run = AsyncMock(side_effect=mock_run)
+        MockAgent.return_value = mock_instance
+
+        # Mock AsyncSessionLocal for preset lookup + trace creation
+        from app.db.models import AgentPresetDB
+
+        mock_preset = MagicMock(spec=AgentPresetDB)
+        mock_preset.id = pid
+        mock_preset.name = "e2e-display-save-pub"
+        mock_preset.description = "Test"
+        mock_preset.is_published = True
+        mock_preset.api_response_mode = "streaming"
+        mock_preset.skill_ids = []
+        mock_preset.builtin_tools = None
+        mock_preset.max_turns = 5
+        mock_preset.mcp_servers = []
+        mock_preset.system_prompt = None
+        mock_preset.model_provider = None
+        mock_preset.model_name = None
+        mock_preset.executor_name = None
+
+        call_idx = {"i": 0}
+
+        @asynccontextmanager
+        async def _ctx():
+            idx = call_idx["i"]
+            call_idx["i"] += 1
+            mock_sess = AsyncMock(spec=AsyncSession)
+
+            if idx == 0:
+                mock_result = MagicMock()
+                mock_result.scalar_one_or_none.return_value = mock_preset
+                mock_sess.execute = AsyncMock(return_value=mock_result)
+            else:
+                mock_result = MagicMock()
+                mock_result.scalar_one_or_none.return_value = None
+                mock_sess.execute = AsyncMock(return_value=mock_result)
+                mock_sess.add = MagicMock()
+                mock_sess.commit = AsyncMock()
+
+            yield mock_sess
+
+        MockSL.side_effect = lambda: _ctx()
+
+        resp = await e2e_client.post(
+            f"/api/v1/published/{pid}/chat",
+            json={"request": "Search web", "session_id": session_id},
+        )
+        assert resp.status_code == 200
+
+        # Verify checkpoint was called with display_messages
+        assert MockCheckpoint.call_count >= 1
+        cp_call = MockCheckpoint.call_args_list[0]
+        assert cp_call.args[0] == session_id
+        assert cp_call.args[1] == snapshot_msgs
+        assert cp_call.kwargs.get("display_messages") == snapshot_msgs
+
+    @patch("app.api.v1.published.pre_compress_if_needed", new_callable=AsyncMock, return_value=[])
+    @patch("app.api.v1.published.save_session_checkpoint", new_callable=AsyncMock)
+    @patch("app.api.v1.published.save_session_messages", new_callable=AsyncMock)
+    @patch("app.api.v1.published.load_or_create_session", new_callable=AsyncMock)
+    @patch("app.api.v1.published.SkillsAgent")
+    @patch("app.api.v1.published.AsyncSessionLocal")
+    async def test_07_published_multi_turn_display_accumulates(
+        self, MockSL, MockAgent, MockLoadSession, MockSaveMessages, MockCheckpoint, MockPreCompress,
+        e2e_client: AsyncClient,
+    ):
+        """Multiple turn_complete events: each checkpoint includes all completed turns."""
+        pid = type(self)._state["pub_preset_id"]
+        session_id = str(uuid.uuid4())
+        MockLoadSession.return_value = SessionData(
+            session_id=session_id,
+            display_messages=[],
+        )
+
+        # Turn 1 snapshot
+        turn1_snapshot = [
+            {"role": "user", "content": "Step 1"},
+            {"role": "assistant", "content": [
+                {"type": "tool_use", "id": "t:0", "name": "bash", "input": {"command": "echo 1"}},
+            ]},
+            {"role": "user", "content": [
+                {"type": "tool_result", "tool_use_id": "t:0", "content": "1"},
+            ]},
+        ]
+        # Turn 2 snapshot (accumulates)
+        turn2_snapshot = turn1_snapshot + [
+            {"role": "assistant", "content": [
+                {"type": "tool_use", "id": "t:1", "name": "bash", "input": {"command": "echo 2"}},
+            ]},
+            {"role": "user", "content": [
+                {"type": "tool_result", "tool_use_id": "t:1", "content": "2"},
+            ]},
+        ]
+
+        events_to_push = [
+            StreamEvent(event_type="turn_start", turn=1, data={"turn": 1}),
+            StreamEvent(event_type="turn_complete", turn=1, data={"messages_snapshot": turn1_snapshot}),
+            StreamEvent(event_type="turn_start", turn=2, data={"turn": 2}),
+            StreamEvent(event_type="turn_complete", turn=2, data={"messages_snapshot": turn2_snapshot}),
+            StreamEvent(event_type="complete", turn=3, data={
+                "success": True, "answer": "Done", "total_turns": 3,
+                "total_input_tokens": 300, "total_output_tokens": 50,
+                "skills_used": [],
+                "final_messages": turn2_snapshot + [
+                    {"role": "assistant", "content": [{"type": "text", "text": "Done"}]},
+                ],
+            }),
+        ]
+
+        mock_instance = MagicMock()
+        mock_instance.cleanup = MagicMock()
+        mock_instance.model = "kimi-k2.5"
+        mock_instance.model_provider = "kimi"
+
+        async def mock_run(request, conversation_history=None, image_contents=None,
+                           event_stream=None, cancellation_event=None):
+            if event_stream:
+                for ev in events_to_push:
+                    await event_stream.push(ev)
+                await event_stream.close()
+            from app.agent.agent import AgentResult
+            return AgentResult(
+                success=True, answer="Done", total_turns=3,
+                total_input_tokens=300, total_output_tokens=50,
+                skills_used=[], final_messages=turn2_snapshot + [
+                    {"role": "assistant", "content": [{"type": "text", "text": "Done"}]},
+                ],
+            )
+
+        mock_instance.run = AsyncMock(side_effect=mock_run)
+        MockAgent.return_value = mock_instance
+
+        from app.db.models import AgentPresetDB
+        mock_preset = MagicMock(spec=AgentPresetDB)
+        mock_preset.id = pid
+        mock_preset.name = "e2e-display-save-pub"
+        mock_preset.is_published = True
+        mock_preset.api_response_mode = "streaming"
+        mock_preset.skill_ids = []
+        mock_preset.builtin_tools = None
+        mock_preset.max_turns = 5
+        mock_preset.mcp_servers = []
+        mock_preset.system_prompt = None
+        mock_preset.model_provider = None
+        mock_preset.model_name = None
+        mock_preset.executor_name = None
+
+        call_idx = {"i": 0}
+
+        @asynccontextmanager
+        async def _ctx():
+            idx = call_idx["i"]
+            call_idx["i"] += 1
+            mock_sess = AsyncMock(spec=AsyncSession)
+            if idx == 0:
+                mock_result = MagicMock()
+                mock_result.scalar_one_or_none.return_value = mock_preset
+                mock_sess.execute = AsyncMock(return_value=mock_result)
+            else:
+                mock_result = MagicMock()
+                mock_result.scalar_one_or_none.return_value = None
+                mock_sess.execute = AsyncMock(return_value=mock_result)
+                mock_sess.add = MagicMock()
+                mock_sess.commit = AsyncMock()
+            yield mock_sess
+
+        MockSL.side_effect = lambda: _ctx()
+
+        resp = await e2e_client.post(
+            f"/api/v1/published/{pid}/chat",
+            json={"request": "Step 1", "session_id": session_id},
+        )
+        assert resp.status_code == 200
+
+        # Should have 2 checkpoint calls (one per turn_complete)
+        assert MockCheckpoint.call_count >= 2
+
+        # First checkpoint: turn 1 snapshot
+        cp1_display = MockCheckpoint.call_args_list[0].kwargs.get("display_messages")
+        assert cp1_display == turn1_snapshot
+
+        # Second checkpoint: turn 2 snapshot (all completed turns)
+        cp2_display = MockCheckpoint.call_args_list[1].kwargs.get("display_messages")
+        assert cp2_display == turn2_snapshot
+
+    async def test_08_cleanup(self, e2e_client: AsyncClient):
+        """Clean up test agents."""
+        for key in ("preset_id", "pub_preset_id"):
+            pid = type(self)._state.get(key)
+            if pid:
+                await e2e_client.post(f"/api/v1/agents/{pid}/unpublish")
+                await e2e_client.delete(f"/api/v1/agents/{pid}")
