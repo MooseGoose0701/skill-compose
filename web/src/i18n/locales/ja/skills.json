@@ -330,5 +330,37 @@
       "invalidJson": "{{name}} のJSONが無効です",
       "skillMdRequired": "SKILL.mdの内容は必須です"
     }
+  },
+  "seedDescriptions": {
+    "skill-creator": "専門知識、ワークフロー、ツール統合でエージェント機能を拡張する効果的なスキル作成ガイド。",
+    "skill-evolver": "スキル実行トレースを分析して問題を特定し、実際の実行データに基づいてスキルを自動的に進化・改善。",
+    "skill-updater": "ユーザーのフィードバックに基づいて既存スキルを更新し、変更や改善が必要な部分を修正。",
+    "mcp-builder": "LLMが適切に設計されたツールを通じて外部サービスと連携するためのMCP（Model Context Protocol）サーバー作成ガイド。",
+    "skill-finder": "skills.shオープンエコシステムからエージェントスキルを発見しインストール。キーワードでコミュニティスキルを検索して直接インストール。",
+    "skills-planner": "ユーザー要件を満たすために必要なスキルを計画。既存スキルの推奨、新規スキルの特定、システムプロンプトの構成。",
+    "trace-qa": "エージェント実行トレースに関する質問を分析・回答。失敗した実行のデバッグ、エージェント動作の理解、トークン使用量の分析。",
+    "planning-with-files": "複雑なタスクのファイルベース計画を実装。マルチステッププロジェクト用にtask_plan.md、findings.md、progress.mdを作成。",
+    "pdf": "reportlab、pdfplumber、pypdfを使用してPDFファイルの読み取り、作成、レビュー。レンダリングとレイアウトをサポート。",
+    "doc": "python-docxを使用して.docxドキュメントの読み取り、作成、編集。書式とレイアウトの忠実度を維持。",
+    "speech": "OpenAI Audio APIを使用した音声合成ナレーションとボイスオーバー生成。内蔵音声をサポート。",
+    "spreadsheet": "openpyxlとpandasを使用してスプレッドシート（.xlsx、.csv、.tsv）の作成、編集、分析、書式設定。",
+    "sora": "OpenAIのビデオAPIを使用して内蔵CLIでSora動画の生成、リミックス、管理。",
+    "imagegen": "OpenAI Image APIを使用して画像を生成・編集 — 生成、インペインティング、背景除去、製品写真、バッチバリアント。",
+    "gemini-imagegen": "Google Geminiのネイティブ画像生成モデルで画像を生成・編集。テキストから画像、画像編集、マルチ画像合成をサポート。",
+    "pubmed-database": "PubMedへの直接REST APIアクセス。高度なブール/MeSHクエリ、E-utilities API、バッチ処理、引用管理。",
+    "pdb-database": "RCSB PDBのタンパク質/核酸3D構造にアクセス。構造生物学のための検索、座標ダウンロード、メタデータ取得。",
+    "rdkit": "ケモインフォマティクスツールキット。SMILES/SDF解析、記述子、フィンガープリント、部分構造検索、類似性分析。",
+    "biopython": "総合分子生物学ツールキット。配列操作、ファイル解析、系統学、プログラマティックNCBI/PubMedアクセス。",
+    "media-downloader": "yt-dlpを使用してYouTube、Bilibili、TikTok、Twitter/Xなど1500以上のサイトから動画と音声をダウンロード。",
+    "audio-extractor": "動画から音声を抽出し、1500以上のサイトから音声のみのコンテンツをダウンロード。MP3、FLAC、WAV、OPUSに変換。",
+    "remotion-best-practices": "Remotionのベストプラクティス — Reactでの動画作成。",
+    "humanizer": "テキストからAI生成の痕跡を除去。誇張された象徴、宣伝的な言葉、AI語彙などのパターンを検出・修正。",
+    "ai-writing-detection": "包括的なAIライティング検出パターンと方法論。語彙リスト、構造パターン、モデル固有のフィンガープリント。",
+    "canvas-design": "デザイン哲学を用いて.pngと.pdfで美しいビジュアルアートを作成。ポスター、アート、オリジナルビジュアルデザイン。",
+    "brand-identity": "完全なブランドビジュアルアイデンティティシステムを作成 — ロゴ、カラーパレット、タイポグラフィ、名刺、SNS素材、ブランドガイドライン。",
+    "copywriting": "あらゆるタッチポイントでブランドに沿ったコピーを生成 — タグライン、ブランド哲学、SNSプロフィール、マニフェスト。",
+    "code-to-diagram": "Mermaid.jsを使用してコードベースからアーキテクチャ図、ER図、シーケンス図、フローチャート、クラス図を生成。",
+    "markdown-to-storyboard": "Markdownコンテンツをスライドデッキ、ビデオスクリプト、連続ビジュアルメディア用の構造化ストーリーボードCSVに変換。",
+    "storyboard-to-slides": "python-pptxを使用してストーリーボードCSVと画像からPPTXスライドデッキを組み立て。複数のレイアウトとカスタムテーマをサポート。"
   }
 }

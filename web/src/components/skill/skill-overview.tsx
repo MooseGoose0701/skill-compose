@@ -12,6 +12,8 @@ import { SKILL_CATEGORIES } from '@/lib/constants';
 import { useCategories, skillKeys } from '@/hooks/use-skills';
 import { SkillTypeBadge } from './skill-type-badge';
 import { SkillIconEditor } from './skill-icon-editor';
+import { useTranslation } from '@/i18n/client';
+import { getSkillDescription } from '@/lib/seed-descriptions';
 import type { Skill } from '@/types/skill';
 
 function InlineEdit({
@@ -127,11 +129,12 @@ function InlineEdit({
         </div>
       ) : (
         <div className="mt-1">
-          {value ? (
-            renderValue ? renderValue(value) : <p className="text-sm">{value}</p>
-          ) : (
-            <p className="text-sm text-muted-foreground">{placeholder}</p>
-          )}
+          {(() => {
+            const rendered = renderValue ? renderValue(value || '') : null;
+            if (rendered) return rendered;
+            if (value) return <p className="text-sm">{value}</p>;
+            return <p className="text-sm text-muted-foreground">{placeholder}</p>;
+          })()}
         </div>
       )}
     </div>
@@ -295,6 +298,7 @@ function CategoryEdit({ skill }: { skill: Skill }) {
 }
 
 export function SkillOverview({ skill }: { skill: Skill }) {
+  const { t: ts } = useTranslation('skills');
   const queryClient = useQueryClient();
   const [editingTags, setEditingTags] = useState(false);
   const [tagInput, setTagInput] = useState('');
@@ -476,6 +480,10 @@ export function SkillOverview({ skill }: { skill: Skill }) {
         skillName={skill.name}
         placeholder="No description"
         multiline
+        renderValue={(val) => {
+          const desc = getSkillDescription(ts, skill.name, val || null);
+          return desc ? <p className="text-sm">{desc}</p> : null;
+        }}
       />
 
       <div>

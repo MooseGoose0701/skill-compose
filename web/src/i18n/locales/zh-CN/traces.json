@@ -1,6 +1,6 @@
 {
   "title": "执行追踪",
-  "description": "查看代理执行历史以进行调试和分析",
+  "description": "查看智能体执行历史以进行调试和分析",
   "exportAll": "导出全部",
   "backToSkills": "返回技能",
   "filterPlaceholder": "按状态筛选",
@@ -20,7 +20,7 @@
     "allStatuses": "所有状态",
     "allSkills": "所有技能",
     "empty": "未找到执行追踪",
-    "emptyDescription": "运行代理以生成追踪"
+    "emptyDescription": "运行智能体以生成追踪"
   },
   "card": {
     "request": "请求",

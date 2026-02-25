@@ -69,7 +69,7 @@
     "modelLabel": "模型",
     "maxTurns": "最大轮次",
     "loadingFinder": "加载技能查找器...",
-    "loadingFinderHint": "正在获取 skill-finder 代理配置",
+    "loadingFinderHint": "正在获取 skill-finder 智能体配置",
     "loadError": "加载技能查找器失败",
     "retry": "重试",
     "backToSkills": "返回技能列表"
@@ -82,7 +82,7 @@
     "pin": "置顶",
     "unpin": "取消置顶",
     "githubUpdateAvailable": "GitHub 上有新版本可用",
-    "usedByAgents": "被 {{count}} 个 Agent 使用"
+    "usedByAgents": "被 {{count}} 个智能体使用"
   },
   "detail": {
     "overview": "概览",
@@ -159,7 +159,7 @@
     "selectType": "选择类型",
     "userSkill": "用户技能",
     "metaSkill": "元技能",
-    "skillTypeHelp": "用户技能显示在 Agent 聊天中。元技能是内部工具。",
+    "skillTypeHelp": "用户技能显示在智能体聊天中。元技能是内部工具。",
     "tags": "标签",
     "tagsPlaceholder": "nlp, document, conversion",
     "tagsHelp": "用逗号分隔的标签（例如 \"nlp, document, conversion\"）",
@@ -224,7 +224,7 @@
   },
   "evolve": {
     "title": "进化技能",
-    "description": "通过与 AI 进化代理的交互对话改进技能",
+    "description": "通过与 AI 进化智能体的交互对话改进技能",
     "selectSkill": "选择要进化的技能",
     "chooseSkill": "选择技能...",
     "selectTraces": "执行追踪",
@@ -239,16 +239,16 @@
     "optional": "可选",
     "startChat": "开始进化对话",
     "startConversation": "正在启动进化对话...",
-    "guidePlaceholder": "回复代理、批准方案或提供更多指导...",
+    "guidePlaceholder": "回复智能体、批准方案或提供更多指导...",
     "enterToSend": "按 Enter 发送",
     "send": "发送",
     "evolutionComplete": "进化完成！新版本已同步。",
     "viewSkill": "查看技能",
     "backToSelection": "返回选择",
-    "agentNotFound": "未找到 skill-evolve-helper 代理。请重启后端以进行初始化。",
+    "agentNotFound": "未找到 skill-evolve-helper 智能体。请重启后端以进行初始化。",
     "noUserSkills": "未找到用户技能。",
     "createOneFirst": "先创建一个",
-    "failedToRunAgent": "运行 Agent 失败",
+    "failedToRunAgent": "运行智能体失败",
     "traceStatus": {
       "success": "成功",
       "failed": "失败"
@@ -330,5 +330,37 @@
       "invalidJson": "{{name}} 中的 JSON 无效",
       "skillMdRequired": "SKILL.md 内容不能为空"
     }
+  },
+  "seedDescriptions": {
+    "skill-creator": "创建有效技能的指南，通过专业知识、工作流或工具集成扩展智能体能力。",
+    "skill-evolver": "分析技能执行追踪记录以识别问题，并基于真实执行数据自动进化改进技能。",
+    "skill-updater": "根据用户反馈更新现有技能，改进需要变更或提升的部分。",
+    "mcp-builder": "创建 MCP（模型上下文协议）服务器的指南，使 LLM 通过精心设计的工具与外部服务交互。",
+    "skill-finder": "从 skills.sh 开放生态系统中发现并安装智能体技能。按关键词搜索社区技能并直接安装。",
+    "skills-planner": "规划满足用户需求所需的技能。推荐现有技能、识别需要创建的新技能并组合系统提示词。",
+    "trace-qa": "分析和回答有关智能体执行追踪的问题。调试失败的运行、理解智能体行为并分析 Token 使用情况。",
+    "planning-with-files": "为复杂任务实现基于文件的规划。创建 task_plan.md、findings.md 和 progress.md 用于多步骤项目。",
+    "pdf": "使用 reportlab、pdfplumber 和 pypdf 读取、创建和审查 PDF 文件，支持渲染和布局。",
+    "doc": "使用 python-docx 读取、创建和编辑 .docx 文档，保持格式和布局保真度。",
+    "speech": "通过 OpenAI 音频 API 生成文字转语音旁白和配音，支持内置语音。",
+    "spreadsheet": "使用 openpyxl 和 pandas 创建、编辑、分析和格式化电子表格（.xlsx、.csv、.tsv）。",
+    "sora": "通过 OpenAI 视频 API 使用内置 CLI 生成、混剪和管理 Sora 视频。",
+    "imagegen": "通过 OpenAI 图像 API 生成和编辑图片 — 生成、修复、背景移除、产品照片和批量变体。",
+    "gemini-imagegen": "使用 Google Gemini 原生图像生成模型生成和编辑图片。支持文生图、图片编辑和多图合成。",
+    "pubmed-database": "PubMed 直接 REST API 访问。高级布尔/MeSH 查询、E-utilities API、批处理和引文管理。",
+    "pdb-database": "访问 RCSB PDB 蛋白质/核酸 3D 结构。搜索、下载坐标和检索结构生物学元数据。",
+    "rdkit": "化学信息学工具包。SMILES/SDF 解析、描述符、指纹、子结构搜索和相似性分析。",
+    "biopython": "综合分子生物学工具包。序列操作、文件解析、系统发育学和程序化 NCBI/PubMed 访问。",
+    "media-downloader": "使用 yt-dlp 从 YouTube、Bilibili、TikTok、Twitter/X 等 1500+ 网站下载视频和音频。",
+    "audio-extractor": "从视频中提取音频，从 1500+ 网站下载纯音频内容。转换为 MP3、FLAC、WAV 或 OPUS。",
+    "remotion-best-practices": "Remotion 最佳实践 — 使用 React 创建视频。",
+    "humanizer": "消除文本中的 AI 生成痕迹。检测并修复夸大象征、推销语言和 AI 词汇等模式。",
+    "ai-writing-detection": "全面的 AI 写作检测模式和方法论。词汇列表、结构模式和模型特定指纹。",
+    "canvas-design": "使用设计理念创建精美的 .png 和 .pdf 视觉作品。海报、艺术品和原创视觉设计。",
+    "brand-identity": "创建完整的品牌视觉识别系统 — Logo、调色板、字体排印、名片、社交媒体素材和品牌指南。",
+    "copywriting": "为每个触点生成品牌一致的文案 — 标语、品牌理念、社交媒体简介和宣言。",
+    "code-to-diagram": "使用 Mermaid.js 从代码库生成架构图、ER 图、时序图、流程图和类图。",
+    "markdown-to-storyboard": "将 Markdown 内容转换为结构化的故事板 CSV，用于幻灯片、视频脚本或连续视觉媒体。",
+    "storyboard-to-slides": "使用 python-pptx 从故事板 CSV 和图片组装 PPTX 幻灯片，支持多种布局和自定义主题。"
   }
 }

@@ -10,6 +10,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { useTranslation } from '@/i18n/client';
+import { getAgentDisplayName } from '@/lib/seed-descriptions';
 
 // ─── Types ───────────────────────────────────────────────
 
@@ -118,6 +120,7 @@ export const AgentPresetSelect = React.memo(function AgentPresetSelect({
   placeholder = 'Custom Config',
   'aria-label': ariaLabel = 'Agent',
 }: AgentPresetSelectProps) {
+  const { t } = useTranslation('agents');
   const handleChange = (val: string) => {
     onChange(val === '__custom__' ? null : val);
   };
@@ -131,7 +134,7 @@ export const AgentPresetSelect = React.memo(function AgentPresetSelect({
         <SelectItem value="__custom__">{placeholder}</SelectItem>
         {presets.map((preset) => (
           <SelectItem key={preset.id} value={preset.id}>
-            {preset.name}
+            {getAgentDisplayName(t, preset.name)}
           </SelectItem>
         ))}
       </SelectContent>

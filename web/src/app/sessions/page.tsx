@@ -33,12 +33,14 @@ import { useQuery } from '@tanstack/react-query';
 import { agentPresetsApi } from '@/lib/api';
 import { useTranslation } from '@/i18n/client';
 import { formatDateTime } from '@/lib/formatters';
+import { getAgentDisplayName } from '@/lib/seed-descriptions';
 
 const PAGE_SIZE = 20;
 
 export default function SessionsPage() {
   const { t } = useTranslation('sessions');
   const { t: tc } = useTranslation('common');
+  const { t: ta } = useTranslation('agents');
   const [agentFilter, setAgentFilter] = useState<string>('all');
   const [page, setPage] = useState(0);
 
@@ -103,7 +105,7 @@ export default function SessionsPage() {
               <SelectItem value={CHAT_SENTINEL}>{t('filters.chatSessions')}</SelectItem>
               {agentsData?.map((agent) => (
                 <SelectItem key={agent.id} value={agent.id}>
-                  {agent.name}
+                  {getAgentDisplayName(ta, agent.name)}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -144,7 +146,7 @@ export default function SessionsPage() {
                             {session.agent_id === CHAT_SENTINEL ? (
                               <Badge variant="secondary">{t('filters.chatBadge')}</Badge>
                             ) : session.agent_name ? (
-                              <Badge variant="outline">{session.agent_name}</Badge>
+                              <Badge variant="outline">{getAgentDisplayName(ta, session.agent_name)}</Badge>
                             ) : null}
                             <span>{t('card.messageCount', { count: session.message_count })}</span>
                             <span className="flex items-center gap-1">

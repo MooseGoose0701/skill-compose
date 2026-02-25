@@ -31,6 +31,8 @@ import { toast } from 'sonner';
 import { useAgentPresets, useDeleteAgentPreset } from '@/hooks/use-agents';
 import { useExecutors } from '@/hooks/use-executors';
 import { useTranslation } from '@/i18n/client';
+import { getAgentDescription, getAgentDisplayName } from '@/lib/seed-descriptions';
+import type { TFunction } from 'i18next';
 import type { AgentPreset, Executor } from '@/lib/api';
 
 export default function AgentsPage() {
@@ -54,10 +56,13 @@ export default function AgentsPage() {
 
   const filteredPresets = useMemo(() =>
     data?.presets.filter(
-      (preset) =>
-        preset.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        preset.description?.toLowerCase().includes(searchQuery.toLowerCase())
-    ), [data?.presets, searchQuery]);
+      (preset) => {
+        const translatedDesc = getAgentDescription(t, preset.name, preset.description);
+        return preset.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          preset.description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          translatedDesc?.toLowerCase().includes(searchQuery.toLowerCase());
+      }
+    ), [data?.presets, searchQuery, t]);
 
   // Separate user agents and meta agents
   const userAgents = useMemo(() => filteredPresets?.filter((preset) => !preset.is_system) || [], [filteredPresets]);
@@ -203,37 +208,39 @@ function AgentPresetCard({
   preset: AgentPreset;
   onDelete: () => void;
   executorMap: Map<string, Executor>;
-  t: (key: string, options?: Record<string, unknown>) => string;
+  t: TFunction;
   tc: (key: string) => string;
 }) {
   const executor = preset.executor_name ? executorMap.get(preset.executor_name) : null;
+  const translatedDescription = getAgentDescription(t, preset.name, preset.description);
+  const displayName = getAgentDisplayName(t, preset.name);
 
   return (
     <Card className="group hover:shadow-md transition-shadow h-full flex flex-col">
       <CardHeader className="pb-3">
         <div className="flex items-start justify-between">
-          <div className="flex items-center gap-2">
-            <Bot className="h-5 w-5 text-primary" />
-            <CardTitle className="text-lg">
+          <div className="flex items-center gap-2 min-w-0">
+            <Bot className="h-5 w-5 text-primary shrink-0" />
+            <CardTitle className="text-lg truncate">
               <Link href={`/agents/${preset.id}`} className="hover:underline">
-                {preset.name}
+                {displayName}
               </Link>
             </CardTitle>
           </div>
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1 shrink-0">
             {preset.is_published && (
-              <Badge variant="success" className="text-xs">
+              <Badge variant="success" className="text-xs whitespace-nowrap">
                 <Globe className="h-3 w-3 mr-1" />
                 {tc('status.published')}
               </Badge>
             )}
             {preset.is_system && (
-              <Badge variant="secondary">{t('type.meta')}</Badge>
+              <Badge variant="secondary" className="whitespace-nowrap">{t('type.meta')}</Badge>
             )}
           </div>
         </div>
-        {preset.description && (
-          <CardDescription className="line-clamp-2">{preset.description}</CardDescription>
+        {translatedDescription && (
+          <CardDescription className="line-clamp-2">{translatedDescription}</CardDescription>
         )}
       </CardHeader>
       <CardContent className="flex-1 flex flex-col">

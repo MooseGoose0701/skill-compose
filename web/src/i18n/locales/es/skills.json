@@ -331,5 +331,37 @@
       "invalidJson": "JSON inválido en {{name}}",
       "skillMdRequired": "El contenido de SKILL.md es obligatorio"
     }
+  },
+  "seedDescriptions": {
+    "skill-creator": "Guía para crear habilidades efectivas que extiendan las capacidades del agente con conocimiento especializado, flujos de trabajo o integraciones de herramientas.",
+    "skill-evolver": "Analiza trazas de ejecución de habilidades para identificar problemas y evolucionar/mejorar automáticamente basándose en datos reales.",
+    "skill-updater": "Actualiza habilidades existentes basándose en comentarios del usuario sobre qué necesita cambiar o mejorar.",
+    "mcp-builder": "Guía para crear servidores MCP (Model Context Protocol) que permiten a los LLMs interactuar con servicios externos a través de herramientas bien diseñadas.",
+    "skill-finder": "Descubre e instala habilidades de agentes del ecosistema abierto skills.sh. Busca habilidades comunitarias por palabra clave e instálalas directamente.",
+    "skills-planner": "Planifica qué habilidades se necesitan para cumplir los requisitos del usuario. Recomienda habilidades existentes, identifica nuevas y compone prompts del sistema.",
+    "trace-qa": "Analiza y responde preguntas sobre trazas de ejecución de agentes. Depura ejecuciones fallidas, comprende el comportamiento y analiza el uso de tokens.",
+    "planning-with-files": "Implementa planificación basada en archivos para tareas complejas. Crea task_plan.md, findings.md y progress.md para proyectos de múltiples pasos.",
+    "pdf": "Lee, crea y revisa archivos PDF con soporte de renderizado y diseño usando reportlab, pdfplumber y pypdf.",
+    "doc": "Lee, crea y edita documentos .docx con fidelidad de formato y diseño usando python-docx.",
+    "speech": "Generación de narración y locución de texto a voz mediante la API de Audio de OpenAI con voces integradas.",
+    "spreadsheet": "Crea, edita, analiza y formatea hojas de cálculo (.xlsx, .csv, .tsv) usando openpyxl y pandas.",
+    "sora": "Genera, remezcla y gestiona videos Sora mediante la API de video de OpenAI con el CLI integrado.",
+    "imagegen": "Genera y edita imágenes mediante la API de Imágenes de OpenAI — generación, inpainting, eliminación de fondo, fotos de producto y variantes por lotes.",
+    "gemini-imagegen": "Genera y edita imágenes usando los modelos nativos de generación de imágenes de Google Gemini. Soporta texto a imagen, edición y composición multi-imagen.",
+    "pubmed-database": "Acceso directo a la API REST de PubMed. Consultas avanzadas Boolean/MeSH, API E-utilities, procesamiento por lotes y gestión de citas.",
+    "pdb-database": "Accede a estructuras 3D de proteínas/ácidos nucleicos en RCSB PDB. Búsqueda, descarga de coordenadas y recuperación de metadatos para biología estructural.",
+    "rdkit": "Kit de herramientas quimioinformáticas. Análisis SMILES/SDF, descriptores, huellas digitales, búsqueda de subestructuras y análisis de similitud.",
+    "biopython": "Kit de herramientas integral de biología molecular. Manipulación de secuencias, análisis de archivos, filogenética y acceso programático a NCBI/PubMed.",
+    "media-downloader": "Descarga videos y audio de más de 1500 sitios web incluyendo YouTube, Bilibili, TikTok, Twitter/X y más usando yt-dlp.",
+    "audio-extractor": "Extrae audio de videos y descarga contenido solo audio de más de 1500 sitios. Convierte a MP3, FLAC, WAV u OPUS.",
+    "remotion-best-practices": "Mejores prácticas de Remotion — creación de videos con React.",
+    "humanizer": "Elimina señales de escritura generada por IA del texto. Detecta y corrige patrones como simbolismo inflado, lenguaje promocional y vocabulario de IA.",
+    "ai-writing-detection": "Patrones y metodología integral de detección de escritura IA. Listas de vocabulario, patrones estructurales y huellas específicas de modelos.",
+    "canvas-design": "Crea arte visual hermoso en documentos .png y .pdf usando filosofía de diseño. Pósters, arte y diseños visuales originales.",
+    "brand-identity": "Crea un sistema completo de identidad visual de marca — logos, paletas de colores, tipografía, tarjetas de visita, activos para redes sociales y guías de marca.",
+    "copywriting": "Genera textos alineados con la marca con restricciones precisas — eslóganes, filosofía de marca, bios de redes sociales y manifiestos.",
+    "code-to-diagram": "Genera diagramas de arquitectura, ER, secuencia, flujo y clases desde código usando Mermaid.js.",
+    "markdown-to-storyboard": "Convierte contenido Markdown en un CSV de storyboard estructurado para presentaciones, guiones de video o medios visuales secuenciales.",
+    "storyboard-to-slides": "Ensambla una presentación PPTX desde un CSV de storyboard e imágenes usando python-pptx con múltiples diseños y temas personalizados."
   }
 }
