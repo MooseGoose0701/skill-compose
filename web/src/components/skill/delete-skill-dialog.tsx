@@ -14,6 +14,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Trash2 } from "lucide-react";
+import { useTranslation } from "@/i18n/client";
 
 interface DeleteSkillDialogProps {
   skillName: string;
@@ -28,6 +29,7 @@ export function DeleteSkillDialog({
 }: DeleteSkillDialogProps) {
   const router = useRouter();
   const queryClient = useQueryClient();
+  const { t } = useTranslation('skills');
   const [isDeleting, setIsDeleting] = React.useState(false);
   const [deleteError, setDeleteError] = React.useState<string | null>(null);
 
@@ -49,7 +51,7 @@ export function DeleteSkillDialog({
       await queryClient.invalidateQueries({ queryKey: ["skills", "list"] });
       router.push('/skills');
     } catch (err) {
-      setDeleteError(err instanceof Error ? err.message : "Failed to delete skill");
+      setDeleteError(err instanceof Error ? err.message : t('delete.error'));
       setIsDeleting(false);
     }
   };
@@ -60,11 +62,11 @@ export function DeleteSkillDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Trash2 className="h-5 w-5 text-red-500" />
-            Delete Skill
+            {t('delete.title')}
           </DialogTitle>
           <DialogDescription>
-            Are you sure you want to delete <strong className="text-foreground">{skillName}</strong>?
-            This action cannot be undone. All versions and associated data will be permanently deleted.
+            {t('delete.confirm', { name: skillName })}{' '}
+            {t('delete.description')}
           </DialogDescription>
         </DialogHeader>
         {deleteError && (
@@ -74,7 +76,7 @@ export function DeleteSkillDialog({
         )}
         <DialogFooter className="gap-2 sm:gap-0">
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isDeleting}>
-            Cancel
+            {t('delete.cancel')}
           </Button>
           <Button
             variant="destructive"
@@ -84,10 +86,10 @@ export function DeleteSkillDialog({
             {isDeleting ? (
               <>
                 <Spinner size="md" className="mr-2 text-white" />
-                Deleting...
+                {t('delete.deleting')}
               </>
             ) : (
-              "Delete"
+              t('delete.deleteButton')
             )}
           </Button>
         </DialogFooter>

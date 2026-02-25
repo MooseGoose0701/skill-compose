@@ -27,6 +27,7 @@ import { useChatEngine } from "@/hooks/use-chat-engine";
 import { ChatMessageItem } from "./chat-message";
 import { ModelSelect, AgentPresetSelect, ExecutorSelect } from "./selects";
 import { useTranslation } from "@/i18n/client";
+import { getSkillDescription } from "@/lib/seed-descriptions";
 import { generateUUID } from "@/lib/utils";
 
 interface ChatPanelProps {
@@ -38,6 +39,7 @@ interface ChatPanelProps {
 export function ChatPanel({ isOpen, onClose, defaultSkills = [] }: ChatPanelProps) {
   const { t } = useTranslation('chat');
   const { t: tc } = useTranslation('common');
+  const { t: ts } = useTranslation('skills');
 
   // Use zustand store for persistence
   const {
@@ -379,7 +381,7 @@ export function ChatPanel({ isOpen, onClose, defaultSkills = [] }: ChatPanelProp
             <div className="flex items-center gap-1.5 flex-1 min-w-0">
               <span className="text-muted-foreground shrink-0">{t('configuration.skills')}</span>
               <MultiSelect
-                options={skills.map((skill) => ({ value: skill.name, label: skill.name, description: skill.description?.slice(0, 50) }))}
+                options={skills.map((skill) => ({ value: skill.name, label: skill.name, description: getSkillDescription(ts, skill.name, skill.description)?.slice(0, 50) }))}
                 selected={selectedSkills}
                 onChange={(s) => { setSelectedSkills(s); setSelectedAgentPreset(null); }}
                 placeholder={t('configuration.selectSkills')}

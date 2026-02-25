@@ -81,6 +81,7 @@ export function SessionSidebar({
   isRunning,
 }: SessionSidebarProps) {
   const { t } = useTranslation('chat');
+  const { t: tc } = useTranslation('common');
   const { data, isLoading } = usePublishedSessions({ agentId, limit: 50 });
   const deleteMutation = useDeletePublishedSession();
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -153,6 +154,7 @@ export function SessionSidebar({
                     onSelect={() => onSessionSelect(session.id)}
                     onDelete={() => handleDelete(session.id)}
                     t={t}
+                    tc={tc}
                   />
                 ))}
               </div>
@@ -172,6 +174,7 @@ function SessionItem({
   onSelect,
   onDelete,
   t,
+  tc,
 }: {
   session: SessionListItem;
   isActive: boolean;
@@ -180,10 +183,11 @@ function SessionItem({
   onSelect: () => void;
   onDelete: () => void;
   t: (key: string, options?: Record<string, unknown>) => string;
+  tc: (key: string, options?: Record<string, unknown>) => string;
 }) {
   const preview = session.first_user_message || t('published.sidebar.emptyMessage');
   const msgCount = session.message_count;
-  const timeAgo = formatRelativeTime(session.updated_at);
+  const timeAgo = formatRelativeTime(session.updated_at, tc);
 
   return (
     <div

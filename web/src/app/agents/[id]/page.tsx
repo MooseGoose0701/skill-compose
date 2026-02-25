@@ -7,6 +7,7 @@ import { useQuery } from '@tanstack/react-query';
 import { ArrowLeft, MessageSquare, Bot, Server } from 'lucide-react';
 import { Spinner } from '@/components/ui/spinner';
 import { useTranslation } from '@/i18n/client';
+import { getAgentDescription, getAgentDisplayName } from '@/lib/seed-descriptions';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -243,6 +244,7 @@ export default function AgentDetailPage() {
   }
 
   const isProcessing = updatePreset.isPending || deletePreset.isPending;
+  const translatedDescription = getAgentDescription(t, preset.name, preset.description);
 
   // ─── Render ────────────────────────────────────────────
 
@@ -258,11 +260,11 @@ export default function AgentDetailPage() {
           <Bot className="h-8 w-8 text-primary" />
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-3xl font-bold">{preset.name}</h1>
+              <h1 className="text-3xl font-bold">{getAgentDisplayName(t, preset.name)}</h1>
               {preset.is_system && <Badge variant="secondary">{t('type.system')}</Badge>}
             </div>
-            {preset.description && (
-              <p className="text-muted-foreground mt-1">{preset.description}</p>
+            {translatedDescription && (
+              <p className="text-muted-foreground mt-1">{translatedDescription}</p>
             )}
           </div>
         </div>

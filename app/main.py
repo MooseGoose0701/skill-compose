@@ -139,6 +139,7 @@ _PUBLIC_PATHS = (
     "/api/v1/auth/refresh",
     "/api/v1/auth/status",
     "/api/v1/published/",
+    "/api/v1/files/output/download",
 )
 
 

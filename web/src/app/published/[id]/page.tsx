@@ -11,12 +11,14 @@ import type { ChatMessage } from "@/stores/chat-store";
 import { ChatMessageItem } from "@/components/chat/chat-message";
 import { useChatEngine } from "@/hooks/use-chat-engine";
 import { useTranslation } from "@/i18n/client";
+import { getAgentDisplayName } from "@/lib/seed-descriptions";
 import { generateUUID } from "@/lib/utils";
 import { toast } from "sonner";
 import { sessionMessagesToChatMessages } from "@/lib/session-utils";
 import { SessionSidebar } from "@/components/published/session-sidebar";
 import { useQueryClient } from "@tanstack/react-query";
 import { publishedSessionKeys } from "@/hooks/use-published-sessions";
+import { LanguageSwitcher } from "@/components/layout/language-switcher";
 
 type LocalMessage = ChatMessage;
 
@@ -62,6 +64,7 @@ function getOrCreateSessionId(agentId: string): string {
 
 export default function PublishedChatPage() {
   const { t } = useTranslation('chat');
+  const { t: ta } = useTranslation('agents');
   const params = useParams();
   const agentId = params.id as string;
   const queryClient = useQueryClient();
@@ -291,10 +294,11 @@ export default function PublishedChatPage() {
           </Button>
           <Bot className="h-6 w-6 text-primary" />
           <div className="flex-1 min-w-0">
-            <h1 className="font-semibold text-lg">{agentName}</h1>
+            <h1 className="font-semibold text-lg">{agentName ? getAgentDisplayName(ta, agentName) : null}</h1>
             {agentDescription && <p className="text-sm text-muted-foreground truncate">{agentDescription}</p>}
           </div>
           <SessionIdBadge sessionId={sessionId} label={t('published.sessionId')} copiedText={t('published.sessionIdCopied')} />
+          <LanguageSwitcher />
           <Button variant="outline" size="sm" onClick={handleNewChat} disabled={isRunning} title={t('newChat')}>
             <MessageSquarePlus className="h-4 w-4 sm:mr-1" />
             <span className="hidden sm:inline">{t('newChat')}</span>

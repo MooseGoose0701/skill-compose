@@ -201,5 +201,31 @@
     "name": "モデル名",
     "selectProvider": "プロバイダーを選択",
     "selectModel": "モデルを選択"
+  },
+  "seedDescriptions": {
+    "agent-builder": "ユーザーの要件に基づいてカスタムエージェントを構築。ニーズを分析し、必要なスキルを計画、新しいスキルを作成し、エージェントプリセット設定を生成します。",
+    "skill-evolve-helper": "インタラクティブなスキル進化アシスタント。実行トレースを分析し、進化プランを提案、ユーザーの確認後に変更を適用します。",
+    "ArticleToSlides": "記事（URLまたはテキスト）をAI生成イラスト付きの美しいPPTXスライドに変換。コンテンツ取得、ストーリーボード計画、Geminiで画像生成、PowerPoint組み立て。",
+    "ChemScout": "初期段階の創薬アシスタント。PubChemから化合物データを取得、薬物様性を計算、2D構造を描画、類似度で分子を比較、PubMed文献を検索。",
+    "3D-Music-Visualizer": "Remotionで見事な3Dミュージックビジュアライザー動画を作成 — 低音反応球体、スペクトルバー、波形、シネマティックカメラモーション。",
+    "DiagramArchitect": "コードベースやGitHubリポジトリからアーキテクチャ図、ER図、シーケンス図、クラス図、フローチャートを生成。Mermaid.jsを使用。",
+    "skill-finder": "skills.shオープンエコシステムからエージェントスキルを発見しインストール。キーワードでコミュニティスキルを検索、GitHubからダウンロードして登録。",
+    "BrandGenesis": "一文のプロジェクト説明から完全なビジュアルアイデンティティパッケージを作成：ブランド哲学、ロゴシステム、名刺、SNSカバー、ブランド仕様書。",
+    "RemotionCreator": "RemotionとReactでプログラマティック動画を作成 — 製品デモ、説明動画、アニメーションインフォグラフィック、SNSクリップ、モーショングラフィックス。",
+    "StealthWriter": "AI生成テキストを自然な人間の文章に変換。クローズドループワークフロー：AIパターン検出、人間化、再検出、検証。",
+    "PDF2Tweet": "PDF文書（論文、記事、レポート）を魅力的なTwitter/Xスレッドに変換。主要な洞察を抽出し、フック駆動のツイートスレッドを作成、要点まとめとスレッド画像付き。"
+  },
+  "seedNames": {
+    "agent-builder": "エージェントビルダー",
+    "skill-evolve-helper": "スキル進化アシスタント",
+    "ArticleToSlides": "記事からスライド",
+    "ChemScout": "ケミカルスカウト",
+    "3D-Music-Visualizer": "3D音楽ビジュアライザー",
+    "DiagramArchitect": "ダイアグラムアーキテクト",
+    "skill-finder": "スキル検索",
+    "BrandGenesis": "ブランドジェネシス",
+    "RemotionCreator": "Remotionクリエイター",
+    "StealthWriter": "ステルスライター",
+    "PDF2Tweet": "PDFからツイート"
   }
 }

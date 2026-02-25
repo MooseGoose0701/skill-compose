@@ -7,6 +7,7 @@ import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
 import { resourcesApi, versionsApi } from "@/lib/api";
 import { getLanguageFromFilename } from "@/lib/formatters";
+import { useTranslation } from "@/i18n/client";
 
 interface ResourceItemProps {
   skillName: string;
@@ -27,6 +28,7 @@ export function ResourceItem({
   onVersionCreated,
   defaultExpanded = false,
 }: ResourceItemProps) {
+  const { t } = useTranslation('skills');
   const [isOpen, setIsOpen] = React.useState(defaultExpanded);
   const [content, setContent] = React.useState<string | null>(initialContent ?? null);
   const [originalContent, setOriginalContent] = React.useState<string | null>(initialContent ?? null);
@@ -110,7 +112,7 @@ export function ResourceItem({
       }
       setIsOpen(true);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load file");
+      setError(err instanceof Error ? err.message : t('files.failedToLoadFile'));
     } finally {
       setIsLoading(false);
     }
@@ -144,7 +146,7 @@ export function ResourceItem({
         files_content?: Record<string, string>;
         commit_message?: string;
       } = {
-        commit_message: commitMessage || `Updated ${filename}`,
+        commit_message: commitMessage || t('files.updatedFile', { filename }),
       };
 
       if (resourceType === "skill") {
@@ -164,7 +166,7 @@ export function ResourceItem({
       setCommitMessage("");
       onVersionCreated?.();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to save");
+      setError(err instanceof Error ? err.message : t('files.failedToSave'));
     } finally {
       setIsSaving(false);
     }
@@ -181,21 +183,21 @@ export function ResourceItem({
             {isEditing ? (
               <>
                 <Button size="sm" variant="ghost" onClick={handleCancel} disabled={isSaving}>
-                  Cancel
+                  {t('files.cancel')}
                 </Button>
                 <Button size="sm" onClick={handleSave} disabled={isSaving || !hasChanges}>
-                  {isSaving ? "Saving..." : "Save"}
+                  {isSaving ? t('files.saving') : t('files.save')}
                 </Button>
               </>
             ) : (
               <>
                 {isOpen && isEditable && currentVersion && (
                   <Button size="sm" variant="ghost" onClick={handleEdit}>
-                    Edit
+                    {t('files.edit')}
                   </Button>
                 )}
                 <span className="text-muted-foreground text-xs">
-                  {isLoading ? "Loading..." : isOpen ? "▼" : "▶"}
+                  {isLoading ? "..." : isOpen ? "▼" : "▶"}
                 </span>
               </>
             )}
@@ -206,7 +208,7 @@ export function ResourceItem({
           <div className="mt-3" onClick={(e) => e.stopPropagation()}>
             <input
               type="text"
-              placeholder="Commit message (optional)"
+              placeholder={t('files.commitMessagePlaceholder')}
               value={commitMessage}
               onChange={(e) => setCommitMessage(e.target.value)}
               className="w-full px-3 py-2 text-sm border rounded-md bg-background"
@@ -240,12 +242,12 @@ export function ResourceItem({
                     minWidth: 'fit-content',
                   }}
                 >
-                  {content || "(empty file)"}
+                  {content || t('files.emptyFile')}
                 </SyntaxHighlighter>
               </div>
             ) : (
               <pre className="p-3 bg-muted rounded-md text-xs font-mono overflow-auto max-h-96 whitespace-pre-wrap">
-                {content || "(empty file)"}
+                {content || t('files.emptyFile')}
               </pre>
             )}
           </div>

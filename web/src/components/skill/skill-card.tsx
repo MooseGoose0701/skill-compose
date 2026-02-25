@@ -28,9 +28,10 @@ import { Card, CardHeader, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
-import { formatRelativeTime } from '@/lib/utils';
+import { formatRelativeTime } from '@/lib/formatters';
 import { useTogglePin } from '@/hooks/use-skills';
 import { useTranslation } from '@/i18n/client';
+import { getSkillDescription } from '@/lib/seed-descriptions';
 import type { Skill } from '@/types/skill';
 
 interface SkillCardProps {
@@ -79,6 +80,7 @@ function getIconUrl(iconUrl: string | null, updatedAt?: string): string | null {
 
 export function SkillCard({ skill, hasGithubUpdate, agentNames }: SkillCardProps) {
   const { t } = useTranslation('skills');
+  const { t: tc } = useTranslation('common');
   const togglePin = useTogglePin();
   const isMeta = skill.skill_type === 'meta';  // undefined defaults to user
   const tags = skill.tags || [];
@@ -120,9 +122,12 @@ export function SkillCard({ skill, hasGithubUpdate, agentNames }: SkillCardProps
             </div>
             {/* Title and badge - vertically centered */}
             <div className="flex-1 min-w-0 flex items-center gap-2">
-              <h3 className="font-semibold truncate">{skill.name}</h3>
+              <h3
+                className="font-semibold truncate select-text cursor-text"
+                onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
+              >{skill.name}</h3>
               {isMeta && (
-                <Badge variant="outline" className="text-xs flex-shrink-0">Meta</Badge>
+                <Badge variant="outline" className="text-xs flex-shrink-0">{t('type.meta')}</Badge>
               )}
             </div>
             {/* Pin button */}
@@ -141,7 +146,7 @@ export function SkillCard({ skill, hasGithubUpdate, agentNames }: SkillCardProps
         </CardHeader>
         <CardContent className="flex flex-col flex-1">
           <p className="text-sm text-muted-foreground line-clamp-2 mb-3 min-h-[2.5rem]">
-            {skill.description || '\u00A0'}
+            {getSkillDescription(t, skill.name, skill.description) || '\u00A0'}
           </p>
           <div className="flex flex-wrap gap-1.5 mb-3">
             {skill.category && (
@@ -175,7 +180,7 @@ export function SkillCard({ skill, hasGithubUpdate, agentNames }: SkillCardProps
             )}
             <div className="flex items-center gap-1">
               <Clock className="h-3 w-3" />
-              <span>{formatRelativeTime(skill.updated_at)}</span>
+              <span>{formatRelativeTime(skill.updated_at, tc)}</span>
             </div>
             {!isMeta && agentNames && agentNames.length > 0 && (
               <Tooltip>

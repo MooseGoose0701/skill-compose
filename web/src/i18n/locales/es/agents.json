@@ -201,5 +201,31 @@
     "name": "Nombre del Modelo",
     "selectProvider": "Seleccionar proveedor",
     "selectModel": "Seleccionar modelo"
+  },
+  "seedDescriptions": {
+    "agent-builder": "Construye agentes personalizados según los requisitos del usuario. Analiza necesidades, planifica habilidades requeridas, crea nuevas si es necesario y genera configuraciones de presets.",
+    "skill-evolve-helper": "Asistente interactivo de evolución de habilidades. Analiza trazas de ejecución, propone un plan de evolución, espera confirmación del usuario y aplica los cambios.",
+    "ArticleToSlides": "Convierte artículos (URL o texto) en presentaciones PPTX con ilustraciones generadas por IA. Obtiene contenido, planifica storyboard, genera imágenes con Gemini y ensambla PowerPoint.",
+    "ChemScout": "Asistente de descubrimiento de fármacos en etapa temprana. Recupera datos de compuestos de PubChem, calcula similitud con fármacos, dibuja estructuras 2D, compara moléculas y busca literatura en PubMed.",
+    "3D-Music-Visualizer": "Crea impresionantes videos de visualización musical 3D con Remotion — esferas reactivas al bajo, barras de espectro, formas de onda y movimiento de cámara cinematográfico.",
+    "DiagramArchitect": "Genera diagramas de arquitectura, ER, secuencia, clases y flujo desde repositorios de código o GitHub usando Mermaid.js.",
+    "skill-finder": "Descubre e instala habilidades de agentes del ecosistema abierto skills.sh. Busca habilidades comunitarias por palabra clave, descarga desde GitHub y las registra.",
+    "BrandGenesis": "Crea un paquete completo de identidad visual desde una descripción de proyecto: filosofía de marca, sistema de logo, tarjeta de visita, portada de redes sociales y documento de especificaciones.",
+    "RemotionCreator": "Crea videos programáticos con Remotion y React — demos de producto, videos explicativos, infografías animadas, clips para redes sociales y motion graphics.",
+    "StealthWriter": "Transforma texto generado por IA en prosa humana natural. Flujo cerrado: detectar patrones de IA, humanizar, re-detectar, verificar.",
+    "PDF2Tweet": "Transforma documentos PDF (papers, artículos, informes) en hilos atractivos de Twitter/X. Extrae ideas clave, crea hilos con ganchos y conclusiones, y genera imágenes para el hilo."
+  },
+  "seedNames": {
+    "agent-builder": "Constructor de Agentes",
+    "skill-evolve-helper": "Asistente de Evolución",
+    "ArticleToSlides": "Artículo a Diapositivas",
+    "ChemScout": "Explorador Químico",
+    "3D-Music-Visualizer": "Visualizador Musical 3D",
+    "DiagramArchitect": "Arquitecto de Diagramas",
+    "skill-finder": "Buscador de Skills",
+    "BrandGenesis": "Génesis de Marca",
+    "RemotionCreator": "Creador Remotion",
+    "StealthWriter": "Escritor Sigiloso",
+    "PDF2Tweet": "PDF a Tweets"
   }
 }

@@ -245,13 +245,13 @@ export function VersionTimeline({
     setSwitching(true);
     try {
       await versionsApi.rollback(skillName, switchTarget);
-      toast.success(`Switched to version ${switchTarget}`);
+      toast.success(t("versions.switchSuccess", { version: switchTarget }));
       setSwitchConfirmOpen(false);
       setSwitchTarget(null);
       onVersionSwitch?.();
     } catch (err) {
       toast.error(
-        `Failed to switch version: ${err instanceof Error ? err.message : "Unknown error"}`
+        t("versions.switchError", { error: err instanceof Error ? err.message : "Unknown error" })
       );
     } finally {
       setSwitching(false);
@@ -274,18 +274,18 @@ export function VersionTimeline({
   };
 
   if (isLoading) {
-    return <p className="text-muted-foreground">Loading versions...</p>;
+    return <p className="text-muted-foreground">{t("versions.loading")}</p>;
   }
 
   if (versions.length === 0) {
     return (
       <div className="text-center py-8">
-        <p className="text-muted-foreground">No versions yet</p>
+        <p className="text-muted-foreground">{t("versions.empty")}</p>
         <Button
           className="mt-4"
           onClick={() => router.push(`/skills/${skillName}/versions/new`)}
         >
-          Create First Version
+          {t("versions.createFirstVersion")}
         </Button>
       </div>
     );
@@ -297,14 +297,14 @@ export function VersionTimeline({
       {versions.length > 1 && (
         <div className="flex items-center gap-4 p-3 bg-muted rounded-md">
           <GitCompare className="h-4 w-4 text-muted-foreground" />
-          <span className="text-sm text-muted-foreground">Compare:</span>
+          <span className="text-sm text-muted-foreground">{t("versions.compare")}</span>
           <div className="flex items-center gap-2">
             <Badge variant={compareFrom ? "default" : "outline"} className="font-mono">
-              {compareFrom || "select"}
+              {compareFrom || t("versions.select")}
             </Badge>
             <span className="text-muted-foreground">→</span>
             <Badge variant={compareTo ? "default" : "outline"} className="font-mono">
-              {compareTo || "select"}
+              {compareTo || t("versions.select")}
             </Badge>
           </div>
           <Button
@@ -313,7 +313,7 @@ export function VersionTimeline({
             disabled={!compareFrom || !compareTo}
             onClick={handleCompare}
           >
-            Show Diff
+            {t("versions.showDiff")}
           </Button>
           {(compareFrom || compareTo) && (
             <Button
@@ -321,7 +321,7 @@ export function VersionTimeline({
               variant="ghost"
               onClick={() => { setCompareFrom(null); setCompareTo(null); }}
             >
-              Clear
+              {t("versions.clear")}
             </Button>
           )}
         </div>
@@ -349,7 +349,7 @@ export function VersionTimeline({
                           ? 'bg-green-500 border-green-500 text-white'
                           : 'bg-background border-border hover:border-primary'
                     }`}
-                    title={isSelected ? "Click to deselect" : "Click to select for comparison"}
+                    title={isSelected ? t("versions.clickToDeselect") : t("versions.clickToSelect")}
                   >
                     {isSelected ? (
                       <span className="text-xs font-bold">
@@ -373,12 +373,12 @@ export function VersionTimeline({
                         <span className="font-mono font-semibold text-lg">{version.version}</span>
                         {isCurrent && (
                           <Badge variant="outline-success">
-                            Current
+                            {t("versions.current")}
                           </Badge>
                         )}
                         {isFirst && !isCurrent && (
                           <Badge variant="outline" className="text-xs">
-                            Latest
+                            {t("versions.latest")}
                           </Badge>
                         )}
                       </div>
@@ -412,7 +412,7 @@ export function VersionTimeline({
                           }}
                         >
                           <ArrowRightLeft className="h-3 w-3 mr-1" />
-                          Switch to
+                          {t("versions.switchTo")}
                         </Button>
                       )}
                       <Button
@@ -423,7 +423,7 @@ export function VersionTimeline({
                           handleViewVersion(version);
                         }}
                       >
-                        View
+                        {t("versions.view")}
                       </Button>
                       {!isCurrent && versions.length > 1 && (
                         <Button
@@ -453,17 +453,17 @@ export function VersionTimeline({
         <DialogContent className="max-w-5xl max-h-[85vh] overflow-hidden flex flex-col">
           <DialogHeader>
             <DialogTitle>
-              Version {viewingVersion?.version}
-              {viewingVersion?.version === currentVersion && " (current)"}
+              {t("versions.viewVersion", { version: viewingVersion?.version })}
+              {viewingVersion?.version === currentVersion && ` ${t("versions.viewVersionCurrent")}`}
             </DialogTitle>
             <DialogDescription>
-              {viewingVersion?.commit_message || "No commit message"}
+              {viewingVersion?.commit_message || t("versions.noCommitMessage")}
               {viewingVersion?.created_at && ` • ${formatDateTime(viewingVersion.created_at)}`}
             </DialogDescription>
           </DialogHeader>
           <div className="flex-1 overflow-hidden flex gap-4">
             <div className="w-48 flex-shrink-0 border-r pr-4 overflow-auto">
-              <h4 className="text-sm font-medium mb-2">Files</h4>
+              <h4 className="text-sm font-medium mb-2">{t("versions.files")}</h4>
               <div className="space-y-1">
                 <button
                   className={`w-full text-left px-2 py-1 rounded text-sm font-mono ${
@@ -486,13 +486,13 @@ export function VersionTimeline({
                   </button>
                 ))}
                 {versionFiles.length === 0 && (
-                  <p className="text-xs text-muted-foreground italic">No additional files</p>
+                  <p className="text-xs text-muted-foreground italic">{t("versions.noAdditionalFiles")}</p>
                 )}
               </div>
             </div>
             <div className="flex-1 overflow-auto">
               {viewLoading || fileLoading ? (
-                <p className="text-muted-foreground">Loading...</p>
+                <p className="text-muted-foreground">{t("versions.loading")}</p>
               ) : fileContent ? (
                 <SyntaxHighlighter
                   language={getLanguageFromFilename(selectedFile || '')}
@@ -507,13 +507,13 @@ export function VersionTimeline({
                   {fileContent}
                 </SyntaxHighlighter>
               ) : (
-                <p className="text-muted-foreground">No content</p>
+                <p className="text-muted-foreground">{t("versions.noContent")}</p>
               )}
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setViewModalOpen(false)}>
-              Close
+              {t("versions.close")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -525,11 +525,10 @@ export function VersionTimeline({
       }}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Switch Version</DialogTitle>
+            <DialogTitle>{t("versions.switchVersion")}</DialogTitle>
             <DialogDescription>
-              Switch from <span className="font-mono font-semibold">v{currentVersion}</span> to{" "}
-              <span className="font-mono font-semibold">v{switchTarget}</span>?
-              This will update the current version pointer.
+              {t("versions.switchConfirm", { version: switchTarget })}
+              {' '}{t("versions.switchDescription")}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -538,16 +537,16 @@ export function VersionTimeline({
               onClick={() => setSwitchConfirmOpen(false)}
               disabled={switching}
             >
-              Cancel
+              {t("versions.cancel")}
             </Button>
             <Button onClick={handleSwitchVersion} disabled={switching}>
               {switching ? (
                 <>
                   <Spinner size="sm" className="mr-2" />
-                  Switching...
+                  {t("versions.switching")}
                 </>
               ) : (
-                "Confirm"
+                t("versions.confirm")
               )}
             </Button>
           </DialogFooter>
@@ -571,7 +570,7 @@ export function VersionTimeline({
               onClick={() => setDeleteConfirmOpen(false)}
               disabled={deleteVersionMutation.isPending}
             >
-              Cancel
+              {t("versions.cancel")}
             </Button>
             <Button
               variant="destructive"
@@ -581,10 +580,10 @@ export function VersionTimeline({
               {deleteVersionMutation.isPending ? (
                 <>
                   <Spinner size="sm" className="mr-2" />
-                  Deleting...
+                  {t("versions.deleting")}
                 </>
               ) : (
-                "Delete"
+                t("delete.deleteButton")
               )}
             </Button>
           </DialogFooter>
@@ -606,17 +605,16 @@ export function VersionTimeline({
               <div>
                 <DialogTitle className="flex items-center gap-2">
                   <GitCompare className="h-5 w-5" />
-                  Version Diff
+                  {t("versions.versionDiff")}
                 </DialogTitle>
                 <DialogDescription>
-                  Comparing v{compareFrom} → v{compareTo}
+                  {t("versions.comparingVersions", { from: compareFrom, to: compareTo })}
                 </DialogDescription>
               </div>
               <Button
                 variant="ghost"
                 size="icon"
                 onClick={() => setIsFullscreen(!isFullscreen)}
-                title={isFullscreen ? "Exit fullscreen" : "Fullscreen"}
               >
                 {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
               </Button>
@@ -626,7 +624,7 @@ export function VersionTimeline({
           <div className="flex items-center justify-between gap-4 pb-3 border-b">
             <div className="flex items-center gap-3">
               <div className="flex items-center gap-2">
-                <span className="text-sm text-muted-foreground">File:</span>
+                <span className="text-sm text-muted-foreground">{t("versions.file")}</span>
                 {diffFiles.length > 1 ? (
                   <select
                     value={diffFilePath}
@@ -647,19 +645,19 @@ export function VersionTimeline({
             </div>
 
             <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground">View:</span>
+              <span className="text-sm text-muted-foreground">{t("versions.viewMode")}</span>
               <div className="flex rounded-md border overflow-hidden">
                 <button
                   onClick={() => setSplitView(true)}
                   className={`px-3 py-1 text-sm ${splitView ? 'bg-primary text-primary-foreground' : 'bg-background hover:bg-muted'}`}
                 >
-                  Split
+                  {t("versions.split")}
                 </button>
                 <button
                   onClick={() => setSplitView(false)}
                   className={`px-3 py-1 text-sm ${!splitView ? 'bg-primary text-primary-foreground' : 'bg-background hover:bg-muted'}`}
                 >
-                  Unified
+                  {t("versions.unified")}
                 </button>
               </div>
             </div>
@@ -669,12 +667,12 @@ export function VersionTimeline({
             {diffLoading ? (
               <div className="flex items-center justify-center py-12">
                 <Spinner size="lg" className="mr-3" />
-                <span className="text-muted-foreground">Computing diff...</span>
+                <span className="text-muted-foreground">{t("versions.computingDiff")}</span>
               </div>
             ) : diffData ? (
               diffData.oldContent === diffData.newContent ? (
                 <div className="flex items-center justify-center py-12 text-muted-foreground">
-                  No differences found
+                  {t("versions.noDifferences")}
                 </div>
               ) : (
                 <DiffViewer
@@ -688,14 +686,14 @@ export function VersionTimeline({
               )
             ) : (
               <div className="flex items-center justify-center py-12 text-muted-foreground">
-                Select versions to compare
+                {t("versions.selectVersionsToCompare")}
               </div>
             )}
           </div>
 
           <DialogFooter>
             <Button variant="outline" onClick={() => setDiffModalOpen(false)}>
-              Close
+              {t("versions.close")}
             </Button>
           </DialogFooter>
         </DialogContent>
