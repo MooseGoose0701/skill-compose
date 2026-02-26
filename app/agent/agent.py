@@ -1356,6 +1356,12 @@ class SkillsAgent:
                 if event_stream and event_stream.has_injection():
                     steering_msg = event_stream.get_injection_nowait()
                     if steering_msg:
+                        # Emit steering_received so DisplayMessageBuilder records it
+                        await event_stream.push(StreamEvent(
+                            event_type="steering_received",
+                            turn=turns,
+                            data={"message": steering_msg},
+                        ))
                         messages.append({
                             "role": "user",
                             "content": f"[User Steering Message]: {steering_msg}"
@@ -1590,6 +1596,12 @@ class SkillsAgent:
             if event_stream and event_stream.has_injection():
                 steering_msg = event_stream.get_injection_nowait()
                 if steering_msg:
+                    # Emit steering_received so DisplayMessageBuilder records it
+                    await event_stream.push(StreamEvent(
+                        event_type="steering_received",
+                        turn=turns,
+                        data={"message": steering_msg},
+                    ))
                     messages.append({
                         "role": "user",
                         "content": f"[User Steering Message]: {steering_msg}"
