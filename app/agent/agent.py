@@ -1366,6 +1366,8 @@ class SkillsAgent:
                             "role": "user",
                             "content": f"[User Steering Message]: {steering_msg}"
                         })
+                        # Grant an extra turn so the LLM can process this steering
+                        self.max_turns = max(self.max_turns, turns + 1)
                         continue  # Don't finish, loop back to LLM with steering message
 
                 final_answer = response.text_content
@@ -1606,6 +1608,8 @@ class SkillsAgent:
                         "role": "user",
                         "content": f"[User Steering Message]: {steering_msg}"
                     })
+                    # Grant an extra turn so the LLM can process this steering
+                    self.max_turns = max(self.max_turns, turns + 1)
 
             # Emit turn_complete checkpoint (all tool_use/tool_result pairs matched)
             if streaming:
