@@ -685,7 +685,6 @@ class SkillsAgent:
     def _build_equipped_skills_section(self) -> str:
         """Build the equipped skills section for system prompt."""
         from app.agent.tools import _fetch_skill_content_from_registry
-        from app.core.skill_config import check_skill_env_ready
 
         if not self.allowed_skills:
             return "No skills equipped. Use `list_skills` to see available skills."
@@ -720,15 +719,6 @@ class SkillsAgent:
                     lines.append(f"**Description:** {description}")
                 if triggers:
                     lines.append(f"**Triggers:** {', '.join(triggers[:5])}")
-
-                # Check for missing environment variables
-                try:
-                    ready, missing = check_skill_env_ready(skill_name)
-                    if not ready and missing:
-                        lines.append(f"**WARNING:** Missing environment variables: {', '.join(missing)}")
-                        lines.append("This skill may not work properly until these are configured.")
-                except Exception:
-                    pass  # Silently ignore if config check fails
 
                 lines.append("")
             except Exception as e:

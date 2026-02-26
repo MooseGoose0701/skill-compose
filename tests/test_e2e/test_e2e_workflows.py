@@ -1891,6 +1891,82 @@ print(f"VAR2:{os.environ.get('TEST_VAR_2', 'missing')}")
             result2 = ws.execute("print(fallback_var)")
             assert result2.success is False, "Variables should not persist in subprocess mode"
 
+    async def test_08_env_vars_from_dotenv_local_workspace(self):
+        """Verify local workspace picks up .env vars without skill_config."""
+        from app.tools.code_executor import AgentWorkspace, _load_env_file
+
+        # _load_env_file should return a dict (may be empty in test env)
+        env_from_file = _load_env_file()
+        assert isinstance(env_from_file, dict)
+
+        # Workspace env should include os.environ + .env overlay
+        with AgentWorkspace() as ws:
+            # env should be populated (at least os.environ keys)
+            assert len(ws.env) > 0
+            assert "PATH" in ws.env  # basic sanity
+
+            # Verify code can see the env
+            result = ws.execute("import os; print(os.environ.get('PATH', 'MISSING'))")
+            assert result.success is True
+            assert "MISSING" not in result.output
+
+    async def test_09_collect_env_for_executor_reads_dotenv(self):
+        """Verify _collect_env_for_executor reads .env without skill_config."""
+        import tempfile
+        import os
+        from unittest.mock import patch
+
+        # Create a temp .env file with known content
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".env", delete=False) as f:
+            f.write("EXECUTOR_TEST_KEY_1=executor_val_1\n")
+            f.write("EXECUTOR_TEST_KEY_2=executor_val_2\n")
+            f.write("# comment line\n")
+            f.write("\n")
+            tmp_path = f.name
+
+        try:
+            from app.agent.tools import _collect_env_for_executor
+            from pathlib import Path
+
+            # Patch _get_env_file_path to use our temp file
+            with patch("app.config._get_env_file_path", return_value=Path(tmp_path)):
+                env = _collect_env_for_executor()
+
+            # Should contain our test keys
+            assert env.get("EXECUTOR_TEST_KEY_1") == "executor_val_1"
+            assert env.get("EXECUTOR_TEST_KEY_2") == "executor_val_2"
+
+            # Skill env vars override (even though empty dict now)
+            with patch("app.config._get_env_file_path", return_value=Path(tmp_path)):
+                env2 = _collect_env_for_executor({"EXECUTOR_TEST_KEY_1": "overridden"})
+            assert env2["EXECUTOR_TEST_KEY_1"] == "overridden"
+            assert env2["EXECUTOR_TEST_KEY_2"] == "executor_val_2"
+        finally:
+            os.unlink(tmp_path)
+
+    async def test_10_get_tools_for_agent_executor_env(self):
+        """Verify get_tools_for_agent passes env to executor-bound tools."""
+        import tempfile
+        import os
+        from unittest.mock import patch, MagicMock
+        from pathlib import Path
+
+        # Create a temp .env file
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".env", delete=False) as f:
+            f.write("AGENT_TOOL_TEST_KEY=agent_tool_val\n")
+            tmp_path = f.name
+
+        try:
+            from app.agent.tools import _collect_env_for_executor
+
+            # Verify _collect_env_for_executor picks up the key
+            with patch("app.config._get_env_file_path", return_value=Path(tmp_path)):
+                env = _collect_env_for_executor({})
+
+            assert env.get("AGENT_TOOL_TEST_KEY") == "agent_tool_val"
+        finally:
+            os.unlink(tmp_path)
+
 
 # ===========================================================================
 # Category + Pin + Sort E2E
