@@ -29,9 +29,6 @@ import { EvolveSkillModal } from "@/components/skill/evolve-trace-modal";
 import { DeleteSkillDialog } from "@/components/skill/delete-skill-dialog";
 import { UpdateFromSourceModal } from "@/components/skill/update-from-source-modal";
 import { FilesystemSyncDialog } from "@/components/skill/filesystem-sync-dialog";
-import { SkillEnvConfig } from "@/components/skill/skill-env-config";
-import { SkillDependencies } from "@/components/skill/skill-dependencies";
-import { DependenciesBanner } from "@/components/skill/dependencies-banner";
 
 export default function SkillDetailPage() {
   const { t } = useTranslation("skills");
@@ -288,9 +285,6 @@ export default function SkillDetailPage() {
         </div>
       </div>
 
-      {/* Dependencies Banner (shows if needs_install) */}
-      <DependenciesBanner skillName={skillName} />
-
       {/* Tabs */}
       <Tabs defaultValue={initialTab} className="space-y-4" onValueChange={() => checkFilesystemSync()}>
         <TabsList>
@@ -312,23 +306,6 @@ export default function SkillDetailPage() {
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>{t("cards.environmentConfiguration")}</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <SkillEnvConfig skillName={skillName} />
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>{t("cards.dependencies")}</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <SkillDependencies skillName={skillName} />
-            </CardContent>
-          </Card>
         </TabsContent>
 
         <TabsContent value="resources">
