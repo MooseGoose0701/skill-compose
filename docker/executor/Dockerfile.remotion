@@ -105,7 +105,7 @@ RUN cd /opt/remotion-template \
 # Point Remotion directly to the pre-downloaded Chrome Headless Shell binary.
 # Note: this env var alone does NOT prevent Remotion from downloading Chrome—
 # Remotion also checks <project>/node_modules/.remotion/ at render time.
-# The executor_server pre-copies node_modules (including .remotion/) to fix that.
+# The agent's system prompt copies /opt/remotion-template/node_modules (including .remotion/) to the workspace.
 ENV REMOTION_CHROME_EXECUTABLE_PATH=/opt/remotion-template/node_modules/.remotion/chrome-headless-shell/linux64/chrome-headless-shell-linux64/chrome-headless-shell
 
 # Create workspaces directory
