@@ -26,6 +26,7 @@ def make_skill(
     tags: Optional[List[str]] = None,
     category: Optional[str] = None,
     is_pinned: bool = False,
+    seed_hash: Optional[str] = None,
     **kwargs,
 ) -> SkillDB:
     return SkillDB(
@@ -38,6 +39,7 @@ def make_skill(
         tags=tags,
         category=category,
         is_pinned=is_pinned,
+        seed_hash=seed_hash,
         created_at=kwargs.get("created_at", datetime.utcnow()),
         updated_at=kwargs.get("updated_at", datetime.utcnow()),
     )
@@ -122,6 +124,7 @@ def make_preset(
     is_system: bool = False,
     is_published: bool = False,
     max_turns: int = 60,
+    seed_hash: Optional[str] = None,
     **kwargs,
 ) -> AgentPresetDB:
     return AgentPresetDB(
@@ -135,6 +138,7 @@ def make_preset(
         max_turns=max_turns,
         is_system=is_system,
         is_published=is_published,
+        seed_hash=seed_hash,
         created_at=kwargs.get("created_at", datetime.utcnow()),
         updated_at=kwargs.get("updated_at", datetime.utcnow()),
     )

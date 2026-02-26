@@ -127,6 +127,9 @@ class SkillDB(Base):
     is_pinned: Mapped[bool] = mapped_column(
         Boolean, default=False, server_default=text("false"), nullable=False
     )  # Whether skill is pinned to top
+    seed_hash: Mapped[Optional[str]] = mapped_column(
+        String(64), nullable=True
+    )  # SHA-256 hash of seed data for change detection
 
     # Relationships
     versions: Mapped[List["SkillVersionDB"]] = relationship(
@@ -514,6 +517,9 @@ class AgentPresetDB(Base):
     executor_name: Mapped[Optional[str]] = mapped_column(
         String(50), nullable=True
     )  # Executor name (e.g. "base", "ml", "cuda") for code execution
+    seed_hash: Mapped[Optional[str]] = mapped_column(
+        String(64), nullable=True
+    )  # SHA-256 hash of seed data for change detection
     created_at: Mapped[datetime] = mapped_column(
         DateTime, default=datetime.utcnow, nullable=False
     )
