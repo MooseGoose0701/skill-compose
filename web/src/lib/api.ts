@@ -38,7 +38,7 @@ const API_BASE = `${BACKEND_API_BASE}/registry`;
 // Export for pages that need direct API access
 export { BACKEND_API_BASE };
 
-class ApiError extends Error {
+export class ApiError extends Error {
   constructor(
     public status: number,
     message: string
@@ -863,6 +863,8 @@ export interface StreamEvent {
   content_type?: string;
   download_url?: string;
   description?: string;
+  // For steering_received
+  steering_id?: string;
   // For ask_user
   prompt_id?: string;
   question?: string;
@@ -968,7 +970,7 @@ export const agentApi = {
     );
     if (!response.ok) {
       const error = await response.json().catch(() => ({}));
-      throw new Error(error.detail || `Steer failed: ${response.statusText}`);
+      throw new ApiError(response.status, error.detail || `Steer failed: ${response.statusText}`);
     }
   },
 
@@ -1531,7 +1533,7 @@ export const publishedAgentApi = {
     );
     if (!response.ok) {
       const error = await response.json().catch(() => ({}));
-      throw new Error(error.detail || `Steer failed: ${response.statusText}`);
+      throw new ApiError(response.status, error.detail || `Steer failed: ${response.statusText}`);
     }
   },
 
@@ -2047,5 +2049,3 @@ export const authApi = {
     }
   },
 };
-
-export { ApiError };

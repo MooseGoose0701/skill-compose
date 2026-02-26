@@ -118,6 +118,7 @@ export interface TraceSavedRecord extends StreamEventRecordBase {
 // Steering received event data
 export interface SteeringReceivedData {
   message: string;
+  steeringId?: string;
 }
 
 export interface SteeringReceivedRecord extends StreamEventRecordBase {

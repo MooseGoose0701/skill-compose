@@ -143,6 +143,7 @@ export function mapEventToRecord(event: StreamEvent): StreamEventRecord | null {
         type: 'steering_received',
         data: {
           message: event.message || '',
+          steeringId: event.steering_id,
         },
       } as SteeringReceivedRecord;
 
@@ -185,14 +186,37 @@ export function handleStreamEvent(event: StreamEvent, events: StreamEventRecord[
     }
   } else if (event.event_type === 'steering_received') {
     // Deduplicate: handleSteer optimistically inserts a local steering_received
-    // event before the SSE echo arrives. Skip the SSE echo if a matching
-    // optimistic entry already exists.
+    // event (with id="steering-local-*", no steeringId) before the SSE echo
+    // arrives (with steering_id from backend).
+    //
+    // Match priority:
+    // 1. Exact steeringId match (for reprocessed/replayed events)
+    // 2. Unpaired optimistic entry with same message text (first SSE echo)
+    // 3. No match → insert as new record
+    const steeringId = event.steering_id;
     const msg = event.message || '';
-    const alreadyExists = events.some(
+
+    // Find an unpaired optimistic entry (has steering-local- prefix, no steeringId yet)
+    const unpairedOptimistic = events.find(
       (e) => e.type === 'steering_received'
+        && e.id.startsWith('steering-local-')
+        && !(e as SteeringReceivedRecord).data.steeringId
         && (e as SteeringReceivedRecord).data.message === msg
     );
-    if (!alreadyExists) {
+
+    const exactIdMatch = steeringId && events.some(
+      (e) => e.type === 'steering_received'
+        && (e as SteeringReceivedRecord).data.steeringId === steeringId
+    );
+
+    if (exactIdMatch) {
+      // Already processed this exact event — skip
+    } else if (unpairedOptimistic) {
+      // Pair the optimistic entry with the server-assigned steeringId
+      if (steeringId) {
+        (unpairedOptimistic as SteeringReceivedRecord).data.steeringId = steeringId;
+      }
+    } else {
       const record = mapEventToRecord(event);
       if (record) events.push(record);
     }
