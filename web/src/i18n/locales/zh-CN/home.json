@@ -67,7 +67,7 @@
   "quickActions": {
     "findSkills": {
       "title": "查找技能",
-      "description": "从 skills.sh 发现技能"
+      "description": "发现社区技能"
     },
     "createSkill": {
       "title": "创建技能",

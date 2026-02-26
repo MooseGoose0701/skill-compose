@@ -67,7 +67,7 @@
   "quickActions": {
     "findSkills": {
       "title": "スキルを探す",
-      "description": "skills.sh からスキルを発見"
+      "description": "コミュニティスキルを発見"
     },
     "createSkill": {
       "title": "スキルを作成",

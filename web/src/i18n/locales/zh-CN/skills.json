@@ -61,7 +61,7 @@
   "find": {
     "title": "查找技能",
     "emptyTitle": "从社区查找技能",
-    "emptyDescription": "搜索 skills.sh 上的社区技能，讨论结果并直接安装到你的工作区。",
+    "emptyDescription": "搜索社区技能，讨论结果并直接安装到你的工作区。",
     "inputPlaceholder": "描述你要查找的技能...",
     "skillsInstalled": "技能已安装",
     "hideConfig": "隐藏配置",
@@ -396,7 +396,7 @@
     "skill-evolver": "分析技能执行追踪记录以识别问题，并基于真实执行数据自动进化改进技能。",
     "skill-updater": "根据用户反馈更新现有技能，改进需要变更或提升的部分。",
     "mcp-builder": "创建 MCP（模型上下文协议）服务器的指南，使 LLM 通过精心设计的工具与外部服务交互。",
-    "skill-finder": "从 skills.sh 开放生态系统中发现并安装智能体技能。按关键词搜索社区技能并直接安装。",
+    "skill-finder": "从开放生态系统中发现并安装智能体技能。按关键词搜索社区技能并直接安装。",
     "skills-planner": "规划满足用户需求所需的技能。推荐现有技能、识别需要创建的新技能并组合系统提示词。",
     "trace-qa": "分析和回答有关智能体执行追踪的问题。调试失败的运行、理解智能体行为并分析 Token 使用情况。",
     "planning-with-files": "为复杂任务实现基于文件的规划。创建 task_plan.md、findings.md 和 progress.md 用于多步骤项目。",
