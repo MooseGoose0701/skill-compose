@@ -183,6 +183,19 @@ export function handleStreamEvent(event: StreamEvent, events: StreamEventRecord[
         },
       } as AssistantRecord);
     }
+  } else if (event.event_type === 'steering_received') {
+    // Deduplicate: handleSteer optimistically inserts a local steering_received
+    // event before the SSE echo arrives. Skip the SSE echo if a matching
+    // optimistic entry already exists.
+    const msg = event.message || '';
+    const alreadyExists = events.some(
+      (e) => e.type === 'steering_received'
+        && (e as SteeringReceivedRecord).data.message === msg
+    );
+    if (!alreadyExists) {
+      const record = mapEventToRecord(event);
+      if (record) events.push(record);
+    }
   } else {
     const record = mapEventToRecord(event);
     if (record) {
