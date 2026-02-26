@@ -223,7 +223,6 @@ out/
 # Project specific
 .claude/                    # Claude configuration
 config/mcp-secrets.json     # MCP API keys (sensitive)
-config/skill-secrets.json   # Skill API keys (sensitive)
 logs/*                       # Agent execution logs
 data/*.db                   # SQLite database
 data/*.db-journal
