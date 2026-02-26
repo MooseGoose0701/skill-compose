@@ -61,7 +61,7 @@
   "find": {
     "title": "Buscar Habilidades",
     "emptyTitle": "Encontre habilidades da comunidade",
-    "emptyDescription": "Pesquise habilidades criadas pela comunidade no skills.sh, discuta os resultados e instale-as diretamente no seu workspace.",
+    "emptyDescription": "Pesquise habilidades criadas pela comunidade, discuta os resultados e instale-as diretamente no seu workspace.",
     "inputPlaceholder": "Descreva a habilidade que procura...",
     "skillsInstalled": "Habilidades instaladas",
     "hideConfig": "Ocultar Config",
@@ -397,7 +397,7 @@
     "skill-evolver": "Analisa rastros de execução de habilidades para identificar problemas e evoluir/melhorar automaticamente com base em dados reais.",
     "skill-updater": "Atualiza habilidades existentes com base no feedback do usuário sobre o que precisa ser alterado ou melhorado.",
     "mcp-builder": "Guia para criar servidores MCP (Model Context Protocol) que permitem LLMs interagir com serviços externos através de ferramentas bem projetadas.",
-    "skill-finder": "Descubra e instale habilidades de agentes do ecossistema aberto skills.sh. Pesquise habilidades da comunidade por palavra-chave e instale diretamente.",
+    "skill-finder": "Descubra e instale habilidades de agentes do ecossistema aberto. Pesquise habilidades da comunidade por palavra-chave e instale diretamente.",
     "skills-planner": "Planeja quais habilidades são necessárias para atender aos requisitos do usuário. Recomenda habilidades existentes, identifica novas e compõe prompts do sistema.",
     "trace-qa": "Analisa e responde perguntas sobre rastros de execução de agentes. Depura execuções com falha, entende o comportamento e analisa o uso de tokens.",
     "planning-with-files": "Implementa planejamento baseado em arquivos para tarefas complexas. Cria task_plan.md, findings.md e progress.md para projetos de múltiplas etapas.",

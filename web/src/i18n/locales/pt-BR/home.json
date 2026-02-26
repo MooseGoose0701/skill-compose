@@ -67,7 +67,7 @@
   "quickActions": {
     "findSkills": {
       "title": "Buscar Habilidades",
-      "description": "Descubra habilidades do skills.sh"
+      "description": "Descubra habilidades da comunidade"
     },
     "createSkill": {
       "title": "Criar Habilidade",

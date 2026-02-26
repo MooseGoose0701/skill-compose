@@ -61,7 +61,7 @@
   "find": {
     "title": "Find Skills",
     "emptyTitle": "Find Skills from the Community",
-    "emptyDescription": "Search skills.sh for community-built skills, discuss results, and install them directly into your workspace.",
+    "emptyDescription": "Search for community-built skills, discuss results, and install them directly into your workspace.",
     "inputPlaceholder": "Describe the skill you're looking for...",
     "skillsInstalled": "Skills installed",
     "hideConfig": "Hide Config",
@@ -397,7 +397,7 @@
     "skill-evolver": "Analyze skill execution traces to identify issues and automatically evolve/improve skills based on real execution data.",
     "skill-updater": "Update existing skills based on user feedback about what needs to change or improve.",
     "mcp-builder": "Guide for creating MCP (Model Context Protocol) servers that enable LLMs to interact with external services through well-designed tools.",
-    "skill-finder": "Discover and install agent skills from the skills.sh open ecosystem. Search community skills by keyword and install them directly.",
+    "skill-finder": "Discover and install agent skills from the open ecosystem. Search community skills by keyword and install them directly.",
     "skills-planner": "Plan which skills are needed to fulfill user requirements. Recommends existing skills, identifies new skills to create, and composes system prompts.",
     "trace-qa": "Analyze and answer questions about agent execution traces. Debug failed runs, understand agent behavior, and analyze token usage.",
     "planning-with-files": "Implements file-based planning for complex tasks. Creates task_plan.md, findings.md, and progress.md for multi-step projects.",
