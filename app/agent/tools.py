@@ -70,32 +70,6 @@ def _write_via_subprocess(filepath: Path, content: str) -> None:
         )
 
 
-def get_skill_env_vars(skill_names: List[str]) -> Dict[str, str]:
-    """
-    Get environment variables for skills.
-
-    This reads secrets from skill-secrets.json and returns them as a dict.
-
-    Args:
-        skill_names: List of skill names to get env vars for
-
-    Returns:
-        Dict of environment variable name -> value
-    """
-    from app.core.skill_config import get_skills_env_vars
-
-    if not skill_names:
-        return {}
-
-    return get_skills_env_vars(skill_names) or {}
-
-
-# Legacy function for backward compatibility
-def inject_skill_env_vars(skill_names: List[str]) -> None:
-    """Deprecated: Use get_skill_env_vars() instead."""
-    pass  # No-op, workspace handles env vars now
-
-
 # ============ Registry Database Helpers ============
 # Direct sync database queries — safe to call from any thread (agent runs in thread pool)
 
@@ -1602,8 +1576,8 @@ def get_tools_for_agent(
     Returns:
         Tuple of (tools list for Claude, tool_functions dict, workspace)
     """
-    # Create workspace with skill environment variables
-    env_vars = get_skill_env_vars(skill_names) if skill_names else {}
+    # Create workspace
+    env_vars: Dict[str, str] = {}
     workspace = AgentWorkspace(env_vars=env_vars, workspace_id=workspace_id)
 
     # Start with base tools
