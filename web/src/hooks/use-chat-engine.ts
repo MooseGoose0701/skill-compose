@@ -111,9 +111,10 @@ export function useChatEngine(options: ChatEngineOptions): ChatEngineReturn {
 
     // Optimistically show the steering message immediately
     const events = currentEventsRef.current;
+    const optimisticId = `steering-local-${Date.now()}`;
     if (events) {
       events.push({
-        id: `steering-local-${Date.now()}`,
+        id: optimisticId,
         timestamp: Date.now(),
         type: 'steering_received',
         data: { message },
@@ -128,7 +129,25 @@ export function useChatEngine(options: ChatEngineOptions): ChatEngineReturn {
     try {
       await adapterRef.current.streamAdapter.steer(traceId, message);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to send steering message");
+      // Agent already completed (409) — roll back optimistic insert and
+      // queue the message as a normal new chat submission instead.
+      const is409 = err instanceof Error && err.message.includes("already completed");
+      if (is409) {
+        if (events) {
+          const idx = events.findIndex((e) => e.id === optimisticId);
+          if (idx !== -1) events.splice(idx, 1);
+          flushSync(() => {
+            setStreamingEvents([...events]);
+            setStreamingContent(serializeEventsToText(events));
+          });
+        }
+        // Re-submit as a new user message once the current run finishes
+        pendingAskUserResponseRef.current = null;  // Clear any pending ask_user
+        // Wait briefly for the streaming to finish, then submit as new message
+        setTimeout(() => handleSubmitRef.current(message), 500);
+      } else {
+        toast.error(err instanceof Error ? err.message : "Failed to send steering message");
+      }
     }
   }, []);
 
