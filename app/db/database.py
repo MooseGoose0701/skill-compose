@@ -4,6 +4,9 @@ Database connection management for Skill Registry.
 Uses SQLAlchemy 2.0 async API with asyncpg for PostgreSQL.
 """
 
+import hashlib
+import json
+import logging
 from pathlib import Path
 from typing import AsyncGenerator
 
@@ -16,6 +19,8 @@ from sqlalchemy.ext.asyncio import (
 from sqlalchemy.orm import DeclarativeBase, sessionmaker, Session
 
 from app.config import settings
+
+logger = logging.getLogger(__name__)
 
 
 class Base(DeclarativeBase):
@@ -270,11 +275,25 @@ async def _run_migrations():
             END $$
         """))
 
-    # Add password_changed_at column to users table
+    # Add password_changed_at and seed_hash columns
     async with engine.begin() as conn:
         await conn.execute(text("""
             DO $$ BEGIN
                 ALTER TABLE users ADD COLUMN password_changed_at TIMESTAMP DEFAULT NULL;
+            EXCEPTION WHEN duplicate_column THEN NULL;
+            END $$
+        """))
+
+        await conn.execute(text("""
+            DO $$ BEGIN
+                ALTER TABLE skills ADD COLUMN seed_hash VARCHAR(64) DEFAULT NULL;
+            EXCEPTION WHEN duplicate_column THEN NULL;
+            END $$
+        """))
+
+        await conn.execute(text("""
+            DO $$ BEGIN
+                ALTER TABLE agent_presets ADD COLUMN seed_hash VARCHAR(64) DEFAULT NULL;
             EXCEPTION WHEN duplicate_column THEN NULL;
             END $$
         """))
@@ -298,6 +317,7 @@ async def _ensure_meta_skills_registered():
     - Other skills are marked as 'user' type
     - Creates skill_versions records with SKILL.md content for skills without versions
     - Applies seed metadata (category, source, author, is_pinned) from seed_skills.json
+    - Uses seed_hash for three-way comparison to update seed metadata without overwriting user edits
     """
     from sqlalchemy import text
     from datetime import datetime
@@ -326,10 +346,11 @@ async def _ensure_meta_skills_registered():
 
                 # Get seed metadata for this skill
                 seed = seed_skills.get(skill.name, {})
+                new_seed_hash = _compute_skill_seed_hash(seed) if seed else None
 
                 # Check if skill exists in database
                 result = await session.execute(
-                    text("SELECT id, skill_type, current_version FROM skills WHERE name = :name"),
+                    text("SELECT id, skill_type, current_version, category, source, author, is_pinned, seed_hash FROM skills WHERE name = :name"),
                     {"name": skill.name}
                 )
                 existing = result.fetchone()
@@ -339,8 +360,8 @@ async def _ensure_meta_skills_registered():
                     now = datetime.utcnow()
                     await session.execute(
                         text("""
-                            INSERT INTO skills (id, name, description, status, skill_type, is_pinned, category, source, author, created_at, updated_at)
-                            VALUES (:id, :name, :description, 'active', :skill_type, :is_pinned, :category, :source, :author, :created_at, :updated_at)
+                            INSERT INTO skills (id, name, description, status, skill_type, is_pinned, category, source, author, seed_hash, created_at, updated_at)
+                            VALUES (:id, :name, :description, 'active', :skill_type, :is_pinned, :category, :source, :author, :seed_hash, :created_at, :updated_at)
                         """),
                         {
                             "id": skill_id,
@@ -351,6 +372,7 @@ async def _ensure_meta_skills_registered():
                             "category": seed.get("category"),
                             "source": seed.get("source"),
                             "author": seed.get("author"),
+                            "seed_hash": new_seed_hash,
                             "created_at": now,
                             "updated_at": now,
                         }
@@ -358,7 +380,12 @@ async def _ensure_meta_skills_registered():
                     # Create initial version with SKILL.md content
                     await _create_version_from_filesystem(session, skill_id, skill.path, now)
                 else:
-                    existing_id, existing_type, existing_version = existing
+                    em = existing._mapping
+                    existing_id = em["id"]
+                    existing_type = em["skill_type"]
+                    existing_version = em["current_version"]
+                    stored_seed_hash = em["seed_hash"]
+
                     # Update skill_type if it changed (e.g., user -> meta)
                     if existing_type != skill_type:
                         await session.execute(
@@ -369,12 +396,63 @@ async def _ensure_meta_skills_registered():
                     if not existing_version:
                         await _create_version_from_filesystem(session, existing_id, skill.path, datetime.utcnow())
 
+                    # Seed metadata hash comparison (only if this skill has seed data)
+                    if seed and new_seed_hash:
+                        db_seed_dict = _db_row_to_skill_seed_dict(existing)
+
+                        if stored_seed_hash is None:
+                            # Case 2: seed_hash IS NULL (first run after migration)
+                            # Only backfill the hash — don't update data. See agent Case 2 comment.
+                            db_hash = _compute_skill_seed_hash(db_seed_dict)
+                            if db_hash == new_seed_hash:
+                                backfill_hash = new_seed_hash
+                            else:
+                                backfill_hash = db_hash
+                            await session.execute(
+                                text("UPDATE skills SET seed_hash = :seed_hash WHERE id = :id"),
+                                {"seed_hash": backfill_hash, "id": existing_id}
+                            )
+                        elif stored_seed_hash == new_seed_hash:
+                            # Case 3: Seed hasn't changed → SKIP
+                            pass
+                        else:
+                            # Case 4: Seed changed
+                            db_hash = _compute_skill_seed_hash(db_seed_dict)
+                            if db_hash == stored_seed_hash:
+                                # User hasn't edited → UPDATE from seed
+                                now = datetime.utcnow()
+                                await session.execute(
+                                    text("""
+                                        UPDATE skills SET
+                                            category = :category,
+                                            source = :source,
+                                            author = :author,
+                                            is_pinned = :is_pinned,
+                                            seed_hash = :seed_hash,
+                                            updated_at = :updated_at
+                                        WHERE id = :id
+                                    """),
+                                    {
+                                        "id": existing_id,
+                                        "category": seed.get("category"),
+                                        "source": seed.get("source"),
+                                        "author": seed.get("author"),
+                                        "is_pinned": seed.get("is_pinned", False),
+                                        "seed_hash": new_seed_hash,
+                                        "updated_at": now,
+                                    }
+                                )
+                            else:
+                                # User edited → don't overwrite data,
+                                # but advance seed_hash so we don't re-check every boot
+                                await session.execute(
+                                    text("UPDATE skills SET seed_hash = :seed_hash WHERE id = :id"),
+                                    {"seed_hash": new_seed_hash, "id": existing_id}
+                                )
+
 
 def _load_seed_skills() -> dict:
     """Load seed skill metadata from config/seed_skills.json."""
-    from pathlib import Path
-    import json
-
     for path in [
         Path(settings.config_dir) / "seed_skills.json",
         Path("config/seed_skills.json"),
@@ -385,9 +463,102 @@ def _load_seed_skills() -> dict:
                     data = json.load(f)
                 return data.get("skills", {})
             except Exception as e:
-                print(f"Warning: Failed to load seed_skills.json: {e}")
+                logger.warning("Failed to load seed_skills.json: %s", e)
                 return {}
     return {}
+
+
+def _compute_agent_seed_hash(data: dict) -> str:
+    """Compute SHA-256 hash from agent seed data dict.
+
+    Fields: system_prompt, description, skill_ids(sorted), mcp_servers(sorted),
+    builtin_tools(sorted/None), max_turns, model_provider, model_name, executor_name
+
+    Note: description IS included here because agent descriptions come from
+    seed_agents.json (unlike skills, where description comes from SKILL.md
+    via filesystem sync — see _compute_skill_seed_hash).
+    """
+    bt = data.get("builtin_tools")  # None = all tools, [] = no tools
+    canonical = {
+        "system_prompt": data.get("system_prompt") or "",
+        "description": data.get("description") or "",
+        "skill_ids": sorted(data["skill_ids"]) if data.get("skill_ids") else [],
+        "mcp_servers": sorted(data["mcp_servers"]) if data.get("mcp_servers") else [],
+        "builtin_tools": sorted(bt) if bt else bt,  # None→None, []→[], non-empty→sorted
+        "max_turns": data.get("max_turns", 60),
+        "model_provider": data.get("model_provider") or "",
+        "model_name": data.get("model_name") or "",
+        "executor_name": data.get("executor_name") or "",
+    }
+    raw = json.dumps(canonical, sort_keys=True, ensure_ascii=False)
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+
+def _compute_skill_seed_hash(data: dict) -> str:
+    """Compute SHA-256 hash from skill seed metadata dict.
+
+    Fields: category, source, author, is_pinned
+
+    Note: description is intentionally excluded — it comes from SKILL.md parsing
+    during filesystem sync, not from seed_skills.json metadata.
+    """
+    canonical = {
+        "category": data.get("category") or "",
+        "source": data.get("source") or "",
+        "author": data.get("author") or "",
+        "is_pinned": bool(data.get("is_pinned", False)),
+    }
+    raw = json.dumps(canonical, sort_keys=True, ensure_ascii=False)
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+
+def _parse_jsonb(val):
+    """Parse a JSONB value that may be stored as a JSON string or native Python list/dict."""
+    if val is None:
+        return None
+    if isinstance(val, str):
+        try:
+            return json.loads(val)
+        except (json.JSONDecodeError, TypeError):
+            logger.warning("_parse_jsonb failed to parse string value: %r", val)
+            return val
+    return val
+
+
+def _db_row_to_agent_dict(row) -> dict:
+    """Convert a DB row (from agent_presets SELECT) to a dict for hash computation.
+
+    Expects row._mapping (SQLAlchemy Row from raw SQL fetchone()).
+    Handles JSONB columns that may be stored as strings or lists.
+    """
+    m = row._mapping
+
+    return {
+        "system_prompt": m.get("system_prompt") or "",
+        "description": m.get("description") or "",
+        "skill_ids": _parse_jsonb(m.get("skill_ids")),
+        "mcp_servers": _parse_jsonb(m.get("mcp_servers")),
+        "builtin_tools": _parse_jsonb(m.get("builtin_tools")),
+        "max_turns": m.get("max_turns", 60),
+        "model_provider": m.get("model_provider") or "",
+        "model_name": m.get("model_name") or "",
+        "executor_name": m.get("executor_name") or "",
+    }
+
+
+def _db_row_to_skill_seed_dict(row) -> dict:
+    """Convert a DB row (from skills SELECT) to a dict for skill seed hash computation.
+
+    Expects row._mapping (SQLAlchemy Row from raw SQL fetchone()).
+    """
+    m = row._mapping
+
+    return {
+        "category": m.get("category") or "",
+        "source": m.get("source") or "",
+        "author": m.get("author") or "",
+        "is_pinned": bool(m.get("is_pinned", False)),
+    }
 
 
 async def _create_version_from_filesystem(session, skill_id: str, skill_dir_path: str, now):
@@ -395,7 +566,6 @@ async def _create_version_from_filesystem(session, skill_id: str, skill_dir_path
     from sqlalchemy import text
     from pathlib import Path
     import uuid
-    import hashlib
 
     skill_dir = Path(skill_dir_path)
     skill_md_path = skill_dir / "SKILL.md"
@@ -528,25 +698,188 @@ def _read_skill_files_for_init(skill_dir: Path) -> dict:
     return files
 
 
-async def _ensure_seed_agents_exist():
+async def _sync_one_seed_agent(session, agent: dict):
     """
-    Ensure seed agents from config/seed_agents.json are registered in the database.
-    This creates predefined system agents on startup if they don't exist.
+    Sync a single seed agent dict to the database using seed_hash three-way comparison.
 
-    - Agents are matched by name (idempotent - skips if already exists)
-    - Seed agents are marked as is_system=True to prevent user deletion
+    This is the core logic extracted for testability — called by _ensure_seed_agents_exist()
+    on startup and directly by integration tests.
+
+    Four cases:
+    1. Not in DB → INSERT with seed_hash
+    2. In DB, seed_hash IS NULL (migration) → backfill seed_hash
+    3. seed_hash == new hash → seed unchanged, SKIP
+    4. seed_hash != new hash → seed changed:
+       - DB matches stored seed_hash → user didn't edit → UPDATE
+       - DB differs from stored seed_hash → user edited → SKIP (advance hash)
+
+    Note: Case 4a UPDATE only syncs content fields (description, system_prompt, skills,
+    tools, mcp, max_turns, model, executor). It intentionally does NOT update is_published,
+    api_response_mode, or is_system — those are deployment/user actions, not seed data.
     """
     from sqlalchemy import text
     from datetime import datetime
-    from pathlib import Path
-    import json
     import uuid
 
-    # Find seed_agents.json (check both local and Docker paths)
+    name = agent.get("name")
+    if not name:
+        return
+
+    new_seed_hash = _compute_agent_seed_hash(agent)
+
+    # Fetch existing record with all fields needed for hash comparison
+    result = await session.execute(
+        text("""
+            SELECT id, seed_hash, description, system_prompt,
+                   skill_ids, mcp_servers, builtin_tools,
+                   max_turns, model_provider, model_name, executor_name
+            FROM agent_presets WHERE name = :name
+        """),
+        {"name": name}
+    )
+    existing = result.fetchone()
+
+    def _dumps(key):
+        """Serialize a list field to JSON string, or None if absent."""
+        val = agent.get(key)
+        return json.dumps(val) if val is not None else None
+
+    if not existing:
+        # Case 1: Not in DB → INSERT
+        logger.debug("Seed agent '%s': Case 1 — inserting new record", name)
+        now = datetime.utcnow()
+        agent_id = str(uuid.uuid4())
+
+        await session.execute(
+            text("""
+                INSERT INTO agent_presets (
+                    id, name, description, system_prompt,
+                    skill_ids, mcp_servers, builtin_tools,
+                    max_turns, model_provider, model_name,
+                    executor_name, seed_hash,
+                    is_system, is_published, api_response_mode,
+                    created_at, updated_at
+                ) VALUES (
+                    :id, :name, :description, :system_prompt,
+                    :skill_ids, :mcp_servers, :builtin_tools,
+                    :max_turns, :model_provider, :model_name,
+                    :executor_name, :seed_hash,
+                    :is_system, :is_published, :api_response_mode,
+                    :created_at, :updated_at
+                )
+            """),
+            {
+                "id": agent_id,
+                "name": name,
+                "description": agent.get("description"),
+                "system_prompt": agent.get("system_prompt"),
+                "skill_ids": _dumps("skill_ids"),
+                "mcp_servers": _dumps("mcp_servers"),
+                "builtin_tools": _dumps("builtin_tools"),
+                "max_turns": agent.get("max_turns", 60),
+                "model_provider": agent.get("model_provider"),
+                "model_name": agent.get("model_name"),
+                "executor_name": agent.get("executor_name"),
+                "seed_hash": new_seed_hash,
+                "is_system": agent.get("is_system", True),
+                "is_published": agent.get("is_published", False),
+                "api_response_mode": agent.get("api_response_mode"),
+                "created_at": now,
+                "updated_at": now,
+            }
+        )
+        return
+
+    em = existing._mapping
+    existing_id = em["id"]
+    stored_seed_hash = em["seed_hash"]
+
+    if stored_seed_hash is None:
+        # Case 2: seed_hash IS NULL (first run after migration)
+        # Only backfill the hash — don't update data even if DB matches seed.
+        # This is conservative: actual data sync happens on the *next* seed
+        # change (Case 4), after we have a reliable baseline hash.
+        # If DB != seed now, the first update is deferred to the next boot
+        # where seed_agents.json actually changes (two-step).
+        db_dict = _db_row_to_agent_dict(existing)
+        db_hash = _compute_agent_seed_hash(db_dict)
+        if db_hash == new_seed_hash:
+            backfill_hash = new_seed_hash
+            logger.debug("Seed agent '%s': Case 2a — backfill hash (DB matches seed)", name)
+        else:
+            backfill_hash = db_hash
+            logger.debug("Seed agent '%s': Case 2b — backfill hash (DB diverged from seed)", name)
+        await session.execute(
+            text("UPDATE agent_presets SET seed_hash = :seed_hash WHERE id = :id"),
+            {"seed_hash": backfill_hash, "id": existing_id}
+        )
+        return
+
+    if stored_seed_hash == new_seed_hash:
+        # Case 3: Seed hasn't changed → SKIP
+        return
+
+    # Case 4: Seed changed (stored_seed_hash != new_seed_hash)
+    db_dict = _db_row_to_agent_dict(existing)
+    db_hash = _compute_agent_seed_hash(db_dict)
+
+    if db_hash != stored_seed_hash:
+        # User has edited the record → don't overwrite data,
+        # but advance seed_hash so we don't re-check every boot
+        logger.debug("Seed agent '%s': Case 4b — seed changed but user edited, skipping", name)
+        await session.execute(
+            text("UPDATE agent_presets SET seed_hash = :seed_hash WHERE id = :id"),
+            {"seed_hash": new_seed_hash, "id": existing_id}
+        )
+        return
+
+    # User hasn't edited (DB still matches stored seed) → UPDATE from seed
+    logger.debug("Seed agent '%s': Case 4a — seed changed, updating DB", name)
+    now = datetime.utcnow()
+
+    await session.execute(
+        text("""
+            UPDATE agent_presets SET
+                description = :description,
+                system_prompt = :system_prompt,
+                skill_ids = :skill_ids,
+                mcp_servers = :mcp_servers,
+                builtin_tools = :builtin_tools,
+                max_turns = :max_turns,
+                model_provider = :model_provider,
+                model_name = :model_name,
+                executor_name = :executor_name,
+                seed_hash = :seed_hash,
+                updated_at = :updated_at
+            WHERE id = :id
+        """),
+        {
+            "id": existing_id,
+            "description": agent.get("description"),
+            "system_prompt": agent.get("system_prompt"),
+            "skill_ids": _dumps("skill_ids"),
+            "mcp_servers": _dumps("mcp_servers"),
+            "builtin_tools": _dumps("builtin_tools"),
+            "max_turns": agent.get("max_turns", 60),
+            "model_provider": agent.get("model_provider"),
+            "model_name": agent.get("model_name"),
+            "executor_name": agent.get("executor_name"),
+            "seed_hash": new_seed_hash,
+            "updated_at": now,
+        }
+    )
+
+
+async def _ensure_seed_agents_exist():
+    """
+    Ensure seed agents from config/seed_agents.json are registered in the database.
+    Loads the seed file and delegates per-agent logic to _sync_one_seed_agent().
+    """
+    # Find seed_agents.json (same precedence as _load_seed_skills: config_dir first)
     seed_file = None
     for path in [
+        Path(settings.config_dir) / "seed_agents.json",
         Path("config/seed_agents.json"),
-        Path("/app/config/seed_agents.json"),
     ]:
         if path.exists():
             seed_file = path
@@ -559,7 +892,7 @@ async def _ensure_seed_agents_exist():
         with open(seed_file, "r", encoding="utf-8") as f:
             seed_data = json.load(f)
     except (json.JSONDecodeError, IOError) as e:
-        print(f"Warning: Failed to load seed_agents.json: {e}")
+        logger.warning("Failed to load seed_agents.json: %s", e)
         return
 
     agents = seed_data.get("agents", [])
@@ -569,67 +902,7 @@ async def _ensure_seed_agents_exist():
     async with AsyncSessionLocal() as session:
         async with session.begin():
             for agent in agents:
-                name = agent.get("name")
-                if not name:
-                    continue
-
-                # Check if agent already exists
-                result = await session.execute(
-                    text("SELECT id FROM agent_presets WHERE name = :name"),
-                    {"name": name}
-                )
-                existing = result.fetchone()
-
-                if existing:
-                    # Already exists, skip
-                    continue
-
-                # Insert new agent preset
-                now = datetime.utcnow()
-                agent_id = str(uuid.uuid4())
-
-                # Convert lists to JSON strings for JSONB columns
-                skill_ids = json.dumps(agent.get("skill_ids")) if agent.get("skill_ids") else None
-                mcp_servers = json.dumps(agent.get("mcp_servers")) if agent.get("mcp_servers") else None
-                builtin_tools = json.dumps(agent.get("builtin_tools")) if agent.get("builtin_tools") else None
-
-                await session.execute(
-                    text("""
-                        INSERT INTO agent_presets (
-                            id, name, description, system_prompt,
-                            skill_ids, mcp_servers, builtin_tools,
-                            max_turns, model_provider, model_name,
-                            executor_name,
-                            is_system, is_published, api_response_mode,
-                            created_at, updated_at
-                        ) VALUES (
-                            :id, :name, :description, :system_prompt,
-                            :skill_ids, :mcp_servers, :builtin_tools,
-                            :max_turns, :model_provider, :model_name,
-                            :executor_name,
-                            :is_system, :is_published, :api_response_mode,
-                            :created_at, :updated_at
-                        )
-                    """),
-                    {
-                        "id": agent_id,
-                        "name": name,
-                        "description": agent.get("description"),
-                        "system_prompt": agent.get("system_prompt"),
-                        "skill_ids": skill_ids,
-                        "mcp_servers": mcp_servers,
-                        "builtin_tools": builtin_tools,
-                        "max_turns": agent.get("max_turns", 60),
-                        "model_provider": agent.get("model_provider"),
-                        "model_name": agent.get("model_name"),
-                        "executor_name": agent.get("executor_name"),
-                        "is_system": agent.get("is_system", True),
-                        "is_published": agent.get("is_published", False),
-                        "api_response_mode": agent.get("api_response_mode"),
-                        "created_at": now,
-                        "updated_at": now,
-                    }
-                )
+                await _sync_one_seed_agent(session, agent)
 
 
 async def _ensure_default_admin():
