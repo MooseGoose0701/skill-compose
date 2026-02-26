@@ -1807,13 +1807,9 @@ export const executorsApi = {
 // Backup API
 export interface BackupStats {
   skills: number;
-  skill_versions: number;
-  skill_files: number;
-  skill_tests: number;
-  skill_changelogs: number;
-  agent_presets: number;
-  agent_traces: number;
-  published_sessions: number;
+  agents: number;
+  traces: number;
+  sessions: number;
 }
 
 export interface BackupListItem {

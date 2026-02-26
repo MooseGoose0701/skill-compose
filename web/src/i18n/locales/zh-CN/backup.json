@@ -44,7 +44,6 @@
   },
   "stats": {
     "skills": "技能",
-    "skillVersions": "版本",
     "agents": "智能体",
     "traces": "追踪",
     "sessions": "会话"

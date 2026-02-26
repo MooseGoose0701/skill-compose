@@ -44,7 +44,6 @@
   },
   "stats": {
     "skills": "Skills",
-    "skillVersions": "Versions",
     "agents": "Agents",
     "traces": "Traces",
     "sessions": "Sessions"

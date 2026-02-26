@@ -277,9 +277,9 @@ export default function BackupPage() {
               )}
               <div className="flex flex-wrap gap-2 text-xs">
                 <Badge variant="outline">{t('stats.skills')}: {restoreResult.restored.skills}</Badge>
-                <Badge variant="outline">{t('stats.agents')}: {restoreResult.restored.agent_presets}</Badge>
-                <Badge variant="outline">{t('stats.traces')}: {restoreResult.restored.agent_traces}</Badge>
-                <Badge variant="outline">{t('stats.sessions')}: {restoreResult.restored.published_sessions}</Badge>
+                <Badge variant="outline">{t('stats.agents')}: {restoreResult.restored.agents}</Badge>
+                <Badge variant="outline">{t('stats.traces')}: {restoreResult.restored.traces}</Badge>
+                <Badge variant="outline">{t('stats.sessions')}: {restoreResult.restored.sessions}</Badge>
               </div>
               {restoreResult.errors.length > 0 && (
                 <div className="mt-2">
@@ -343,10 +343,10 @@ export default function BackupPage() {
                                 {t('stats.skills')}: {backup.stats.skills}
                               </Badge>
                               <Badge variant="outline" className="text-[10px] px-1.5 py-0">
-                                {t('stats.agents')}: {backup.stats.agent_presets}
+                                {t('stats.agents')}: {backup.stats.agents}
                               </Badge>
                               <Badge variant="outline" className="text-[10px] px-1.5 py-0">
-                                {t('stats.traces')}: {backup.stats.agent_traces}
+                                {t('stats.traces')}: {backup.stats.traces}
                               </Badge>
                             </div>
                           )}
