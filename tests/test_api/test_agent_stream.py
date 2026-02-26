@@ -426,3 +426,52 @@ async def test_steer_cross_worker_completed_trace_409(client, db_session):
     )
     assert resp.status_code == 409
     assert "already completed" in resp.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_make_steering_event_unique_ids():
+    """_make_steering_event produces events with unique steering_ids."""
+    from app.agent.agent import _make_steering_event
+
+    e1 = _make_steering_event(1, "steer message 1")
+    e2 = _make_steering_event(1, "steer message 2")
+    e3 = _make_steering_event(2, "steer message 1")  # same text, different turn
+
+    # All have steering_id
+    assert e1.data["steering_id"].startswith("steer-")
+    assert e2.data["steering_id"].startswith("steer-")
+    assert e3.data["steering_id"].startswith("steer-")
+
+    # All IDs are unique (even with same message text)
+    ids = {e1.data["steering_id"], e2.data["steering_id"], e3.data["steering_id"]}
+    assert len(ids) == 3
+
+    # Messages and turns preserved
+    assert e1.data["message"] == "steer message 1"
+    assert e2.data["message"] == "steer message 2"
+    assert e1.event_type == "steering_received"
+    assert e1.turn == 1
+    assert e3.turn == 2
+
+
+@pytest.mark.asyncio
+async def test_steer_409_response_body(client):
+    """409 response includes 'already completed' detail for client-side detection."""
+    from app.api.v1.agent import _active_streams
+
+    # Register a closed event stream
+    es = EventStream()
+    await es.close()
+    _active_streams["test-trace-409-body"] = es
+
+    try:
+        resp = await client.post(
+            "/api/v1/agent/run/stream/test-trace-409-body/steer",
+            json={"message": "too late"},
+        )
+        assert resp.status_code == 409
+        body = resp.json()
+        assert "detail" in body
+        assert "already completed" in body["detail"]
+    finally:
+        _active_streams.pop("test-trace-409-body", None)

@@ -85,3 +85,48 @@ async def test_push_and_iterate():
     # Injection queue is independent
     assert es.has_injection() is True
     assert es.get_injection_nowait() == "steer me"
+
+
+@pytest.mark.asyncio
+async def test_steering_received_event_with_id():
+    """StreamEvent for steering_received can carry a steering_id in data."""
+    import uuid
+    es = EventStream()
+    await es.inject("focus on tests")
+    msg = es.get_injection_nowait()
+    assert msg == "focus on tests"
+
+    steer_id = f"steer-{uuid.uuid4().hex[:12]}"
+    event = StreamEvent(
+        event_type="steering_received",
+        turn=1,
+        data={"message": msg, "steering_id": steer_id},
+    )
+
+    # Push event through the event stream
+    await es.push(event)
+    await es.close()
+
+    collected = []
+    async for e in es:
+        collected.append(e)
+
+    assert len(collected) == 1
+    assert collected[0].event_type == "steering_received"
+    assert collected[0].data["message"] == "focus on tests"
+    assert collected[0].data["steering_id"] == steer_id
+    assert steer_id.startswith("steer-")
+
+
+@pytest.mark.asyncio
+async def test_duplicate_steering_messages_get_unique_ids():
+    """Even identical steering messages get unique steering_ids via _make_steering_event."""
+    from app.agent.agent import _make_steering_event
+
+    events = [_make_steering_event(1, "continue") for _ in range(10)]
+    ids = {e.data["steering_id"] for e in events}
+    assert len(ids) == 10
+    # All have correct structure
+    for e in events:
+        assert e.event_type == "steering_received"
+        assert e.data["message"] == "continue"

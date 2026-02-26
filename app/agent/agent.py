@@ -596,6 +596,15 @@ def _build_mcp_tools_section(tools: list) -> str:
     return "\n".join(lines)
 
 
+def _make_steering_event(turn: int, message: str) -> StreamEvent:
+    """Create a steering_received StreamEvent with a unique steering_id."""
+    return StreamEvent(
+        event_type="steering_received",
+        turn=turn,
+        data={"message": message, "steering_id": f"steer-{uuid.uuid4().hex[:12]}"},
+    )
+
+
 class SkillsAgent:
     """Agent that uses skills and tools to complete tasks."""
 
@@ -1356,12 +1365,7 @@ class SkillsAgent:
                 if event_stream and event_stream.has_injection():
                     steering_msg = event_stream.get_injection_nowait()
                     if steering_msg:
-                        # Emit steering_received so DisplayMessageBuilder records it
-                        await event_stream.push(StreamEvent(
-                            event_type="steering_received",
-                            turn=turns,
-                            data={"message": steering_msg},
-                        ))
+                        await event_stream.push(_make_steering_event(turns, steering_msg))
                         messages.append({
                             "role": "user",
                             "content": f"[User Steering Message]: {steering_msg}"
@@ -1598,12 +1602,7 @@ class SkillsAgent:
             if event_stream and event_stream.has_injection():
                 steering_msg = event_stream.get_injection_nowait()
                 if steering_msg:
-                    # Emit steering_received so DisplayMessageBuilder records it
-                    await event_stream.push(StreamEvent(
-                        event_type="steering_received",
-                        turn=turns,
-                        data={"message": steering_msg},
-                    ))
+                    await event_stream.push(_make_steering_event(turns, steering_msg))
                     messages.append({
                         "role": "user",
                         "content": f"[User Steering Message]: {steering_msg}"

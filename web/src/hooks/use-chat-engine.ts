@@ -2,7 +2,7 @@
 
 import React from "react";
 import { flushSync } from "react-dom";
-import { filesApi } from "@/lib/api";
+import { filesApi, ApiError } from "@/lib/api";
 import type { StreamEvent, OutputFileInfo, UploadedFile } from "@/lib/api";
 import type { ChatMessage } from "@/stores/chat-store";
 import type { StreamEventRecord } from "@/types/stream-events";
@@ -104,6 +104,8 @@ export function useChatEngine(options: ChatEngineOptions): ChatEngineReturn {
   const handleSubmitRef = React.useRef<(overrideMessage?: string) => Promise<void>>(async () => {});
   // Pending ask_user response queued while a run was still in progress
   const pendingAskUserResponseRef = React.useRef<string | null>(null);
+  // Pending steering resubmit: when steer gets 409, queue message here for resubmit after run ends
+  const pendingSteerResubmitRef = React.useRef<string | null>(null);
 
   const handleSteer = React.useCallback(async (message: string) => {
     const traceId = currentTraceIdRef.current;
@@ -131,7 +133,7 @@ export function useChatEngine(options: ChatEngineOptions): ChatEngineReturn {
     } catch (err) {
       // Agent already completed (409) — roll back optimistic insert and
       // queue the message as a normal new chat submission instead.
-      const is409 = err instanceof Error && err.message.includes("already completed");
+      const is409 = err instanceof ApiError && err.status === 409;
       if (is409) {
         if (events) {
           const idx = events.findIndex((e) => e.id === optimisticId);
@@ -141,10 +143,9 @@ export function useChatEngine(options: ChatEngineOptions): ChatEngineReturn {
             setStreamingContent(serializeEventsToText(events));
           });
         }
-        // Re-submit as a new user message once the current run finishes
+        // Queue for resubmit as new user message once the current run finishes
         pendingAskUserResponseRef.current = null;  // Clear any pending ask_user
-        // Wait briefly for the streaming to finish, then submit as new message
-        setTimeout(() => handleSubmitRef.current(message), 500);
+        pendingSteerResubmitRef.current = message;
       } else {
         toast.error(err instanceof Error ? err.message : "Failed to send steering message");
       }
@@ -448,6 +449,14 @@ export function useChatEngine(options: ChatEngineOptions): ChatEngineReturn {
       currentRequestMessagesRef.current = [];
       currentTraceIdRef.current = null;
       currentEventsRef.current = null;
+
+      // Process queued steering resubmit (409 race: steer arrived after agent completed)
+      const pendingSteer = pendingSteerResubmitRef.current;
+      if (pendingSteer) {
+        pendingSteerResubmitRef.current = null;
+        // Defer to next tick so state cleanup takes effect before starting new run
+        setTimeout(() => handleSubmitRef.current(pendingSteer), 0);
+      }
 
       // Process queued ask_user response (user clicked option while run was completing)
       const pendingResponse = pendingAskUserResponseRef.current;
