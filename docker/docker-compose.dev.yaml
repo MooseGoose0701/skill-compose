@@ -102,8 +102,8 @@ services:
       test: ["CMD", "curl", "-f", "http://localhost:62610/"]
       interval: 30s
       timeout: 10s
-      retries: 3
-      start_period: 10s
+      retries: 5
+      start_period: 60s
     networks:
       - skills-network
 
@@ -135,7 +135,7 @@ services:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:62600/"]
       interval: 30s
       timeout: 10s
-      retries: 3
+      retries: 5
       start_period: 30s
     networks:
       - skills-network
@@ -159,7 +159,7 @@ services:
       test: ["CMD", "curl", "-f", "http://localhost:62630/"]
       interval: 30s
       timeout: 10s
-      retries: 3
+      retries: 5
       start_period: 30s
     networks:
       - skills-network
@@ -221,8 +221,8 @@ services:
       test: ["CMD", "curl", "-f", "http://localhost:62680/health"]
       interval: 30s
       timeout: 10s
-      retries: 3
-      start_period: 10s
+      retries: 5
+      start_period: 30s
     deploy:
       resources:
         limits:
@@ -254,8 +254,8 @@ services:
       test: ["CMD", "curl", "-f", "http://localhost:62681/health"]
       interval: 30s
       timeout: 10s
-      retries: 3
-      start_period: 30s
+      retries: 5
+      start_period: 60s
     deploy:
       resources:
         limits:
@@ -288,7 +288,7 @@ services:
       test: ["CMD", "curl", "-f", "http://localhost:62682/health"]
       interval: 30s
       timeout: 10s
-      retries: 3
+      retries: 5
       start_period: 60s
     deploy:
       resources:
@@ -327,7 +327,7 @@ services:
       test: ["CMD", "curl", "-f", "http://localhost:62680/health"]
       interval: 30s
       timeout: 10s
-      retries: 3
+      retries: 5
       start_period: 30s
     deploy:
       resources:
@@ -361,7 +361,7 @@ services:
       test: ["CMD", "curl", "-f", "http://localhost:62680/health"]
       interval: 30s
       timeout: 10s
-      retries: 3
+      retries: 5
       start_period: 30s
     deploy:
       resources:
@@ -395,7 +395,7 @@ services:
       test: ["CMD", "curl", "-f", "http://localhost:62680/health"]
       interval: 30s
       timeout: 10s
-      retries: 3
+      retries: 5
       start_period: 30s
     deploy:
       resources:
