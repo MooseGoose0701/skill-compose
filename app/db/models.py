@@ -433,11 +433,11 @@ class ExecutorDB(Base):
     )
     name: Mapped[str] = mapped_column(
         String(50), unique=True, nullable=False, index=True
-    )  # base, ml, cuda, custom-name
+    )  # base, chemscout, remotion, diagram, custom-name
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     image: Mapped[str] = mapped_column(
         String(255), nullable=False
-    )  # Docker image: ghcr.io/skill-composer/executor:ml
+    )  # Docker image: skillcompose/executor-base:latest
     port: Mapped[int] = mapped_column(
         nullable=False, default=9000
     )  # Executor service port
@@ -516,7 +516,7 @@ class AgentPresetDB(Base):
     )  # "streaming" or "non_streaming", null = unpublished
     executor_name: Mapped[Optional[str]] = mapped_column(
         String(50), nullable=True
-    )  # Executor name (e.g. "base", "ml", "cuda") for code execution
+    )  # Executor name (e.g. "base", "chemscout", "remotion") for code execution
     seed_hash: Mapped[Optional[str]] = mapped_column(
         String(64), nullable=True
     )  # SHA-256 hash of seed data for change detection

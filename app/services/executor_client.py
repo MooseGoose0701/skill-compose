@@ -30,7 +30,7 @@ class ExecutorClient:
         Initialize executor client.
 
         Args:
-            executor_name: Name of the executor (base, ml, cuda, or custom)
+            executor_name: Name of the executor (base, chemscout, remotion, diagram, or custom)
         """
         self.executor_name = executor_name
         self.base_url = get_executor_url(executor_name)

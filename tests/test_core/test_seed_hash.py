@@ -114,7 +114,7 @@ class TestComputeAgentSeedHash:
     def test_executor_name_matters(self):
         """Different executor_name produces different hash."""
         h1 = _compute_agent_seed_hash(self._base_agent(executor_name="base"))
-        h2 = _compute_agent_seed_hash(self._base_agent(executor_name="ml"))
+        h2 = _compute_agent_seed_hash(self._base_agent(executor_name="chemscout"))
         assert h1 != h2
 
 

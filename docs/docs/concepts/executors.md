@@ -31,15 +31,11 @@ Each executor container runs a FastAPI service (`executor_server.py`) on port 62
 | Executor | Description | Key Packages | Docker Profile |
 |----------|-------------|-------------|----------------|
 | **base** | Basic Python environment | requests, httpx, pillow, beautifulsoup4 | Default (always started) |
-| **ml** | Machine learning | pandas, sklearn, torch, transformers | `ml` |
-| **cuda** | GPU acceleration | CUDA 12.1, PyTorch GPU | `gpu` |
 | **data-analysis** | Data analysis | numpy, pandas, matplotlib, seaborn, scikit-learn | `data-analysis` |
 
 Start executors via Docker Compose profiles:
 
 ```bash
-docker compose --profile ml up -d        # Start ML executor
-docker compose --profile gpu up -d       # Start GPU executor
 docker compose --profile data-analysis up -d  # Start data-analysis executor
 ```
 
@@ -84,7 +80,7 @@ Build your own executor when you need specific packages or a specialized runtime
 
 | Approach | When to Use | Build Speed |
 |----------|-------------|-------------|
-| **From any base image** | You have an existing large image (CUDA, ML framework) | Slower |
+| **From any base image** | You have an existing large image | Slower |
 | **Extend skillcompose/executor-base** | You only need extra Python packages | Fast |
 
 See [How to: Build Custom Executor](/how-to/build-custom-executor) for Dockerfiles and step-by-step instructions.

@@ -193,8 +193,8 @@ services:
   #
   # Usage:
   #   docker compose up -d                    # Start with base executor only
-  #   docker compose --profile ml up -d       # Include ML executor
-  #   docker compose --profile gpu up -d      # Include GPU executor
+  #   docker compose --profile chemscout up -d  # Include ChemScout executor
+  #   docker compose --profile remotion up -d   # Include Remotion executor
   # ============================================================================
 
   executor-base:
@@ -227,78 +227,6 @@ services:
       resources:
         limits:
           memory: 2G
-
-  executor-ml:
-    build:
-      context: ./executor
-      dockerfile: Dockerfile.ml
-    image: skillcompose/executor-ml:latest
-    container_name: skills-executor-ml
-    restart: unless-stopped
-    profiles:
-      - ml
-    volumes:
-      - workspaces:/app/workspaces
-      - skills:/app/skills:ro
-      - uploads:/app/uploads:ro
-    environment:
-      - EXECUTOR_NAME=ml
-      - EXECUTOR_PORT=62681
-      - SKILLS_DIR=/app/skills
-      - UPLOADS_DIR=/app/uploads
-      - DATA_DIR=/app/data
-      - TZ=${TZ:-UTC}
-    networks:
-      - skills-network
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:62681/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 60s
-    deploy:
-      resources:
-        limits:
-          memory: 8G
-
-  executor-cuda:
-    build:
-      context: ./executor
-      dockerfile: Dockerfile.cuda
-    image: skillcompose/executor-cuda:latest
-    container_name: skills-executor-cuda
-    restart: unless-stopped
-    profiles:
-      - gpu
-    volumes:
-      - workspaces:/app/workspaces
-      - skills:/app/skills:ro
-      - uploads:/app/uploads:ro
-    environment:
-      - EXECUTOR_NAME=cuda
-      - EXECUTOR_PORT=62682
-      - SKILLS_DIR=/app/skills
-      - UPLOADS_DIR=/app/uploads
-      - DATA_DIR=/app/data
-      - TZ=${TZ:-UTC}
-      - NVIDIA_VISIBLE_DEVICES=all
-    networks:
-      - skills-network
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:62682/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 60s
-    deploy:
-      resources:
-        limits:
-          memory: 16G
-        reservations:
-          devices:
-            - driver: nvidia
-              count: 1
-              capabilities: [gpu]
 
   # Custom executor - ChemScout (chemistry & cheminformatics)
   executor-chemscout:

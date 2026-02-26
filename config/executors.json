@@ -7,20 +7,6 @@
       "memory_limit": "2G",
       "gpu_required": false
     },
-    "ml": {
-      "description": "Machine Learning environment with pandas, sklearn, torch, transformers",
-      "image": "skillcompose/executor-ml:latest",
-      "url": "http://executor-ml:62681",
-      "memory_limit": "8G",
-      "gpu_required": false
-    },
-    "cuda": {
-      "description": "GPU-accelerated environment with CUDA 12.1 and PyTorch",
-      "image": "skillcompose/executor-cuda:latest",
-      "url": "http://executor-cuda:62682",
-      "memory_limit": "16G",
-      "gpu_required": true
-    },
     "chemscout": {
       "description": "Chemistry and cheminformatics environment with RDKit, BioPython, PubChemPy",
       "image": "skillcompose/executor-chemscout:latest",

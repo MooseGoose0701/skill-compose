@@ -13,7 +13,7 @@ Build Docker images that provide custom code execution environments for your age
 
 ## Approach 1: From Any Base Image
 
-Use this when you have an existing large image (CUDA, ML framework) and want to add executor capabilities.
+Use this when you have an existing large image and want to add executor capabilities.
 
 ### Dockerfile
 
