@@ -146,12 +146,17 @@ def list_skills(allowed_skills: Optional[List[str]] = None) -> Dict[str, Any]:
     }
 
 
-def get_skill(skill_name: str, allowed_skills: Optional[List[str]] = None) -> Dict[str, Any]:
-    """Get the content of a specific skill from the registry database."""
-    # Check if skill is allowed
-    if allowed_skills is not None and skill_name not in allowed_skills:
-        return {"error": f"Skill '{skill_name}' is not in the allowed skills list"}
+def list_registry_skills() -> Dict[str, Any]:
+    """List ALL registered skills in the system (not filtered by equipped skills)."""
+    registry_skills = _fetch_skills_from_registry()
+    return {
+        "skills": [{"name": s.get("name"), "description": s.get("description", "")} for s in registry_skills],
+        "count": len(registry_skills),
+    }
 
+
+def get_skill(skill_name: str) -> Dict[str, Any]:
+    """Get the content of a specific skill from the registry database."""
     # Fetch from database (single source of truth)
     registry_skill = _fetch_skill_content_from_registry(skill_name)
     if not registry_skill:
@@ -1234,6 +1239,16 @@ Examples:
     },
 ]
 
+# Meta tools — only available to meta agents (is_system=True).
+# NOT included in BASE_TOOLS, TOOLS, or TOOLS_REGISTRY (invisible to UI).
+META_TOOLS = [
+    {
+        "name": "list_registry_skills",
+        "description": "List ALL registered skills in the system, including skills not equipped to the current agent. Returns name and description. Use this to discover what skills exist before planning an agent.",
+        "input_schema": {"type": "object", "properties": {}, "required": []},
+    },
+]
+
 # Legacy TOOLS list for backward compatibility (includes all MCP tools by default)
 # New code should use get_tools_for_agent() instead
 TOOLS = BASE_TOOLS.copy()
@@ -1262,6 +1277,11 @@ BASE_TOOL_FUNCTIONS: Dict[str, Callable] = {
     "edit": lambda file_path, old_string, new_string, replace_all=False, **kwargs: edit(file_path, old_string, new_string, replace_all),
     "web_fetch": lambda url, prompt, **kwargs: web_fetch(url, prompt),
     "web_search": lambda query, **kwargs: web_search(query),
+}
+
+# Meta tool functions — only added for meta agents
+META_TOOL_FUNCTIONS: Dict[str, Callable] = {
+    "list_registry_skills": list_registry_skills,
 }
 
 
@@ -1557,6 +1577,7 @@ def get_tools_for_agent(
     skill_names: Optional[List[str]] = None,
     executor_name: Optional[str] = None,
     workspace_id: Optional[str] = None,
+    is_meta_agent: bool = False,
 ) -> tuple[List[Dict[str, Any]], Dict[str, Callable], AgentWorkspace]:
     """
     Get tools, tool functions, and workspace for an agent.
@@ -1572,6 +1593,8 @@ def get_tools_for_agent(
         executor_name: Optional executor name for remote code execution.
                        If provided, execute_code and bash will run in
                        the specified executor container instead of locally.
+        is_meta_agent: If True, include meta tools (e.g. list_registry_skills)
+                       that are only available to system/meta agents.
 
     Returns:
         Tuple of (tools list for Claude, tool_functions dict, workspace)
@@ -1596,6 +1619,11 @@ def get_tools_for_agent(
             **BASE_TOOL_FUNCTIONS,
             **create_workspace_bound_tools(workspace),
         }
+
+    # Add meta tools for system/meta agents
+    if is_meta_agent:
+        tools.extend(META_TOOLS)
+        tool_functions.update(META_TOOL_FUNCTIONS)
 
     # Get MCP client
     mcp_client = get_mcp_client()
@@ -1677,7 +1705,7 @@ def call_tool(
         if name == "list_skills":
             result = list_skills(allowed_skills=allowed_skills)
         elif name == "get_skill":
-            result = get_skill(arguments.get("skill_name"), allowed_skills=allowed_skills)
+            result = get_skill(arguments.get("skill_name"))
         else:
             result = funcs[name](**arguments)
         return json.dumps(result, ensure_ascii=False)
