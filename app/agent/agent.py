@@ -1152,7 +1152,7 @@ class SkillsAgent:
                         messages=messages,
                         system=self.system_prompt,
                         tools=self.tools,
-                        max_tokens=16384,
+                        max_tokens=min(self.client.max_output_tokens, 32000),
                     ):
                         # Check cancellation during streaming
                         if cancellation_event and cancellation_event.is_set():
@@ -1183,7 +1183,7 @@ class SkillsAgent:
                                     messages=messages,
                                     system=self.system_prompt,
                                     tools=self.tools,
-                                    max_tokens=16384,
+                                    max_tokens=min(self.client.max_output_tokens, 32000),
                                 )
                                 break  # Success
                             except Exception as retry_err:
@@ -1199,7 +1199,7 @@ class SkillsAgent:
                             messages=messages,
                             system=self.system_prompt,
                             tools=self.tools,
-                            max_tokens=16384,
+                            max_tokens=min(self.client.max_output_tokens, 32000),
                         )
                         break
                     except Exception as call_err:

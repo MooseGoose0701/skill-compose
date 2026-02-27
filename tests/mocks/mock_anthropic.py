@@ -152,4 +152,5 @@ def create_mock_llm_client(responses: Optional[list] = None):
     mock_client.acreate = AsyncMock(side_effect=async_create)
     mock_client.acreate_stream = MagicMock(side_effect=make_stream_generator)
     mock_client.get_context_limit.return_value = 200_000  # Default Claude context limit
+    mock_client.max_output_tokens = 64000  # Default Claude max output tokens
     return mock_client

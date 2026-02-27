@@ -20,9 +20,8 @@ from app.llm.provider import (
     LLMTextBlock,
     LLMToolCall,
     PROVIDER_BASE_URLS,
-    PROVIDER_MAX_TOKENS,
 )
-from app.llm.models import SUPPORTED_MODELS, get_context_limit
+from app.llm.models import SUPPORTED_MODELS, get_context_limit, get_max_output_tokens
 
 
 class TestLLMClientInit:
@@ -78,13 +77,19 @@ class TestProviderConfig:
         assert "moonshot.cn" in PROVIDER_BASE_URLS["kimi"]
         assert "googleapis.com" in PROVIDER_BASE_URLS["google"]
 
-    def test_provider_max_tokens(self):
-        """Verify max tokens limits."""
-        assert PROVIDER_MAX_TOKENS.get("deepseek") == 8192
-        assert PROVIDER_MAX_TOKENS.get("kimi") == 8192
-        # Anthropic and OpenAI don't have limits in this dict
-        assert "anthropic" not in PROVIDER_MAX_TOKENS
-        assert "openai" not in PROVIDER_MAX_TOKENS
+    def test_model_max_output_tokens(self):
+        """Verify max output tokens are set per model."""
+        assert get_max_output_tokens("deepseek", "deepseek-chat") == 8192
+        assert get_max_output_tokens("kimi", "kimi-k2.5") == 65535
+        assert get_max_output_tokens("anthropic", "claude-sonnet-4-5-20250929") == 64000
+        assert get_max_output_tokens("openai", "gpt-4o") == 16384
+
+    def test_llm_client_max_output_tokens(self):
+        """LLMClient should expose max_output_tokens from model registry."""
+        client = LLMClient(provider="kimi", model="kimi-k2.5")
+        assert client.max_output_tokens == 65535
+        client2 = LLMClient(provider="deepseek", model="deepseek-chat")
+        assert client2.max_output_tokens == 8192
 
 
 class TestToolConversion:
