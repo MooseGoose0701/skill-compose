@@ -11,6 +11,7 @@ class ModelInfo(TypedDict):
     model_id: str  # The ID used by the provider's API
     display_name: str
     context_limit: int
+    max_output_tokens: int  # Maximum output tokens the model supports
     supports_tools: bool
     supports_vision: bool
 
@@ -24,6 +25,7 @@ SUPPORTED_MODELS: Dict[str, ModelInfo] = {
         "model_id": "claude-sonnet-4-5-20250929",
         "display_name": "Claude Sonnet 4.5",
         "context_limit": 200000,
+        "max_output_tokens": 64000,
         "supports_tools": True,
         "supports_vision": True,
     },
@@ -32,6 +34,7 @@ SUPPORTED_MODELS: Dict[str, ModelInfo] = {
         "model_id": "claude-opus-4-6",
         "display_name": "Claude Opus 4.6",
         "context_limit": 200000,
+        "max_output_tokens": 128000,
         "supports_tools": True,
         "supports_vision": True,
     },
@@ -41,6 +44,7 @@ SUPPORTED_MODELS: Dict[str, ModelInfo] = {
         "model_id": "gpt-4o",
         "display_name": "GPT-4o",
         "context_limit": 128000,
+        "max_output_tokens": 16384,
         "supports_tools": True,
         "supports_vision": True,
     },
@@ -49,6 +53,7 @@ SUPPORTED_MODELS: Dict[str, ModelInfo] = {
         "model_id": "gpt-4o-mini",
         "display_name": "GPT-4o Mini",
         "context_limit": 128000,
+        "max_output_tokens": 16384,
         "supports_tools": True,
         "supports_vision": True,
     },
@@ -58,6 +63,7 @@ SUPPORTED_MODELS: Dict[str, ModelInfo] = {
         "model_id": "gemini-2.0-flash",
         "display_name": "Gemini 2.0 Flash",
         "context_limit": 1000000,
+        "max_output_tokens": 8192,
         "supports_tools": True,
         "supports_vision": True,
     },
@@ -67,6 +73,7 @@ SUPPORTED_MODELS: Dict[str, ModelInfo] = {
         "model_id": "deepseek-chat",
         "display_name": "DeepSeek Chat",
         "context_limit": 64000,
+        "max_output_tokens": 8192,
         "supports_tools": True,
         "supports_vision": False,
     },
@@ -75,6 +82,7 @@ SUPPORTED_MODELS: Dict[str, ModelInfo] = {
         "model_id": "deepseek-reasoner",
         "display_name": "DeepSeek Reasoner",
         "context_limit": 64000,
+        "max_output_tokens": 8192,
         "supports_tools": True,
         "supports_vision": False,
     },
@@ -84,6 +92,7 @@ SUPPORTED_MODELS: Dict[str, ModelInfo] = {
         "model_id": "kimi-k2.5",
         "display_name": "Kimi K2.5",
         "context_limit": 256000,
+        "max_output_tokens": 65535,
         "supports_tools": True,
         "supports_vision": True,
     },
@@ -94,6 +103,7 @@ SUPPORTED_MODELS: Dict[str, ModelInfo] = {
         "model_id": "anthropic/claude-sonnet-4.5",
         "display_name": "Claude Sonnet 4.5",
         "context_limit": 200000,
+        "max_output_tokens": 64000,
         "supports_tools": True,
         "supports_vision": True,
     },
@@ -102,6 +112,7 @@ SUPPORTED_MODELS: Dict[str, ModelInfo] = {
         "model_id": "anthropic/claude-opus-4.6",
         "display_name": "Claude Opus 4.6",
         "context_limit": 200000,
+        "max_output_tokens": 128000,
         "supports_tools": True,
         "supports_vision": True,
     },
@@ -111,6 +122,7 @@ SUPPORTED_MODELS: Dict[str, ModelInfo] = {
         "model_id": "deepseek/deepseek-chat-v3-0324",
         "display_name": "DeepSeek V3.2",
         "context_limit": 64000,
+        "max_output_tokens": 65536,
         "supports_tools": True,
         "supports_vision": False,
     },
@@ -120,6 +132,7 @@ SUPPORTED_MODELS: Dict[str, ModelInfo] = {
         "model_id": "moonshotai/kimi-k2.5",
         "display_name": "Kimi K2.5",
         "context_limit": 256000,
+        "max_output_tokens": 65535,
         "supports_tools": True,
         "supports_vision": True,
     },
@@ -129,6 +142,7 @@ SUPPORTED_MODELS: Dict[str, ModelInfo] = {
         "model_id": "google/gemini-3-flash-preview",
         "display_name": "Gemini 3 Flash Preview",
         "context_limit": 1000000,
+        "max_output_tokens": 65535,
         "supports_tools": True,
         "supports_vision": True,
     },
@@ -137,6 +151,7 @@ SUPPORTED_MODELS: Dict[str, ModelInfo] = {
         "model_id": "google/gemini-2.5-flash",
         "display_name": "Gemini 2.5 Flash",
         "context_limit": 1000000,
+        "max_output_tokens": 65535,
         "supports_tools": True,
         "supports_vision": True,
     },
@@ -145,6 +160,7 @@ SUPPORTED_MODELS: Dict[str, ModelInfo] = {
         "model_id": "google/gemini-2.5-flash-lite",
         "display_name": "Gemini 2.5 Flash Lite",
         "context_limit": 1000000,
+        "max_output_tokens": 65535,
         "supports_tools": True,
         "supports_vision": True,
     },
@@ -154,6 +170,7 @@ SUPPORTED_MODELS: Dict[str, ModelInfo] = {
         "model_id": "minimax/minimax-m2.1",
         "display_name": "MiniMax M2.1",
         "context_limit": 1000000,
+        "max_output_tokens": 65535,
         "supports_tools": True,
         "supports_vision": True,
     },
@@ -163,6 +180,7 @@ SUPPORTED_MODELS: Dict[str, ModelInfo] = {
         "model_id": "x-ai/grok-code-fast-1",
         "display_name": "Grok Code Fast 1",
         "context_limit": 131072,
+        "max_output_tokens": 131072,
         "supports_tools": True,
         "supports_vision": False,
     },
@@ -171,6 +189,7 @@ SUPPORTED_MODELS: Dict[str, ModelInfo] = {
         "model_id": "x-ai/grok-4.1-fast",
         "display_name": "Grok 4.1 Fast",
         "context_limit": 131072,
+        "max_output_tokens": 131072,
         "supports_tools": True,
         "supports_vision": True,
     },
@@ -189,6 +208,14 @@ MODEL_CONTEXT_LIMITS.update({
 })
 
 DEFAULT_CONTEXT_LIMIT = 200000
+
+# Max output tokens by model_id (for backward compatibility)
+MODEL_MAX_OUTPUT_TOKENS: Dict[str, int] = {
+    info["model_id"]: info["max_output_tokens"]
+    for info in SUPPORTED_MODELS.values()
+}
+
+DEFAULT_MAX_OUTPUT_TOKENS = 16384
 
 
 def get_model_info(model_key: str) -> Optional[ModelInfo]:
@@ -228,6 +255,20 @@ def get_context_limit(provider: str, model_name: str) -> int:
         return MODEL_CONTEXT_LIMITS[model_name]
 
     return DEFAULT_CONTEXT_LIMIT
+
+
+def get_max_output_tokens(provider: str, model_name: str) -> int:
+    """Get max output tokens for a model."""
+    # Try full key first
+    full_key = f"{provider}/{model_name}"
+    if full_key in SUPPORTED_MODELS:
+        return SUPPORTED_MODELS[full_key]["max_output_tokens"]
+
+    # Try model_id match
+    if model_name in MODEL_MAX_OUTPUT_TOKENS:
+        return MODEL_MAX_OUTPUT_TOKENS[model_name]
+
+    return DEFAULT_MAX_OUTPUT_TOKENS
 
 
 def supports_vision(provider: str, model_name: str) -> bool:

@@ -16,7 +16,7 @@ from dataclasses import dataclass, field
 from typing import Any, AsyncGenerator, Dict, Generator, List, Optional
 
 from app.config import read_env_value
-from app.llm.models import get_context_limit
+from app.llm.models import get_context_limit, get_max_output_tokens
 
 
 # Provider base URLs for OpenAI-compatible APIs
@@ -27,13 +27,6 @@ PROVIDER_BASE_URLS = {
     "google": "https://generativelanguage.googleapis.com/v1beta/openai/",
     "openrouter": "https://openrouter.ai/api/v1",
 }
-
-# Max tokens limits by provider
-PROVIDER_MAX_TOKENS = {
-    "deepseek": 8192,
-    "kimi": 8192,
-}
-
 
 @dataclass
 class LLMUsage:
@@ -116,6 +109,7 @@ class LLMClient:
         self.provider = provider
         self.model = model
         self.api_key = api_key or self._get_api_key(provider)
+        self.max_output_tokens = get_max_output_tokens(provider, model)
         self._client = None
         self._async_client = None
 
@@ -452,10 +446,8 @@ class LLMClient:
         Returns:
             LLMResponse with content, stop_reason, and usage
         """
-        # Adjust max_tokens based on provider limits
-        provider_limit = PROVIDER_MAX_TOKENS.get(self.provider)
-        if provider_limit:
-            max_tokens = min(max_tokens, provider_limit)
+        # Adjust max_tokens based on model limits
+        max_tokens = min(max_tokens, self.max_output_tokens)
 
         if self.provider == "anthropic":
             return self._create_anthropic(messages, system, tools, max_tokens)
@@ -535,10 +527,8 @@ class LLMClient:
         Yields:
             LLMResponse objects for each chunk
         """
-        # Adjust max_tokens based on provider limits
-        provider_limit = PROVIDER_MAX_TOKENS.get(self.provider)
-        if provider_limit:
-            max_tokens = min(max_tokens, provider_limit)
+        # Adjust max_tokens based on model limits
+        max_tokens = min(max_tokens, self.max_output_tokens)
 
         if self.provider == "anthropic":
             yield from self._create_stream_anthropic(messages, system, tools, max_tokens)
@@ -697,9 +687,7 @@ class LLMClient:
         max_tokens: int = 16384,
     ) -> LLMResponse:
         """Async version of create(). Same interface, uses async SDK clients."""
-        provider_limit = PROVIDER_MAX_TOKENS.get(self.provider)
-        if provider_limit:
-            max_tokens = min(max_tokens, provider_limit)
+        max_tokens = min(max_tokens, self.max_output_tokens)
 
         if self.provider == "anthropic":
             return await self._acreate_anthropic(messages, system, tools, max_tokens)
@@ -761,9 +749,7 @@ class LLMClient:
         max_tokens: int = 16384,
     ) -> AsyncGenerator[LLMResponse, None]:
         """Async version of create_stream(). Yields LLMResponse deltas, then final response."""
-        provider_limit = PROVIDER_MAX_TOKENS.get(self.provider)
-        if provider_limit:
-            max_tokens = min(max_tokens, provider_limit)
+        max_tokens = min(max_tokens, self.max_output_tokens)
 
         if self.provider == "anthropic":
             async for resp in self._acreate_stream_anthropic(messages, system, tools, max_tokens):

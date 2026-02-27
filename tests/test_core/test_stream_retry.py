@@ -25,6 +25,8 @@ def _make_test_agent(mock_client):
     """Create a SkillsAgent with a mocked LLM client, bypassing __init__."""
     with patch.object(SkillsAgent, '__init__', lambda self, *a, **kw: None):
         agent = SkillsAgent()
+    if not hasattr(mock_client, 'max_output_tokens') or isinstance(mock_client.max_output_tokens, MagicMock):
+        mock_client.max_output_tokens = 64000
     agent.client = mock_client
     agent.tools = []
     agent.tool_functions = {}
