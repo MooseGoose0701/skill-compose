@@ -71,8 +71,14 @@
       "author": "remotion-dev"
     },
     "humanizer": {
+      "category": "Content Creation",
       "source": "https://github.com/blader/humanizer",
       "author": "blader"
+    },
+    "humanizer-zh": {
+      "category": "Content Creation",
+      "source": "https://github.com/op7418/Humanizer-zh",
+      "author": "op7418"
     },
     "ai-writing-detection": {
       "category": "Content Creation"

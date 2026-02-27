@@ -424,6 +424,7 @@
     "storyboard-to-slides": "使用 python-pptx 从故事板 CSV 和图片组装 PPTX 幻灯片，支持多种布局和自定义主题。",
     "invoice-organizer": "自动整理发票和收据，为报税做准备。读取文件、提取关键信息，统一重命名并按逻辑分类归档，生成汇总 CSV。",
     "twitter-algorithm-optimizer": "基于 Twitter 开源算法洞察分析和优化推文。改写和编辑推文，根据排名信号提升互动率和可见度。",
-    "slack-gif-creator": "为 Slack 优化的动画 GIF 创建工具包。尺寸约束验证器、可组合的动画原语，以及消息 GIF 和表情 GIF 的辅助工具。"
+    "slack-gif-creator": "为 Slack 优化的动画 GIF 创建工具包。尺寸约束验证器、可组合的动画原语，以及消息 GIF 和表情 GIF 的辅助工具。",
+    "humanizer-zh": "去除中文文本中的 AI 生成痕迹。检测并修复夸大的象征意义、宣传性语言、肤浅分析、模糊归因、破折号过度使用、三段式法则、AI 词汇等模式。基于维基百科「AI 写作特征」指南。"
   }
 }

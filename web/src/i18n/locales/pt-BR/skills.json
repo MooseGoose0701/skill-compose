@@ -425,6 +425,7 @@
     "storyboard-to-slides": "Monte uma apresentação PPTX a partir de um CSV de storyboard e imagens usando python-pptx com múltiplos layouts e temas personalizados.",
     "invoice-organizer": "Organiza automaticamente faturas e recibos para declaração de impostos. Lê arquivos, extrai informações-chave, renomeia de forma consistente e classifica em pastas lógicas com um CSV resumo.",
     "twitter-algorithm-optimizer": "Analisa e otimiza tweets para máximo alcance usando insights do algoritmo de código aberto do Twitter. Reescreve e edita tweets para melhorar o engajamento com base em sinais de ranking.",
-    "slack-gif-creator": "Kit de ferramentas para criar GIFs animados otimizados para Slack. Validadores de restrições de tamanho, primitivas de animação combináveis e utilitários para GIFs de mensagem e emoji."
+    "slack-gif-creator": "Kit de ferramentas para criar GIFs animados otimizados para Slack. Validadores de restrições de tamanho, primitivas de animação combináveis e utilitários para GIFs de mensagem e emoji.",
+    "humanizer-zh": "Remove traços de escrita gerada por IA em textos em chinês. Detecta e corrige padrões como simbolismo exagerado, linguagem promocional, análise superficial, atribuição vaga, uso excessivo de travessões, abuso da regra de três e vocabulário de IA."
   }
 }
