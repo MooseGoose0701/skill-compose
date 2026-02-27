@@ -13,9 +13,12 @@ Endpoints tested:
 import uuid
 
 import pytest
+import pytest_asyncio
 from httpx import AsyncClient
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import AgentPresetDB
+from tests.factories import make_preset, make_skill
 
 API = "/api/v1/agents"
 
@@ -275,3 +278,107 @@ class TestPublishPreset:
         data = response.json()
         assert data["is_published"] is False
         assert data["id"] == sample_preset.id
+
+
+class TestNullSkillIdsNormalization:
+    """Tests that null skill_ids in DB is normalized to all skill names in API responses."""
+
+    @pytest_asyncio.fixture
+    async def skills_in_db(self, db_session: AsyncSession):
+        """Create two user skills and one meta skill in the database."""
+        s1 = make_skill(name="skill-alpha", description="Alpha")
+        s2 = make_skill(name="skill-beta", description="Beta")
+        s3 = make_skill(name="skill-creator", description="Meta", skill_type="meta")
+        db_session.add_all([s1, s2, s3])
+        await db_session.flush()
+        return [s1, s2, s3]
+
+    @pytest_asyncio.fixture
+    async def preset_with_null_skills(self, db_session: AsyncSession):
+        """Create a preset with skill_ids=None (means 'all skills')."""
+        preset = make_preset(name="null-skills-preset", skill_ids=None)
+        db_session.add(preset)
+        await db_session.flush()
+        return preset
+
+    @pytest_asyncio.fixture
+    async def preset_with_explicit_skills(self, db_session: AsyncSession):
+        """Create a preset with explicit skill_ids list."""
+        preset = make_preset(name="explicit-skills-preset", skill_ids=["skill-alpha"])
+        db_session.add(preset)
+        await db_session.flush()
+        return preset
+
+    async def test_get_by_id_null_skills_returns_all(
+        self, client: AsyncClient, skills_in_db, preset_with_null_skills
+    ):
+        """GET by ID: null skill_ids should be normalized to all skill names."""
+        response = await client.get(f"{API}/{preset_with_null_skills.id}")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["skill_ids"] is not None
+        assert set(data["skill_ids"]) >= {"skill-alpha", "skill-beta"}
+
+    async def test_get_by_name_null_skills_returns_all(
+        self, client: AsyncClient, skills_in_db, preset_with_null_skills
+    ):
+        """GET by name: null skill_ids should be normalized to all skill names."""
+        response = await client.get(f"{API}/by-name/null-skills-preset")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["skill_ids"] is not None
+        assert set(data["skill_ids"]) >= {"skill-alpha", "skill-beta"}
+
+    async def test_list_null_skills_returns_all(
+        self, client: AsyncClient, skills_in_db, preset_with_null_skills
+    ):
+        """GET list: null skill_ids should be normalized to all skill names."""
+        response = await client.get(API)
+        assert response.status_code == 200
+        presets = response.json()["presets"]
+        matched = [p for p in presets if p["id"] == preset_with_null_skills.id]
+        assert len(matched) == 1
+        assert matched[0]["skill_ids"] is not None
+        assert set(matched[0]["skill_ids"]) >= {"skill-alpha", "skill-beta"}
+
+    async def test_explicit_skills_unchanged(
+        self, client: AsyncClient, skills_in_db, preset_with_explicit_skills
+    ):
+        """Explicit skill_ids should be returned as-is, not expanded."""
+        response = await client.get(f"{API}/{preset_with_explicit_skills.id}")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["skill_ids"] == ["skill-alpha"]
+
+    async def test_update_preserves_normalization(
+        self, client: AsyncClient, skills_in_db, preset_with_null_skills
+    ):
+        """PUT that doesn't touch skill_ids should still normalize null in response."""
+        response = await client.put(
+            f"{API}/{preset_with_null_skills.id}",
+            json={"description": "Updated desc"},
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["skill_ids"] is not None
+        assert set(data["skill_ids"]) >= {"skill-alpha", "skill-beta"}
+
+    async def test_meta_skills_included_in_normalization(
+        self, client: AsyncClient, skills_in_db, preset_with_null_skills
+    ):
+        """Normalized skill_ids should include both user and meta skills."""
+        response = await client.get(f"{API}/{preset_with_null_skills.id}")
+        assert response.status_code == 200
+        data = response.json()
+        assert "skill-creator" in data["skill_ids"]
+        assert "skill-alpha" in data["skill_ids"]
+        assert "skill-beta" in data["skill_ids"]
+
+    async def test_normalized_skills_sorted(
+        self, client: AsyncClient, skills_in_db, preset_with_null_skills
+    ):
+        """Normalized skill_ids should be sorted alphabetically."""
+        response = await client.get(f"{API}/{preset_with_null_skills.id}")
+        assert response.status_code == 200
+        skill_ids = response.json()["skill_ids"]
+        assert skill_ids == sorted(skill_ids)
