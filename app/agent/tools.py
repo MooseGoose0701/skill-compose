@@ -881,16 +881,16 @@ def web_search(query: str) -> Dict[str, Any]:
         Search results with titles, URLs, and snippets
     """
     try:
-        from duckduckgo_search import DDGS
+        from ddgs import DDGS
 
         results = []
-        with DDGS() as ddgs:
-            for r in ddgs.text(query, max_results=10):
-                results.append({
-                    "title": r.get("title", ""),
-                    "url": r.get("href", ""),
-                    "snippet": r.get("body", "")
-                })
+        ddgs = DDGS()
+        for r in ddgs.text(query, max_results=10):
+            results.append({
+                "title": r.get("title", ""),
+                "url": r.get("href", ""),
+                "snippet": r.get("body", "")
+            })
 
         if not results:
             return {
@@ -920,7 +920,7 @@ def web_search(query: str) -> Dict[str, Any]:
     except ImportError:
         return {
             "success": False,
-            "error": "duckduckgo_search package not installed. Run: pip install duckduckgo_search"
+            "error": "ddgs package not installed. Run: pip install ddgs"
         }
     except Exception as e:
         return {
