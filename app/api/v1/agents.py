@@ -18,7 +18,7 @@ from sqlalchemy import select, desc
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.database import get_db
-from app.db.models import AgentPresetDB
+from app.db.models import AgentPresetDB, SkillDB
 
 
 router = APIRouter(prefix="/agents", tags=["agents"])
@@ -94,6 +94,36 @@ class AgentPresetListResponse(BaseModel):
     total: int
 
 
+async def _get_all_skill_names(db: AsyncSession) -> List[str]:
+    """Query all skill names (including meta) for normalizing null skill_ids."""
+    result = await db.execute(
+        select(SkillDB.name).order_by(SkillDB.name)
+    )
+    return [row[0] for row in result.fetchall()]
+
+
+def _build_preset_response(preset: AgentPresetDB, all_skill_names: List[str]) -> AgentPresetResponse:
+    """Build response with null skill_ids normalized to all skill names."""
+    return AgentPresetResponse(
+        id=preset.id,
+        name=preset.name,
+        description=preset.description,
+        system_prompt=preset.system_prompt,
+        skill_ids=preset.skill_ids if preset.skill_ids is not None else all_skill_names,
+        mcp_servers=preset.mcp_servers,
+        builtin_tools=preset.builtin_tools,
+        max_turns=preset.max_turns,
+        model_provider=preset.model_provider,
+        model_name=preset.model_name,
+        executor_name=preset.executor_name,
+        is_system=preset.is_system,
+        is_published=preset.is_published,
+        api_response_mode=preset.api_response_mode,
+        created_at=preset.created_at,
+        updated_at=preset.updated_at,
+    )
+
+
 @router.get("", response_model=AgentPresetListResponse)
 async def list_agent_presets(
     is_system: Optional[bool] = Query(None, description="Filter by system preset"),
@@ -115,28 +145,10 @@ async def list_agent_presets(
     result = await db.execute(query)
     presets = result.scalars().all()
 
+    all_skill_names = await _get_all_skill_names(db)
+
     return AgentPresetListResponse(
-        presets=[
-            AgentPresetResponse(
-                id=p.id,
-                name=p.name,
-                description=p.description,
-                system_prompt=p.system_prompt,
-                skill_ids=p.skill_ids,
-                mcp_servers=p.mcp_servers,
-                builtin_tools=p.builtin_tools,
-                max_turns=p.max_turns,
-                model_provider=p.model_provider,
-                model_name=p.model_name,
-                executor_name=p.executor_name,
-                is_system=p.is_system,
-                is_published=p.is_published,
-                api_response_mode=p.api_response_mode,
-                created_at=p.created_at,
-                updated_at=p.updated_at,
-            )
-            for p in presets
-        ],
+        presets=[_build_preset_response(p, all_skill_names) for p in presets],
         total=len(presets),
     )
 
@@ -157,24 +169,8 @@ async def get_agent_preset(
     if not preset:
         raise HTTPException(status_code=404, detail="Agent preset not found")
 
-    return AgentPresetResponse(
-        id=preset.id,
-        name=preset.name,
-        description=preset.description,
-        system_prompt=preset.system_prompt,
-        skill_ids=preset.skill_ids,
-        mcp_servers=preset.mcp_servers,
-        builtin_tools=preset.builtin_tools,
-        max_turns=preset.max_turns,
-        model_provider=preset.model_provider,
-        model_name=preset.model_name,
-        executor_name=preset.executor_name,
-        is_system=preset.is_system,
-        is_published=preset.is_published,
-        api_response_mode=preset.api_response_mode,
-        created_at=preset.created_at,
-        updated_at=preset.updated_at,
-    )
+    all_skill_names = await _get_all_skill_names(db) if preset.skill_ids is None else []
+    return _build_preset_response(preset, all_skill_names)
 
 
 @router.get("/by-name/{name}", response_model=AgentPresetResponse)
@@ -193,24 +189,8 @@ async def get_agent_preset_by_name(
     if not preset:
         raise HTTPException(status_code=404, detail="Agent preset not found")
 
-    return AgentPresetResponse(
-        id=preset.id,
-        name=preset.name,
-        description=preset.description,
-        system_prompt=preset.system_prompt,
-        skill_ids=preset.skill_ids,
-        mcp_servers=preset.mcp_servers,
-        builtin_tools=preset.builtin_tools,
-        max_turns=preset.max_turns,
-        model_provider=preset.model_provider,
-        model_name=preset.model_name,
-        executor_name=preset.executor_name,
-        is_system=preset.is_system,
-        is_published=preset.is_published,
-        api_response_mode=preset.api_response_mode,
-        created_at=preset.created_at,
-        updated_at=preset.updated_at,
-    )
+    all_skill_names = await _get_all_skill_names(db) if preset.skill_ids is None else []
+    return _build_preset_response(preset, all_skill_names)
 
 
 @router.post("", response_model=AgentPresetResponse)
@@ -247,24 +227,8 @@ async def create_agent_preset(
     await db.commit()
     await db.refresh(preset)
 
-    return AgentPresetResponse(
-        id=preset.id,
-        name=preset.name,
-        description=preset.description,
-        system_prompt=preset.system_prompt,
-        skill_ids=preset.skill_ids,
-        mcp_servers=preset.mcp_servers,
-        builtin_tools=preset.builtin_tools,
-        max_turns=preset.max_turns,
-        model_provider=preset.model_provider,
-        model_name=preset.model_name,
-        executor_name=preset.executor_name,
-        is_system=preset.is_system,
-        is_published=preset.is_published,
-        api_response_mode=preset.api_response_mode,
-        created_at=preset.created_at,
-        updated_at=preset.updated_at,
-    )
+    all_skill_names = await _get_all_skill_names(db) if preset.skill_ids is None else []
+    return _build_preset_response(preset, all_skill_names)
 
 
 @router.put("/{preset_id}", response_model=AgentPresetResponse)
@@ -324,24 +288,8 @@ async def update_agent_preset(
     await db.commit()
     await db.refresh(preset)
 
-    return AgentPresetResponse(
-        id=preset.id,
-        name=preset.name,
-        description=preset.description,
-        system_prompt=preset.system_prompt,
-        skill_ids=preset.skill_ids,
-        mcp_servers=preset.mcp_servers,
-        builtin_tools=preset.builtin_tools,
-        max_turns=preset.max_turns,
-        model_provider=preset.model_provider,
-        model_name=preset.model_name,
-        executor_name=preset.executor_name,
-        is_system=preset.is_system,
-        is_published=preset.is_published,
-        api_response_mode=preset.api_response_mode,
-        created_at=preset.created_at,
-        updated_at=preset.updated_at,
-    )
+    all_skill_names = await _get_all_skill_names(db) if preset.skill_ids is None else []
+    return _build_preset_response(preset, all_skill_names)
 
 
 @router.post("/{preset_id}/publish", response_model=AgentPresetResponse)
@@ -388,24 +336,8 @@ async def publish_agent_preset(
     await db.commit()
     await db.refresh(preset)
 
-    return AgentPresetResponse(
-        id=preset.id,
-        name=preset.name,
-        description=preset.description,
-        system_prompt=preset.system_prompt,
-        skill_ids=preset.skill_ids,
-        mcp_servers=preset.mcp_servers,
-        builtin_tools=preset.builtin_tools,
-        max_turns=preset.max_turns,
-        model_provider=preset.model_provider,
-        model_name=preset.model_name,
-        executor_name=preset.executor_name,
-        is_system=preset.is_system,
-        is_published=preset.is_published,
-        api_response_mode=preset.api_response_mode,
-        created_at=preset.created_at,
-        updated_at=preset.updated_at,
-    )
+    all_skill_names = await _get_all_skill_names(db) if preset.skill_ids is None else []
+    return _build_preset_response(preset, all_skill_names)
 
 
 @router.post("/{preset_id}/unpublish", response_model=AgentPresetResponse)
@@ -430,24 +362,8 @@ async def unpublish_agent_preset(
     await db.commit()
     await db.refresh(preset)
 
-    return AgentPresetResponse(
-        id=preset.id,
-        name=preset.name,
-        description=preset.description,
-        system_prompt=preset.system_prompt,
-        skill_ids=preset.skill_ids,
-        mcp_servers=preset.mcp_servers,
-        builtin_tools=preset.builtin_tools,
-        max_turns=preset.max_turns,
-        model_provider=preset.model_provider,
-        model_name=preset.model_name,
-        executor_name=preset.executor_name,
-        is_system=preset.is_system,
-        is_published=preset.is_published,
-        api_response_mode=preset.api_response_mode,
-        created_at=preset.created_at,
-        updated_at=preset.updated_at,
-    )
+    all_skill_names = await _get_all_skill_names(db) if preset.skill_ids is None else []
+    return _build_preset_response(preset, all_skill_names)
 
 
 @router.delete("/{preset_id}")
