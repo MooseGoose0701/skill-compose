@@ -69,7 +69,7 @@ class Settings(BaseSettings):
     jwt_secret_key: str = ""  # Auto-generated from database_url if empty
     jwt_access_token_expire_hours: int = 24
     jwt_refresh_token_expire_days: int = 7
-    auth_enabled: bool = True  # Set false to disable auth for development
+    auth_enabled: bool = False  # Set true to enable auth (login required)
 
     # Meta skills (internal use only, not selectable by users)
     meta_skills: list[str] = ["skill-creator", "skill-updater", "skill-evolver", "skill-finder", "trace-qa", "skills-planner", "planning-with-files", "mcp-builder"]
