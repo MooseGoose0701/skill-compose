@@ -4,6 +4,7 @@ import React from "react";
 import { HelpCircle, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Markdown } from "@/components/ui/markdown";
 import type { AskUserData } from "@/types/stream-events";
 import { useTranslation } from "@/i18n/client";
 
@@ -37,7 +38,7 @@ export function AskUserCard({ data, onRespond, selectedAnswer }: AskUserCardProp
       {/* Header */}
       <div className="flex items-start gap-2 px-3 py-2.5">
         <HelpCircle className="h-4 w-4 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
-        <p className="text-sm text-foreground font-medium">{data.question}</p>
+        <div className="text-sm text-foreground font-medium min-w-0 overflow-x-auto"><Markdown>{data.question}</Markdown></div>
       </div>
 
       {/* Answer area */}
