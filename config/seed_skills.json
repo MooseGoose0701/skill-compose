@@ -81,10 +81,14 @@
       "author": "op7418"
     },
     "ai-writing-detection": {
-      "category": "Content Creation"
+      "category": "Content Creation",
+      "source": "https://github.com/mike-coulbourn/claude-vibes/tree/main/plugins/vibes/skills/ai-writing-detection",
+      "author": "mike-coulbourn"
     },
     "canvas-design": {
-      "category": "Media & Design"
+      "category": "Media & Design",
+      "source": "https://github.com/anthropics/skills/tree/main/skills/canvas-design",
+      "author": "anthropics"
     },
     "brand-identity": {
       "category": "Media & Design"
@@ -96,13 +100,19 @@
       "category": "Development Tools"
     },
     "invoice-organizer": {
-      "category": "Document Processing"
+      "category": "Document Processing",
+      "source": "https://github.com/ComposioHQ/awesome-claude-skills/tree/master/invoice-organizer",
+      "author": "ComposioHQ"
     },
     "slack-gif-creator": {
-      "category": "Media & Design"
+      "category": "Media & Design",
+      "source": "https://github.com/ComposioHQ/awesome-claude-skills/tree/master/slack-gif-creator",
+      "author": "ComposioHQ"
     },
     "twitter-algorithm-optimizer": {
-      "category": "Content Creation"
+      "category": "Content Creation",
+      "source": "https://github.com/ComposioHQ/awesome-claude-skills/tree/master/twitter-algorithm-optimizer",
+      "author": "ComposioHQ"
     },
     "skill-finder": {
       "category": "meta"
