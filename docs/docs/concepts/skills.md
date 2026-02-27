@@ -88,7 +88,7 @@ graph LR
     Version --> Use
 ```
 
-The **Evolve** page provides a conversational interface where the `skill-evolve-helper` agent analyzes traces, proposes a plan, and waits for your confirmation before applying changes.
+The **Evolve** page provides a conversational interface where the `agent-skill-evolver` agent analyzes traces and feedback, diagnoses whether problems lie in skill content or agent configuration, proposes a plan, and waits for your confirmation before applying changes.
 
 Evolution sources:
 

@@ -204,7 +204,7 @@
   },
   "seedDescriptions": {
     "agent-builder": "根据用户需求构建自定义智能体。分析需求、规划所需技能、按需创建新技能，并生成智能体预设配置。",
-    "skill-evolve-helper": "交互式技能进化助手。分析执行追踪记录，提出进化方案，等待用户确认后执行变更。",
+    "agent-skill-evolver": "进化技能和智能体系统提示词。分析执行追踪记录，诊断问题根源是技能内容还是智能体配置，提出方案，等待确认后执行变更。",
     "ArticleToSlides": "将文章（URL 或文本）转换为精美的 PPTX 幻灯片，配以 AI 生成的插图。抓取内容、规划故事板、通过 Gemini 生成图片、组装 PowerPoint。",
     "ChemScout": "早期药物发现助手。从 PubChem 检索化合物数据、计算类药性、绘制 2D 结构、通过相似度比较分子、搜索 PubMed 文献。",
     "Music-Visualizer-3D": "使用 Remotion 创建炫酷的 3D 音乐可视化视频 — 低音反应球体、频谱条、波形和电影级镜头运动。",
@@ -217,7 +217,7 @@
   },
   "seedNames": {
     "agent-builder": "智能体构建器",
-    "skill-evolve-helper": "技能进化助手",
+    "agent-skill-evolver": "技能与智能体进化器",
     "ArticleToSlides": "文章转幻灯片",
     "ChemScout": "化学侦察兵",
     "Music-Visualizer-3D": "3D 音乐可视化",
