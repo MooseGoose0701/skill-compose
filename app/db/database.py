@@ -901,8 +901,65 @@ async def _ensure_seed_agents_exist():
 
     async with AsyncSessionLocal() as session:
         async with session.begin():
+            # Migration: rename skill-evolve-helper → agent-skill-evolver
+            await _migrate_rename_seed_agent(
+                session,
+                old_name="skill-evolve-helper",
+                new_name="agent-skill-evolver",
+            )
+
             for agent in agents:
                 await _sync_one_seed_agent(session, agent)
+
+
+async def _migrate_rename_seed_agent(session, old_name: str, new_name: str):
+    """
+    Rename a seed agent in-place, preserving its ID and session history.
+
+    - If old exists and new does not → rename in-place (UPDATE name, SET seed_hash=NULL)
+    - If both exist → delete old one
+    - If only new exists or neither → no-op
+
+    Setting seed_hash=NULL triggers Case 2 (backfill) on this boot, then normal
+    sync on next boot.
+    """
+    from sqlalchemy import text
+
+    old_row = await session.execute(
+        text("SELECT id FROM agent_presets WHERE name = :name"),
+        {"name": old_name},
+    )
+    new_row = await session.execute(
+        text("SELECT id FROM agent_presets WHERE name = :name"),
+        {"name": new_name},
+    )
+    old_exists = old_row.fetchone()
+    new_exists = new_row.fetchone()
+
+    if old_exists and not new_exists:
+        # Rename in-place — preserves ID, sessions, traces
+        logger.info("Migrating seed agent '%s' → '%s' (rename in-place)", old_name, new_name)
+        await session.execute(
+            text("UPDATE agent_presets SET name = :new_name, seed_hash = NULL WHERE name = :old_name"),
+            {"new_name": new_name, "old_name": old_name},
+        )
+    elif old_exists and new_exists:
+        # Both exist (shouldn't happen normally) — delete old and its orphan references
+        logger.info("Both '%s' and '%s' exist; deleting old '%s'", old_name, new_name, old_name)
+        old_id = old_exists._mapping["id"]
+        await session.execute(
+            text("DELETE FROM published_sessions WHERE agent_id = :id"),
+            {"id": old_id},
+        )
+        # agent_traces has no FK to agent_presets, but clean up to avoid orphan records
+        await session.execute(
+            text("UPDATE agent_traces SET preset_id = NULL WHERE preset_id = :id"),
+            {"id": old_id},
+        )
+        await session.execute(
+            text("DELETE FROM agent_presets WHERE id = :id"),
+            {"id": old_id},
+        )
 
 
 async def _ensure_default_admin():

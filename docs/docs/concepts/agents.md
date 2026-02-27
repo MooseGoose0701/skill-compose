@@ -82,7 +82,7 @@ Meta agents appear in a separate section in the UI with a "Meta" badge.
 | Agent | Purpose |
 |-------|---------|
 | **agent-builder** | Creates custom agents by planning skills and configuring presets |
-| **skill-evolve-helper** | Interactive skill evolution via conversational chat (used by the Evolve page) |
+| **agent-skill-evolver** | Interactive skill and agent evolution via conversational chat (used by the Evolve page) |
 
 ## Publishing Agents
 

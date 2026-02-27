@@ -204,7 +204,7 @@
   },
   "seedDescriptions": {
     "agent-builder": "Build custom agents based on user requirements. Analyzes needs, plans required skills, creates new skills if needed, and generates Agent Preset configurations.",
-    "skill-evolve-helper": "Interactive skill evolution assistant. Analyzes execution traces, proposes an evolution plan, waits for user confirmation, then applies changes.",
+    "agent-skill-evolver": "Evolve skills and agent system prompts. Analyzes execution traces, diagnoses whether problems lie in skill content or agent configuration, proposes a plan, waits for confirmation, then applies changes.",
     "ArticleToSlides": "Convert articles (from URL or text) into polished PPTX slide decks with AI-generated illustrations. Fetches content, plans storyboard, generates images via Gemini, assembles PowerPoint.",
     "ChemScout": "Early-stage drug discovery assistant. Retrieves compound data from PubChem, computes drug-likeness, draws 2D structures, compares molecules via similarity, and searches PubMed literature.",
     "Music-Visualizer-3D": "Create stunning 3D music visualizer videos with Remotion — bass-reactive spheres, spectrum bars, waveforms, and cinematic camera motion.",

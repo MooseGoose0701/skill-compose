@@ -204,7 +204,7 @@
   },
   "seedDescriptions": {
     "agent-builder": "Constrói agentes personalizados com base nos requisitos do usuário. Analisa necessidades, planeja habilidades necessárias, cria novas se preciso e gera configurações de preset.",
-    "skill-evolve-helper": "Assistente interativo de evolução de habilidades. Analisa rastros de execução, propõe um plano de evolução, aguarda confirmação do usuário e aplica as mudanças.",
+    "agent-skill-evolver": "Evolui skills e prompts de sistema de agentes. Analisa rastros de execução, diagnostica se os problemas são do conteúdo do skill ou da configuração do agente, propõe um plano, aguarda confirmação e aplica as mudanças.",
     "ArticleToSlides": "Converte artigos (URL ou texto) em apresentações PPTX com ilustrações geradas por IA. Busca conteúdo, planeja storyboard, gera imagens via Gemini e monta PowerPoint.",
     "ChemScout": "Assistente de descoberta de fármacos em estágio inicial. Recupera dados de compostos do PubChem, calcula similaridade com fármacos, desenha estruturas 2D, compara moléculas e pesquisa literatura no PubMed.",
     "Music-Visualizer-3D": "Crie vídeos impressionantes de visualização musical 3D com Remotion — esferas reativas ao baixo, barras de espectro, formas de onda e movimento de câmera cinematográfico.",
@@ -217,7 +217,7 @@
   },
   "seedNames": {
     "agent-builder": "Construtor de Agentes",
-    "skill-evolve-helper": "Assistente de Evolução",
+    "agent-skill-evolver": "Evoluidor de Skills e Agentes",
     "ArticleToSlides": "Artigo para Slides",
     "ChemScout": "Explorador Químico",
     "Music-Visualizer-3D": "Visualizador Musical 3D",
