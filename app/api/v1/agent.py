@@ -171,6 +171,7 @@ async def _resolve_agent_config(request: AgentRequest, db: AsyncSession) -> dict
             "model_name": request.model_name,
             "agent_id": None,
             "executor_name": executor_name,
+            "is_meta_agent": False,
         }
 
     result = await db.execute(
@@ -201,6 +202,7 @@ async def _resolve_agent_config(request: AgentRequest, db: AsyncSession) -> dict
         "model_name": preset.model_name or request.model_name,
         "agent_id": preset.id,
         "executor_name": executor_name,
+        "is_meta_agent": preset.is_system,
     }
 
 
@@ -315,6 +317,7 @@ def _create_agent(config: dict, workspace_id: Optional[str] = None) -> SkillsAge
         custom_system_prompt=config["system_prompt"],
         executor_name=config.get("executor_name"),
         workspace_id=workspace_id,
+        is_meta_agent=config.get("is_meta_agent", False),
     )
 
 
@@ -511,6 +514,7 @@ async def run_agent_stream(request: AgentRequest, db: AsyncSession = Depends(get
             custom_system_prompt=config["system_prompt"],
             executor_name=config.get("executor_name"),
             workspace_id=session_id,
+            is_meta_agent=config.get("is_meta_agent", False),
         )
 
         event_stream = EventStream()

@@ -351,6 +351,7 @@ async def _resolve_published_config(preset):
         "model_provider": preset.model_provider,
         "model_name": preset.model_name,
         "executor_name": executor_name,
+        "is_meta_agent": preset.is_system,
     }
 
 
@@ -454,6 +455,7 @@ async def published_chat(agent_id: str, request: PublishedChatRequest):
             custom_system_prompt=config["system_prompt"],
             executor_name=config.get("executor_name"),
             workspace_id=session_id,
+            is_meta_agent=config.get("is_meta_agent", False),
         )
 
         event_stream = EventStream()
@@ -741,6 +743,7 @@ async def published_chat_sync(agent_id: str, request: PublishedChatRequest):
         custom_system_prompt=config["system_prompt"],
         executor_name=config.get("executor_name"),
         workspace_id=session_id,
+        is_meta_agent=config.get("is_meta_agent", False),
     )
 
     try:

@@ -24,7 +24,7 @@ from typing import Any, Dict, Generator, List, Optional, TYPE_CHECKING
 from dataclasses import dataclass, field, asdict
 
 from app.config import settings
-from app.agent.tools import TOOLS, call_tool, acall_tool, get_tools_for_agent, BASE_TOOLS, get_mcp_client, _SKILLS_DIR
+from app.agent.tools import TOOLS, call_tool, acall_tool, get_tools_for_agent, BASE_TOOLS, META_TOOLS, get_mcp_client, _SKILLS_DIR
 from app.core.tools_registry import get_all_tools, get_tools_by_ids, tools_to_claude_format
 from app.llm import LLMClient, LLMTextBlock, LLMToolCall
 from app.llm.models import MODEL_CONTEXT_LIMITS, DEFAULT_CONTEXT_LIMIT, get_context_limit
@@ -509,8 +509,8 @@ Today is {current_date}. Use this date when searching for recent news or time-se
 ## Available Tools
 
 ### Skill Management
-- list_skills: List all available skills
-- get_skill: Read skill documentation
+- list_skills: List equipped skills for this agent
+- get_skill: Read skill documentation (can read any skill, not just equipped ones)
 
 ### Code Execution
 - execute_code: Execute Python code (variables persist across calls via IPython kernel)
@@ -580,9 +580,9 @@ The skills directory is `{skills_dir}`. All SKILL.md files, references, scripts,
 
 def _build_mcp_tools_section(tools: list) -> str:
     """Build the MCP tools section for system prompt."""
-    # Get MCP tool names (tools not in BASE_TOOLS)
-    base_tool_names = set(t["name"] for t in BASE_TOOLS)
-    mcp_tools = [t for t in tools if t["name"] not in base_tool_names]
+    # Get MCP tool names (tools not in BASE_TOOLS or META_TOOLS)
+    builtin_names = set(t["name"] for t in BASE_TOOLS) | set(t["name"] for t in META_TOOLS)
+    mcp_tools = [t for t in tools if t["name"] not in builtin_names]
 
     if not mcp_tools:
         return ""
@@ -621,6 +621,7 @@ class SkillsAgent:
         custom_system_prompt: Optional[str] = None,
         executor_name: Optional[str] = None,
         workspace_id: Optional[str] = None,
+        is_meta_agent: bool = False,
     ):
         # Model configuration
         self.model_provider = model_provider or settings.default_model_provider
@@ -647,24 +648,28 @@ class SkillsAgent:
             skill_names=allowed_skills,
             executor_name=executor_name,
             workspace_id=workspace_id,
+            is_meta_agent=is_meta_agent,
         )
 
         # Filter tools if allowed_tools is specified
-        # Note: MCP tools from equipped servers are always included (not filtered out)
+        # Note: MCP tools from equipped servers and meta tools are always included (not filtered out)
         if allowed_tools is not None:
             # Get MCP tool names from equipped servers
-            mcp_tool_names = set()
+            always_include = set()
             if equipped_mcp_servers:
                 mcp_client = get_mcp_client()
                 for server_name in equipped_mcp_servers:
                     server = mcp_client.get_server(server_name)
                     if server:
                         for tool in server.tools:
-                            mcp_tool_names.add(tool.name)
+                            always_include.add(tool.name)
+            # Meta tools are always included for meta agents (not filtered by allowed_tools)
+            if is_meta_agent:
+                always_include.update(t["name"] for t in META_TOOLS)
 
-            # Include tool if: in allowed_tools OR is an MCP tool from equipped server
-            self.tools = [t for t in all_tools if t["name"] in allowed_tools or t["name"] in mcp_tool_names]
-            self.tool_functions = {k: v for k, v in all_tool_functions.items() if k in allowed_tools or k in mcp_tool_names}
+            # Include tool if: in allowed_tools OR always-included (MCP/meta)
+            self.tools = [t for t in all_tools if t["name"] in allowed_tools or t["name"] in always_include]
+            self.tool_functions = {k: v for k, v in all_tool_functions.items() if k in allowed_tools or k in always_include}
         else:
             self.tools = all_tools
             self.tool_functions = all_tool_functions
