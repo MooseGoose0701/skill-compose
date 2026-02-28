@@ -14,6 +14,10 @@ from app.db.models import (
     AgentPresetDB,
     SkillChangelogDB,
     PublishedSessionDB,
+    ScheduledTaskDB,
+    TaskRunLogDB,
+    ChannelBindingDB,
+    ChannelMessageDB,
 )
 
 
@@ -193,4 +197,92 @@ def make_changelog(
         changed_by=kwargs.get("changed_by"),
         changed_at=kwargs.get("changed_at", datetime.utcnow()),
         comment=kwargs.get("comment", "Test change"),
+    )
+
+
+def make_scheduled_task(
+    name: str = "test-task",
+    agent_id: str = None,
+    prompt: str = "Run a test",
+    schedule_type: str = "interval",
+    schedule_value: str = "3600",
+    context_mode: str = "isolated",
+    status: str = "active",
+    **kwargs,
+) -> ScheduledTaskDB:
+    return ScheduledTaskDB(
+        id=kwargs.get("id", str(uuid.uuid4())),
+        name=name,
+        agent_id=agent_id or str(uuid.uuid4()),
+        prompt=prompt,
+        schedule_type=schedule_type,
+        schedule_value=schedule_value,
+        context_mode=context_mode,
+        status=status,
+        next_run=kwargs.get("next_run"),
+        last_run=kwargs.get("last_run"),
+        max_runs=kwargs.get("max_runs"),
+        run_count=kwargs.get("run_count", 0),
+        created_at=kwargs.get("created_at", datetime.utcnow()),
+        updated_at=kwargs.get("updated_at", datetime.utcnow()),
+    )
+
+
+def make_task_run_log(
+    task_id: str,
+    status: str = "completed",
+    **kwargs,
+) -> TaskRunLogDB:
+    return TaskRunLogDB(
+        id=kwargs.get("id", str(uuid.uuid4())),
+        task_id=task_id,
+        started_at=kwargs.get("started_at", datetime.utcnow()),
+        completed_at=kwargs.get("completed_at"),
+        duration_ms=kwargs.get("duration_ms", 5000),
+        status=status,
+        result_summary=kwargs.get("result_summary"),
+        error=kwargs.get("error"),
+        trace_id=kwargs.get("trace_id"),
+        created_at=kwargs.get("created_at", datetime.utcnow()),
+    )
+
+
+def make_channel_binding(
+    name: str = "test-binding",
+    channel_type: str = "webhook",
+    external_id: str = "test-chat-123",
+    agent_id: str = None,
+    **kwargs,
+) -> ChannelBindingDB:
+    return ChannelBindingDB(
+        id=kwargs.get("id", str(uuid.uuid4())),
+        channel_type=channel_type,
+        external_id=external_id,
+        name=name,
+        agent_id=agent_id or str(uuid.uuid4()),
+        trigger_pattern=kwargs.get("trigger_pattern"),
+        enabled=kwargs.get("enabled", True),
+        config=kwargs.get("config"),
+        created_at=kwargs.get("created_at", datetime.utcnow()),
+        updated_at=kwargs.get("updated_at", datetime.utcnow()),
+    )
+
+
+def make_channel_message(
+    channel_binding_id: str,
+    direction: str = "inbound",
+    content: str = "Hello",
+    **kwargs,
+) -> ChannelMessageDB:
+    return ChannelMessageDB(
+        id=kwargs.get("id", str(uuid.uuid4())),
+        channel_binding_id=channel_binding_id,
+        direction=direction,
+        external_message_id=kwargs.get("external_message_id"),
+        sender_id=kwargs.get("sender_id", "user-123"),
+        sender_name=kwargs.get("sender_name", "Test User"),
+        content=content,
+        message_type=kwargs.get("message_type", "text"),
+        msg_metadata=kwargs.get("metadata"),
+        created_at=kwargs.get("created_at", datetime.utcnow()),
     )

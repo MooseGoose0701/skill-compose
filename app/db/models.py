@@ -567,6 +567,230 @@ class PublishedSessionDB(Base):
         return f"<PublishedSession(id={self.id}, agent_id={self.agent_id})>"
 
 
+class ScheduledTaskDB(Base):
+    """
+    Scheduled tasks for periodic agent execution.
+
+    Supports cron, interval, and one-time schedules.
+    """
+    __tablename__ = "scheduled_tasks"
+
+    id: Mapped[str] = mapped_column(
+        String(36), primary_key=True, default=generate_uuid
+    )
+    name: Mapped[str] = mapped_column(
+        String(128), unique=True, nullable=False, index=True
+    )
+    agent_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("agent_presets.id", ondelete="CASCADE"), nullable=False
+    )
+    prompt: Mapped[str] = mapped_column(
+        Text, nullable=False
+    )  # The prompt to send to the agent
+    schedule_type: Mapped[str] = mapped_column(
+        String(32), nullable=False
+    )  # cron / interval / once
+    schedule_value: Mapped[str] = mapped_column(
+        String(128), nullable=False
+    )  # cron expr or interval seconds or ISO datetime
+    context_mode: Mapped[str] = mapped_column(
+        String(32), default="isolated", nullable=False
+    )  # isolated / session
+    session_id: Mapped[Optional[str]] = mapped_column(
+        String(36), nullable=True
+    )  # For session context_mode
+    channel_binding_id: Mapped[Optional[str]] = mapped_column(
+        String(36), nullable=True
+    )  # Optional: send results to a channel
+    status: Mapped[str] = mapped_column(
+        String(32), default="active", nullable=False
+    )  # active / paused / completed
+    next_run: Mapped[Optional[datetime]] = mapped_column(
+        DateTime, nullable=True
+    )
+    last_run: Mapped[Optional[datetime]] = mapped_column(
+        DateTime, nullable=True
+    )
+    max_runs: Mapped[Optional[int]] = mapped_column(
+        nullable=True
+    )  # null = unlimited
+    run_count: Mapped[int] = mapped_column(
+        nullable=False, default=0
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow, nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
+    )
+
+    # Relationships
+    run_logs: Mapped[List["TaskRunLogDB"]] = relationship(
+        "TaskRunLogDB", back_populates="task", cascade="all, delete-orphan"
+    )
+
+    __table_args__ = (
+        Index("ix_scheduled_tasks_status", "status"),
+        Index("ix_scheduled_tasks_next_run", "next_run"),
+    )
+
+    def __repr__(self) -> str:
+        return f"<ScheduledTask(name={self.name}, status={self.status})>"
+
+
+class TaskRunLogDB(Base):
+    """
+    Execution log for scheduled task runs.
+    """
+    __tablename__ = "task_run_logs"
+
+    id: Mapped[str] = mapped_column(
+        String(36), primary_key=True, default=generate_uuid
+    )
+    task_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("scheduled_tasks.id", ondelete="CASCADE"), nullable=False
+    )
+    started_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, default=datetime.utcnow
+    )
+    completed_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime, nullable=True
+    )
+    duration_ms: Mapped[Optional[int]] = mapped_column(
+        nullable=True
+    )
+    status: Mapped[str] = mapped_column(
+        String(32), nullable=False, default="running"
+    )  # running / completed / failed
+    result_summary: Mapped[Optional[str]] = mapped_column(
+        Text, nullable=True
+    )
+    error: Mapped[Optional[str]] = mapped_column(
+        Text, nullable=True
+    )
+    trace_id: Mapped[Optional[str]] = mapped_column(
+        String(36), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow, nullable=False
+    )
+
+    # Relationships
+    task: Mapped["ScheduledTaskDB"] = relationship(
+        "ScheduledTaskDB", back_populates="run_logs"
+    )
+
+    __table_args__ = (
+        Index("ix_task_run_logs_task_id", "task_id"),
+        Index("ix_task_run_logs_started_at", "started_at"),
+    )
+
+    def __repr__(self) -> str:
+        return f"<TaskRunLog(task_id={self.task_id}, status={self.status})>"
+
+
+class ChannelBindingDB(Base):
+    """
+    Channel bindings connect external messaging platforms to published agents.
+    """
+    __tablename__ = "channel_bindings"
+
+    id: Mapped[str] = mapped_column(
+        String(36), primary_key=True, default=generate_uuid
+    )
+    channel_type: Mapped[str] = mapped_column(
+        String(32), nullable=False
+    )  # feishu / telegram / webhook
+    external_id: Mapped[str] = mapped_column(
+        String(256), nullable=False
+    )  # Platform-side group/chat ID
+    name: Mapped[str] = mapped_column(
+        String(128), nullable=False
+    )
+    agent_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("agent_presets.id", ondelete="CASCADE"), nullable=False
+    )
+    trigger_pattern: Mapped[Optional[str]] = mapped_column(
+        String(512), nullable=True
+    )  # Regex pattern to trigger the agent
+    enabled: Mapped[bool] = mapped_column(
+        Boolean, default=True, nullable=False
+    )
+    config: Mapped[Optional[dict]] = mapped_column(
+        JSONB, nullable=True
+    )  # Adapter-specific configuration
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow, nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
+    )
+
+    # Relationships
+    messages: Mapped[List["ChannelMessageDB"]] = relationship(
+        "ChannelMessageDB", back_populates="binding", cascade="all, delete-orphan"
+    )
+
+    __table_args__ = (
+        UniqueConstraint("channel_type", "external_id", name="uq_channel_binding"),
+        Index("ix_channel_bindings_channel_type", "channel_type"),
+    )
+
+    def __repr__(self) -> str:
+        return f"<ChannelBinding(name={self.name}, type={self.channel_type})>"
+
+
+class ChannelMessageDB(Base):
+    """
+    Messages sent/received through channel bindings.
+    """
+    __tablename__ = "channel_messages"
+
+    id: Mapped[str] = mapped_column(
+        String(36), primary_key=True, default=generate_uuid
+    )
+    channel_binding_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("channel_bindings.id", ondelete="CASCADE"), nullable=False
+    )
+    direction: Mapped[str] = mapped_column(
+        String(16), nullable=False
+    )  # inbound / outbound
+    external_message_id: Mapped[Optional[str]] = mapped_column(
+        String(256), nullable=True
+    )
+    sender_id: Mapped[Optional[str]] = mapped_column(
+        String(256), nullable=True
+    )
+    sender_name: Mapped[Optional[str]] = mapped_column(
+        String(256), nullable=True
+    )
+    content: Mapped[str] = mapped_column(
+        Text, nullable=False
+    )
+    message_type: Mapped[str] = mapped_column(
+        String(32), default="text", nullable=False
+    )  # text / image / file
+    msg_metadata: Mapped[Optional[dict]] = mapped_column(
+        "metadata", JSONB, nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow, nullable=False
+    )
+
+    # Relationships
+    binding: Mapped["ChannelBindingDB"] = relationship(
+        "ChannelBindingDB", back_populates="messages"
+    )
+
+    __table_args__ = (
+        Index("ix_channel_messages_binding_id", "channel_binding_id"),
+        Index("ix_channel_messages_created_at", "created_at"),
+    )
+
+    def __repr__(self) -> str:
+        return f"<ChannelMessage(direction={self.direction}, type={self.message_type})>"
+
+
 class SkillChangelogDB(Base):
     """
     Audit trail for skill changes.

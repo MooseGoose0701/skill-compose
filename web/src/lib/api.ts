@@ -2049,3 +2049,333 @@ export const authApi = {
     }
   },
 };
+
+// ── Channels API ──
+
+export interface ChannelBinding {
+  id: string;
+  channel_type: string;
+  external_id: string;
+  name: string;
+  agent_id: string;
+  trigger_pattern: string | null;
+  enabled: boolean;
+  config: Record<string, unknown> | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ChannelBindingListResponse {
+  bindings: ChannelBinding[];
+  total: number;
+}
+
+export interface ChannelBindingCreateRequest {
+  channel_type: string;
+  external_id: string;
+  name: string;
+  agent_id: string;
+  trigger_pattern?: string | null;
+  config?: Record<string, unknown> | null;
+}
+
+export interface ChannelBindingUpdateRequest {
+  name?: string;
+  agent_id?: string;
+  trigger_pattern?: string | null;
+  config?: Record<string, unknown> | null;
+}
+
+export interface ChannelMessage {
+  id: string;
+  channel_binding_id: string;
+  direction: string;
+  external_message_id: string | null;
+  sender_id: string | null;
+  sender_name: string | null;
+  content: string;
+  message_type: string;
+  metadata: Record<string, unknown> | null;
+  created_at: string;
+}
+
+export interface ChannelMessageListResponse {
+  messages: ChannelMessage[];
+  total: number;
+}
+
+export type AdapterStatusResponse = Record<string, boolean>;
+
+const CHANNELS_API_BASE = BACKEND_API_BASE;
+
+export const channelsApi = {
+  list: async (params?: { channel_type?: string }): Promise<ChannelBindingListResponse> => {
+    const searchParams = new URLSearchParams();
+    if (params?.channel_type) searchParams.set('channel_type', params.channel_type);
+    const qs = searchParams.toString();
+    const url = `${CHANNELS_API_BASE}/channels${qs ? `?${qs}` : ''}`;
+    const response = await authedFetch(url);
+    if (!response.ok) {
+      throw new ApiError(response.status, 'Failed to list channel bindings');
+    }
+    return response.json();
+  },
+
+  get: async (id: string): Promise<ChannelBinding> => {
+    const response = await authedFetch(`${CHANNELS_API_BASE}/channels/${encodeURIComponent(id)}`);
+    if (!response.ok) {
+      throw new ApiError(response.status, 'Channel binding not found');
+    }
+    return response.json();
+  },
+
+  create: async (data: ChannelBindingCreateRequest): Promise<ChannelBinding> => {
+    const response = await authedFetch(`${CHANNELS_API_BASE}/channels`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new ApiError(response.status, error.detail || 'Failed to create channel binding');
+    }
+    return response.json();
+  },
+
+  update: async (id: string, data: ChannelBindingUpdateRequest): Promise<ChannelBinding> => {
+    const response = await authedFetch(`${CHANNELS_API_BASE}/channels/${encodeURIComponent(id)}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new ApiError(response.status, error.detail || 'Failed to update channel binding');
+    }
+    return response.json();
+  },
+
+  delete: async (id: string): Promise<void> => {
+    const response = await authedFetch(`${CHANNELS_API_BASE}/channels/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+    });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new ApiError(response.status, error.detail || 'Failed to delete channel binding');
+    }
+  },
+
+  toggle: async (id: string): Promise<ChannelBinding> => {
+    const response = await authedFetch(`${CHANNELS_API_BASE}/channels/${encodeURIComponent(id)}/toggle`, {
+      method: 'POST',
+    });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new ApiError(response.status, error.detail || 'Failed to toggle channel binding');
+    }
+    return response.json();
+  },
+
+  listMessages: async (bindingId: string, params?: { limit?: number; offset?: number }): Promise<ChannelMessageListResponse> => {
+    const searchParams = new URLSearchParams();
+    if (params?.limit) searchParams.set('limit', String(params.limit));
+    if (params?.offset) searchParams.set('offset', String(params.offset));
+    const qs = searchParams.toString();
+    const url = `${CHANNELS_API_BASE}/channels/${encodeURIComponent(bindingId)}/messages${qs ? `?${qs}` : ''}`;
+    const response = await authedFetch(url);
+    if (!response.ok) {
+      throw new ApiError(response.status, 'Failed to list channel messages');
+    }
+    return response.json();
+  },
+
+  adapterStatus: async (): Promise<AdapterStatusResponse> => {
+    const response = await authedFetch(`${CHANNELS_API_BASE}/channels/adapters`);
+    if (!response.ok) {
+      throw new ApiError(response.status, 'Failed to get adapter status');
+    }
+    return response.json();
+  },
+
+  restartAdapter: async (adapterType: string): Promise<{ message: string; connected: boolean }> => {
+    const response = await authedFetch(`${CHANNELS_API_BASE}/channels/adapters/${encodeURIComponent(adapterType)}/restart`, {
+      method: 'POST',
+    });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new ApiError(response.status, error.detail || 'Failed to restart adapter');
+    }
+    return response.json();
+  },
+};
+
+// ── Scheduled Tasks API ──
+
+export interface ScheduledTask {
+  id: string;
+  name: string;
+  agent_id: string;
+  agent_name: string | null;
+  prompt: string;
+  schedule_type: string;
+  schedule_value: string;
+  context_mode: string;
+  session_id: string | null;
+  channel_binding_id: string | null;
+  status: string;
+  next_run: string | null;
+  last_run: string | null;
+  max_runs: number | null;
+  run_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ScheduledTaskCreateRequest {
+  name: string;
+  agent_id: string;
+  prompt: string;
+  schedule_type: string;
+  schedule_value: string;
+  context_mode?: string;
+  max_runs?: number | null;
+}
+
+export interface ScheduledTaskUpdateRequest {
+  name?: string;
+  prompt?: string;
+  schedule_type?: string;
+  schedule_value?: string;
+  context_mode?: string;
+  max_runs?: number | null;
+}
+
+export interface TaskRunLog {
+  id: string;
+  task_id: string;
+  started_at: string;
+  completed_at: string | null;
+  duration_ms: number | null;
+  status: string;
+  result_summary: string | null;
+  error: string | null;
+  trace_id: string | null;
+  created_at: string;
+}
+
+const SCHEDULED_TASKS_API_BASE = BACKEND_API_BASE;
+
+export const scheduledTasksApi = {
+  list: async (params?: { status?: string }): Promise<ScheduledTask[]> => {
+    const searchParams = new URLSearchParams();
+    if (params?.status) searchParams.set('status', params.status);
+    const query = searchParams.toString();
+    const response = await authedFetch(
+      `${SCHEDULED_TASKS_API_BASE}/scheduled-tasks${query ? `?${query}` : ''}`
+    );
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new ApiError(response.status, error.detail || 'Failed to fetch scheduled tasks');
+    }
+    return response.json();
+  },
+
+  get: async (id: string): Promise<ScheduledTask> => {
+    const response = await authedFetch(
+      `${SCHEDULED_TASKS_API_BASE}/scheduled-tasks/${encodeURIComponent(id)}`
+    );
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new ApiError(response.status, error.detail || 'Scheduled task not found');
+    }
+    return response.json();
+  },
+
+  create: async (data: ScheduledTaskCreateRequest): Promise<ScheduledTask> => {
+    const response = await authedFetch(`${SCHEDULED_TASKS_API_BASE}/scheduled-tasks`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new ApiError(response.status, error.detail || 'Failed to create scheduled task');
+    }
+    return response.json();
+  },
+
+  update: async (id: string, data: ScheduledTaskUpdateRequest): Promise<ScheduledTask> => {
+    const response = await authedFetch(
+      `${SCHEDULED_TASKS_API_BASE}/scheduled-tasks/${encodeURIComponent(id)}`,
+      {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      }
+    );
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new ApiError(response.status, error.detail || 'Failed to update scheduled task');
+    }
+    return response.json();
+  },
+
+  delete: async (id: string): Promise<void> => {
+    const response = await authedFetch(
+      `${SCHEDULED_TASKS_API_BASE}/scheduled-tasks/${encodeURIComponent(id)}`,
+      { method: 'DELETE' }
+    );
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new ApiError(response.status, error.detail || 'Failed to delete scheduled task');
+    }
+  },
+
+  pause: async (id: string): Promise<ScheduledTask> => {
+    const response = await authedFetch(
+      `${SCHEDULED_TASKS_API_BASE}/scheduled-tasks/${encodeURIComponent(id)}/pause`,
+      { method: 'POST' }
+    );
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new ApiError(response.status, error.detail || 'Failed to pause task');
+    }
+    return response.json();
+  },
+
+  resume: async (id: string): Promise<ScheduledTask> => {
+    const response = await authedFetch(
+      `${SCHEDULED_TASKS_API_BASE}/scheduled-tasks/${encodeURIComponent(id)}/resume`,
+      { method: 'POST' }
+    );
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new ApiError(response.status, error.detail || 'Failed to resume task');
+    }
+    return response.json();
+  },
+
+  runNow: async (id: string): Promise<{ message: string; run_log_id: string }> => {
+    const response = await authedFetch(
+      `${SCHEDULED_TASKS_API_BASE}/scheduled-tasks/${encodeURIComponent(id)}/run-now`,
+      { method: 'POST' }
+    );
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new ApiError(response.status, error.detail || 'Failed to run task');
+    }
+    return response.json();
+  },
+
+  listRuns: async (taskId: string, limit?: number): Promise<TaskRunLog[]> => {
+    const params = limit ? `?limit=${limit}` : '';
+    const response = await authedFetch(
+      `${SCHEDULED_TASKS_API_BASE}/scheduled-tasks/${encodeURIComponent(taskId)}/runs${params}`
+    );
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new ApiError(response.status, error.detail || 'Failed to fetch task runs');
+    }
+    return response.json();
+  },
+};

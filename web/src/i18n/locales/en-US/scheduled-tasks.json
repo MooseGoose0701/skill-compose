@@ -1,0 +1,66 @@
+{
+  "title": "Scheduled Tasks",
+  "description": "Automate agent execution with cron, interval, or one-time schedules",
+  "create": "Create Task",
+  "noTasks": "No scheduled tasks yet",
+  "noTasksDescription": "Create a task to run an agent on a schedule",
+  "fields": {
+    "name": "Task Name",
+    "agent": "Agent",
+    "prompt": "Prompt",
+    "scheduleType": "Schedule Type",
+    "scheduleValue": "Schedule Value",
+    "contextMode": "Context Mode",
+    "maxRuns": "Max Runs",
+    "status": "Status",
+    "nextRun": "Next Run",
+    "lastRun": "Last Run",
+    "runCount": "Run Count"
+  },
+  "scheduleTypes": {
+    "cron": "Cron",
+    "interval": "Interval (seconds)",
+    "once": "One-time"
+  },
+  "contextModes": {
+    "isolated": "Isolated",
+    "session": "Session"
+  },
+  "statuses": {
+    "active": "Active",
+    "paused": "Paused",
+    "completed": "Completed"
+  },
+  "actions": {
+    "pause": "Pause",
+    "resume": "Resume",
+    "runNow": "Run Now"
+  },
+  "runs": {
+    "title": "Run History",
+    "noRuns": "No runs yet",
+    "status": {
+      "running": "Running",
+      "completed": "Completed",
+      "failed": "Failed"
+    }
+  },
+  "messages": {
+    "created": "Task created successfully",
+    "updated": "Task updated successfully",
+    "deleted": "Task deleted successfully",
+    "paused": "Task paused",
+    "resumed": "Task resumed",
+    "runStarted": "Task execution started",
+    "confirmDelete": "Are you sure you want to delete this task? All run history will also be deleted."
+  },
+  "detail": {
+    "title": "Task Details",
+    "configuration": "Configuration"
+  },
+  "placeholders": {
+    "cronValue": "0 */6 * * * (every 6 hours)",
+    "intervalValue": "3600 (seconds)",
+    "onceValue": "2026-03-01T00:00:00"
+  }
+}

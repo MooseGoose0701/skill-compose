@@ -1,0 +1,62 @@
+{
+  "title": "Canales",
+  "description": "Conecte plataformas de mensajeria externas a sus agentes",
+  "create": "Crear vinculacion",
+  "noBindings": "Sin vinculaciones de canal",
+  "noBindingsDescription": "Cree una vinculacion para conectar una plataforma de mensajeria a un agente",
+  "fields": {
+    "name": "Nombre de vinculacion",
+    "channelType": "Tipo de canal",
+    "externalId": "ID externo",
+    "agent": "Agente",
+    "triggerPattern": "Patron de activacion",
+    "enabled": "Habilitado",
+    "config": "Configuracion"
+  },
+  "channelTypes": {
+    "feishu": "Feishu (Lark)",
+    "telegram": "Telegram",
+    "webhook": "Webhook"
+  },
+  "actions": {
+    "toggle": "Alternar",
+    "enable": "Habilitado",
+    "disable": "Deshabilitado"
+  },
+  "adapters": {
+    "title": "Estado del adaptador",
+    "connected": "Conectado",
+    "disconnected": "Desconectado",
+    "restart": "Reiniciar",
+    "noAdapters": "No hay adaptadores configurados"
+  },
+  "messages": {
+    "title": "Historial de mensajes",
+    "noMessages": "Sin mensajes aun",
+    "direction": {
+      "inbound": "Entrante",
+      "outbound": "Saliente"
+    },
+    "created": "Vinculacion creada exitosamente",
+    "updated": "Vinculacion actualizada exitosamente",
+    "deleted": "Vinculacion eliminada exitosamente",
+    "toggled": "Estado de vinculacion alternado",
+    "confirmDelete": "Esta seguro de que desea eliminar esta vinculacion? Todos los mensajes asociados tambien seran eliminados."
+  },
+  "credentials": {
+    "title": "Credenciales del adaptador",
+    "configured": "configurado",
+    "alreadyConnected": "El adaptador ya esta conectado. Deje los campos vacios para mantener las credenciales existentes.",
+    "keepExisting": "Dejar vacio para mantener el valor actual",
+    "hint": "Las credenciales se guardan como variables de entorno y se usan para conectar el adaptador."
+  },
+  "hints": {
+    "externalId": "El ID del chat o grupo en la plataforma externa",
+    "feishuExternalId": "Feishu Chat ID (comienza con oc_). Encuentrelo en la configuracion del grupo.",
+    "telegramExternalId": "Telegram Chat ID (numerico). Envie un mensaje al bot y consulte /getUpdates."
+  },
+  "detail": {
+    "title": "Detalles de vinculacion",
+    "configuration": "Configuracion"
+  }
+}

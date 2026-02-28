@@ -298,6 +298,85 @@ async def _run_migrations():
             END $$
         """))
 
+    # Create scheduled_tasks and task_run_logs tables
+    async with engine.begin() as conn:
+        await conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS scheduled_tasks (
+                id VARCHAR(36) PRIMARY KEY,
+                name VARCHAR(128) UNIQUE NOT NULL,
+                agent_id VARCHAR(36) NOT NULL REFERENCES agent_presets(id) ON DELETE CASCADE,
+                prompt TEXT NOT NULL,
+                schedule_type VARCHAR(32) NOT NULL,
+                schedule_value VARCHAR(128) NOT NULL,
+                context_mode VARCHAR(32) NOT NULL DEFAULT 'isolated',
+                session_id VARCHAR(36),
+                channel_binding_id VARCHAR(36),
+                status VARCHAR(32) NOT NULL DEFAULT 'active',
+                next_run TIMESTAMP,
+                last_run TIMESTAMP,
+                max_runs INTEGER,
+                run_count INTEGER NOT NULL DEFAULT 0,
+                created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+                updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+            )
+        """))
+        await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_scheduled_tasks_status ON scheduled_tasks (status)"))
+        await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_scheduled_tasks_next_run ON scheduled_tasks (next_run)"))
+        await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_scheduled_tasks_name ON scheduled_tasks (name)"))
+
+        await conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS task_run_logs (
+                id VARCHAR(36) PRIMARY KEY,
+                task_id VARCHAR(36) NOT NULL REFERENCES scheduled_tasks(id) ON DELETE CASCADE,
+                started_at TIMESTAMP NOT NULL DEFAULT NOW(),
+                completed_at TIMESTAMP,
+                duration_ms INTEGER,
+                status VARCHAR(32) NOT NULL DEFAULT 'running',
+                result_summary TEXT,
+                error TEXT,
+                trace_id VARCHAR(36),
+                created_at TIMESTAMP NOT NULL DEFAULT NOW()
+            )
+        """))
+        await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_task_run_logs_task_id ON task_run_logs (task_id)"))
+        await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_task_run_logs_started_at ON task_run_logs (started_at)"))
+
+    # Create channel_bindings and channel_messages tables
+    async with engine.begin() as conn:
+        await conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS channel_bindings (
+                id VARCHAR(36) PRIMARY KEY,
+                channel_type VARCHAR(32) NOT NULL,
+                external_id VARCHAR(256) NOT NULL,
+                name VARCHAR(128) NOT NULL,
+                agent_id VARCHAR(36) NOT NULL REFERENCES agent_presets(id) ON DELETE CASCADE,
+                trigger_pattern VARCHAR(512),
+                enabled BOOLEAN NOT NULL DEFAULT TRUE,
+                config JSONB,
+                created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+                updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+                UNIQUE(channel_type, external_id)
+            )
+        """))
+        await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_channel_bindings_channel_type ON channel_bindings (channel_type)"))
+
+        await conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS channel_messages (
+                id VARCHAR(36) PRIMARY KEY,
+                channel_binding_id VARCHAR(36) NOT NULL REFERENCES channel_bindings(id) ON DELETE CASCADE,
+                direction VARCHAR(16) NOT NULL,
+                external_message_id VARCHAR(256),
+                sender_id VARCHAR(256),
+                sender_name VARCHAR(256),
+                content TEXT NOT NULL,
+                message_type VARCHAR(32) NOT NULL DEFAULT 'text',
+                metadata JSONB,
+                created_at TIMESTAMP NOT NULL DEFAULT NOW()
+            )
+        """))
+        await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_channel_messages_binding_id ON channel_messages (channel_binding_id)"))
+        await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_channel_messages_created_at ON channel_messages (created_at)"))
+
     # Ensure meta skills from filesystem are registered in the database
     await _ensure_meta_skills_registered()
 

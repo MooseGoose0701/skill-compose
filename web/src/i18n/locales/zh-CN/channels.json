@@ -1,0 +1,62 @@
+{
+  "title": "频道",
+  "description": "将外部消息平台连接到您的 Agent",
+  "create": "创建绑定",
+  "noBindings": "暂无频道绑定",
+  "noBindingsDescription": "创建绑定以将消息平台连接到 Agent",
+  "fields": {
+    "name": "绑定名称",
+    "channelType": "频道类型",
+    "externalId": "外部 ID",
+    "agent": "Agent",
+    "triggerPattern": "触发模式",
+    "enabled": "已启用",
+    "config": "配置"
+  },
+  "channelTypes": {
+    "feishu": "飞书",
+    "telegram": "Telegram",
+    "webhook": "Webhook"
+  },
+  "actions": {
+    "toggle": "切换",
+    "enable": "已启用",
+    "disable": "已禁用"
+  },
+  "adapters": {
+    "title": "适配器状态",
+    "connected": "已连接",
+    "disconnected": "未连接",
+    "restart": "重启",
+    "noAdapters": "未配置适配器"
+  },
+  "messages": {
+    "title": "消息历史",
+    "noMessages": "暂无消息",
+    "direction": {
+      "inbound": "接收",
+      "outbound": "发送"
+    },
+    "created": "绑定创建成功",
+    "updated": "绑定更新成功",
+    "deleted": "绑定删除成功",
+    "toggled": "绑定状态已切换",
+    "confirmDelete": "确定要删除此绑定吗？所有关联的消息也将被删除。"
+  },
+  "credentials": {
+    "title": "适配器凭证",
+    "configured": "已配置",
+    "alreadyConnected": "适配器已连接。留空以保留现有凭证。",
+    "keepExisting": "留空以保留当前值",
+    "hint": "凭证将保存为环境变量，用于连接适配器。"
+  },
+  "hints": {
+    "externalId": "外部平台上的聊天或群组 ID",
+    "feishuExternalId": "飞书 Chat ID（以 oc_ 开头），在群聊设置中查看。",
+    "telegramExternalId": "Telegram Chat ID（数字），向 Bot 发送消息后查看 /getUpdates。"
+  },
+  "detail": {
+    "title": "绑定详情",
+    "configuration": "配置"
+  }
+}

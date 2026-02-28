@@ -1,0 +1,66 @@
+{
+  "title": "スケジュールタスク",
+  "description": "cron、インターバル、またはワンタイムスケジュールでエージェント実行を自動化",
+  "create": "タスク作成",
+  "noTasks": "スケジュールタスクはまだありません",
+  "noTasksDescription": "スケジュールに従ってエージェントを実行するタスクを作成してください",
+  "fields": {
+    "name": "タスク名",
+    "agent": "エージェント",
+    "prompt": "プロンプト",
+    "scheduleType": "スケジュールタイプ",
+    "scheduleValue": "スケジュール値",
+    "contextMode": "コンテキストモード",
+    "maxRuns": "最大実行回数",
+    "status": "ステータス",
+    "nextRun": "次回実行",
+    "lastRun": "前回実行",
+    "runCount": "実行回数"
+  },
+  "scheduleTypes": {
+    "cron": "Cron",
+    "interval": "インターバル（秒）",
+    "once": "ワンタイム"
+  },
+  "contextModes": {
+    "isolated": "分離",
+    "session": "セッション"
+  },
+  "statuses": {
+    "active": "アクティブ",
+    "paused": "一時停止",
+    "completed": "完了"
+  },
+  "actions": {
+    "pause": "一時停止",
+    "resume": "再開",
+    "runNow": "今すぐ実行"
+  },
+  "runs": {
+    "title": "実行履歴",
+    "noRuns": "実行記録はまだありません",
+    "status": {
+      "running": "実行中",
+      "completed": "完了",
+      "failed": "失敗"
+    }
+  },
+  "messages": {
+    "created": "タスクが作成されました",
+    "updated": "タスクが更新されました",
+    "deleted": "タスクが削除されました",
+    "paused": "タスクが一時停止されました",
+    "resumed": "タスクが再開されました",
+    "runStarted": "タスクの実行が開始されました",
+    "confirmDelete": "このタスクを削除してもよろしいですか？すべての実行履歴も削除されます。"
+  },
+  "detail": {
+    "title": "タスク詳細",
+    "configuration": "設定"
+  },
+  "placeholders": {
+    "cronValue": "0 */6 * * *（6時間ごと）",
+    "intervalValue": "3600（秒）",
+    "onceValue": "2026-03-01T00:00:00"
+  }
+}
