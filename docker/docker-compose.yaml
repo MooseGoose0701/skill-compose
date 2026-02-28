@@ -52,7 +52,7 @@ services:
   # API Service - FastAPI Backend
   # ============================================================================
   api:
-    image: skillcompose/api:0.0.4
+    image: skillcompose/api:0.0.5
     container_name: skills-api
     restart: unless-stopped
     environment:
@@ -108,7 +108,7 @@ services:
   # Web Service - Next.js Frontend
   # ============================================================================
   web:
-    image: skillcompose/web:0.0.4
+    image: skillcompose/web:0.0.5
     container_name: skills-web
     restart: unless-stopped
     environment:
@@ -133,7 +133,7 @@ services:
   # Docs Service - Docusaurus Documentation
   # ============================================================================
   docs:
-    image: skillcompose/docs:0.0.4
+    image: skillcompose/docs:0.0.5
     container_name: skills-docs
     restart: unless-stopped
     command: ["serve", "-s", "build", "-l", "62630"]
@@ -175,7 +175,7 @@ services:
   # Executor Services - Code Execution Containers
   # ============================================================================
   executor-base:
-    image: skillcompose/executor-base:0.0.4
+    image: skillcompose/executor-base:0.0.5
     container_name: skills-executor-base
     restart: unless-stopped
     volumes:
@@ -203,7 +203,7 @@ services:
           memory: 2G
 
   executor-ml:
-    image: skillcompose/executor-ml:0.0.4
+    image: skillcompose/executor-ml:0.0.5
     container_name: skills-executor-ml
     restart: unless-stopped
     profiles:
@@ -233,7 +233,7 @@ services:
           memory: 8G
 
   executor-cuda:
-    image: skillcompose/executor-cuda:0.0.4
+    image: skillcompose/executor-cuda:0.0.5
     container_name: skills-executor-cuda
     restart: unless-stopped
     profiles:
@@ -269,7 +269,7 @@ services:
               capabilities: [gpu]
 
   executor-chemscout:
-    image: skillcompose/executor-chemscout:0.0.4
+    image: skillcompose/executor-chemscout:0.0.5
     container_name: skills-executor-chemscout
     restart: unless-stopped
     profiles:
@@ -299,7 +299,7 @@ services:
           memory: 4G
 
   executor-remotion:
-    image: skillcompose/executor-remotion:0.0.4
+    image: skillcompose/executor-remotion:0.0.5
     container_name: skills-executor-remotion
     restart: unless-stopped
     profiles:
@@ -329,7 +329,7 @@ services:
           memory: 8G
 
   executor-diagram:
-    image: skillcompose/executor-diagram:0.0.4
+    image: skillcompose/executor-diagram:0.0.5
     container_name: skills-executor-diagram
     restart: unless-stopped
     profiles:
