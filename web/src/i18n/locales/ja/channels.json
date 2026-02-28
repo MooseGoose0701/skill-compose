@@ -1,0 +1,62 @@
+{
+  "title": "チャンネル",
+  "description": "外部メッセージングプラットフォームをエージェントに接続",
+  "create": "バインディング作成",
+  "noBindings": "チャンネルバインディングがありません",
+  "noBindingsDescription": "メッセージングプラットフォームをエージェントに接続するバインディングを作成してください",
+  "fields": {
+    "name": "バインディング名",
+    "channelType": "チャンネルタイプ",
+    "externalId": "外部ID",
+    "agent": "エージェント",
+    "triggerPattern": "トリガーパターン",
+    "enabled": "有効",
+    "config": "設定"
+  },
+  "channelTypes": {
+    "feishu": "Feishu (Lark)",
+    "telegram": "Telegram",
+    "webhook": "Webhook"
+  },
+  "actions": {
+    "toggle": "切替",
+    "enable": "有効",
+    "disable": "無効"
+  },
+  "adapters": {
+    "title": "アダプターステータス",
+    "connected": "接続済み",
+    "disconnected": "未接続",
+    "restart": "再起動",
+    "noAdapters": "アダプターが設定されていません"
+  },
+  "messages": {
+    "title": "メッセージ履歴",
+    "noMessages": "メッセージがありません",
+    "direction": {
+      "inbound": "受信",
+      "outbound": "送信"
+    },
+    "created": "バインディングが正常に作成されました",
+    "updated": "バインディングが正常に更新されました",
+    "deleted": "バインディングが正常に削除されました",
+    "toggled": "バインディングのステータスが切り替えられました",
+    "confirmDelete": "このバインディングを削除してもよろしいですか？関連するすべてのメッセージも削除されます。"
+  },
+  "credentials": {
+    "title": "アダプター資格情報",
+    "configured": "設定済み",
+    "alreadyConnected": "アダプターは既に接続されています。既存の資格情報を保持するにはフィールドを空のままにしてください。",
+    "keepExisting": "現在の値を保持するには空のまま",
+    "hint": "資格情報は環境変数として保存され、アダプターの接続に使用されます。"
+  },
+  "hints": {
+    "externalId": "外部プラットフォームのチャットまたはグループID",
+    "feishuExternalId": "Feishu Chat ID（oc_ で始まる）。グループチャット設定で確認できます。",
+    "telegramExternalId": "Telegram Chat ID（数値）。ボットにメッセージを送信して /getUpdates を確認してください。"
+  },
+  "detail": {
+    "title": "バインディング詳細",
+    "configuration": "設定"
+  }
+}

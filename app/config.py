@@ -71,6 +71,15 @@ class Settings(BaseSettings):
     jwt_refresh_token_expire_days: int = 7
     auth_enabled: bool = False  # Set true to enable auth (login required)
 
+    # Scheduler
+    scheduler_enabled: bool = True
+    scheduler_poll_interval: int = 30  # seconds between poll cycles
+
+    # Channel adapters
+    feishu_app_id: str = ""
+    feishu_app_secret: str = ""
+    telegram_bot_token: str = ""
+
     # Meta skills (internal use only, not selectable by users)
     meta_skills: list[str] = ["skill-creator", "skill-updater", "skill-evolver", "skill-finder", "trace-qa", "skills-planner", "planning-with-files", "mcp-builder"]
 

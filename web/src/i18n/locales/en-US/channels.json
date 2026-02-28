@@ -1,0 +1,62 @@
+{
+  "title": "Channels",
+  "description": "Connect external messaging platforms to your agents",
+  "create": "Create Binding",
+  "noBindings": "No channel bindings yet",
+  "noBindingsDescription": "Create a binding to connect a messaging platform to an agent",
+  "fields": {
+    "name": "Binding Name",
+    "channelType": "Channel Type",
+    "externalId": "External ID",
+    "agent": "Agent",
+    "triggerPattern": "Trigger Pattern",
+    "enabled": "Enabled",
+    "config": "Configuration"
+  },
+  "channelTypes": {
+    "feishu": "Feishu (Lark)",
+    "telegram": "Telegram",
+    "webhook": "Webhook"
+  },
+  "actions": {
+    "toggle": "Toggle",
+    "enable": "Enabled",
+    "disable": "Disabled"
+  },
+  "adapters": {
+    "title": "Adapter Status",
+    "connected": "Connected",
+    "disconnected": "Disconnected",
+    "restart": "Restart",
+    "noAdapters": "No adapters configured"
+  },
+  "messages": {
+    "title": "Message History",
+    "noMessages": "No messages yet",
+    "direction": {
+      "inbound": "Inbound",
+      "outbound": "Outbound"
+    },
+    "created": "Binding created successfully",
+    "updated": "Binding updated successfully",
+    "deleted": "Binding deleted successfully",
+    "toggled": "Binding status toggled",
+    "confirmDelete": "Are you sure you want to delete this binding? All associated messages will also be deleted."
+  },
+  "credentials": {
+    "title": "Adapter Credentials",
+    "configured": "configured",
+    "alreadyConnected": "Adapter is already connected. Leave fields empty to keep existing credentials.",
+    "keepExisting": "Leave empty to keep current value",
+    "hint": "Credentials are saved as environment variables and used to connect the adapter."
+  },
+  "hints": {
+    "externalId": "The chat or group ID on the external platform",
+    "feishuExternalId": "Feishu Chat ID (starts with oc_). Find it in the group chat settings.",
+    "telegramExternalId": "Telegram Chat ID (numeric). Send a message to the bot and check /getUpdates."
+  },
+  "detail": {
+    "title": "Binding Details",
+    "configuration": "Configuration"
+  }
+}

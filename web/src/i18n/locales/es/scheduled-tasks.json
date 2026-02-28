@@ -1,0 +1,66 @@
+{
+  "title": "Tareas Programadas",
+  "description": "Automatiza la ejecución de agentes con programaciones cron, de intervalo o únicas",
+  "create": "Crear Tarea",
+  "noTasks": "No hay tareas programadas aún",
+  "noTasksDescription": "Crea una tarea para ejecutar un agente según un horario",
+  "fields": {
+    "name": "Nombre de la Tarea",
+    "agent": "Agente",
+    "prompt": "Prompt",
+    "scheduleType": "Tipo de Programación",
+    "scheduleValue": "Valor de Programación",
+    "contextMode": "Modo de Contexto",
+    "maxRuns": "Ejecuciones Máximas",
+    "status": "Estado",
+    "nextRun": "Próxima Ejecución",
+    "lastRun": "Última Ejecución",
+    "runCount": "Cantidad de Ejecuciones"
+  },
+  "scheduleTypes": {
+    "cron": "Cron",
+    "interval": "Intervalo (segundos)",
+    "once": "Una vez"
+  },
+  "contextModes": {
+    "isolated": "Aislado",
+    "session": "Sesión"
+  },
+  "statuses": {
+    "active": "Activo",
+    "paused": "Pausado",
+    "completed": "Completado"
+  },
+  "actions": {
+    "pause": "Pausar",
+    "resume": "Reanudar",
+    "runNow": "Ejecutar Ahora"
+  },
+  "runs": {
+    "title": "Historial de Ejecuciones",
+    "noRuns": "Sin ejecuciones aún",
+    "status": {
+      "running": "Ejecutando",
+      "completed": "Completado",
+      "failed": "Fallido"
+    }
+  },
+  "messages": {
+    "created": "Tarea creada exitosamente",
+    "updated": "Tarea actualizada exitosamente",
+    "deleted": "Tarea eliminada exitosamente",
+    "paused": "Tarea pausada",
+    "resumed": "Tarea reanudada",
+    "runStarted": "Ejecución de tarea iniciada",
+    "confirmDelete": "¿Estás seguro de que quieres eliminar esta tarea? Todo el historial de ejecuciones también se eliminará."
+  },
+  "detail": {
+    "title": "Detalles de la Tarea",
+    "configuration": "Configuración"
+  },
+  "placeholders": {
+    "cronValue": "0 */6 * * * (cada 6 horas)",
+    "intervalValue": "3600 (segundos)",
+    "onceValue": "2026-03-01T00:00:00"
+  }
+}

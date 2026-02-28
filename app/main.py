@@ -125,8 +125,41 @@ async def lifespan(app: FastAPI):
     # Warmup this worker's database connections
     await _warmup_worker()
 
+    # Start scheduler and channel manager
+    scheduler_task = None
+    channel_manager = None
+    try:
+        from app.config import settings as app_settings
+        if app_settings.scheduler_enabled:
+            from app.services.scheduler import TaskScheduler
+            scheduler = TaskScheduler()
+            await scheduler.start()
+            logger.info("Task scheduler started")
+    except Exception as e:
+        logger.warning(f"Failed to start scheduler: {e}")
+
+    try:
+        from app.services.channel_manager import ChannelManager
+        channel_manager = ChannelManager()
+        await channel_manager.start()
+        logger.info("Channel manager started")
+    except Exception as e:
+        logger.warning(f"Failed to start channel manager: {e}")
+
     yield
-    # Shutdown: Nothing to clean up for now
+
+    # Shutdown: stop scheduler and channel manager
+    try:
+        from app.services.scheduler import TaskScheduler
+        scheduler = TaskScheduler()
+        await scheduler.stop()
+    except Exception:
+        pass
+    try:
+        if channel_manager:
+            await channel_manager.stop()
+    except Exception:
+        pass
 
 
 # Public path prefixes that bypass auth

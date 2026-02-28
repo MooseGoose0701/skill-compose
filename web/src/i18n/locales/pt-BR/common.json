@@ -14,6 +14,8 @@
     "sessions": "Sessões",
     "more": "Mais",
     "accounts": "Contas",
+    "scheduledTasks": "Tarefas Agendadas",
+    "channels": "Canais",
     "groupMonitor": "Monitor",
     "groupSystem": "Sistema"
   },
@@ -94,6 +96,7 @@
   },
   "errors": {
     "generic": "Algo deu errado",
+    "validation": "Por favor, preencha todos os campos obrigatórios",
     "networkError": "Erro de rede. Por favor, tente novamente.",
     "notFound": "Não encontrado",
     "unauthorized": "Não autorizado",

@@ -1,7 +1,7 @@
 """API v1 router aggregation"""
 from fastapi import APIRouter
 
-from app.api.v1 import skills, execute, files, tools, agent, registry, traces, mcp, agents, published, browser, system, settings, models, executors, backup, terminal, auth
+from app.api.v1 import skills, execute, files, tools, agent, registry, traces, mcp, agents, published, browser, system, settings, models, executors, backup, terminal, auth, scheduler, channels
 
 api_router = APIRouter()
 
@@ -23,3 +23,5 @@ api_router.include_router(executors.router)
 api_router.include_router(backup.router)
 api_router.include_router(terminal.router)
 api_router.include_router(auth.router)
+api_router.include_router(scheduler.router)
+api_router.include_router(channels.router)

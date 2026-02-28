@@ -1,0 +1,66 @@
+{
+  "title": "Tarefas Agendadas",
+  "description": "Automatize a execução de agentes com agendamentos cron, de intervalo ou únicos",
+  "create": "Criar Tarefa",
+  "noTasks": "Nenhuma tarefa agendada ainda",
+  "noTasksDescription": "Crie uma tarefa para executar um agente em um agendamento",
+  "fields": {
+    "name": "Nome da Tarefa",
+    "agent": "Agente",
+    "prompt": "Prompt",
+    "scheduleType": "Tipo de Agendamento",
+    "scheduleValue": "Valor do Agendamento",
+    "contextMode": "Modo de Contexto",
+    "maxRuns": "Execuções Máximas",
+    "status": "Status",
+    "nextRun": "Próxima Execução",
+    "lastRun": "Última Execução",
+    "runCount": "Contagem de Execuções"
+  },
+  "scheduleTypes": {
+    "cron": "Cron",
+    "interval": "Intervalo (segundos)",
+    "once": "Uma vez"
+  },
+  "contextModes": {
+    "isolated": "Isolado",
+    "session": "Sessão"
+  },
+  "statuses": {
+    "active": "Ativo",
+    "paused": "Pausado",
+    "completed": "Concluído"
+  },
+  "actions": {
+    "pause": "Pausar",
+    "resume": "Retomar",
+    "runNow": "Executar Agora"
+  },
+  "runs": {
+    "title": "Histórico de Execuções",
+    "noRuns": "Nenhuma execução ainda",
+    "status": {
+      "running": "Executando",
+      "completed": "Concluído",
+      "failed": "Falhou"
+    }
+  },
+  "messages": {
+    "created": "Tarefa criada com sucesso",
+    "updated": "Tarefa atualizada com sucesso",
+    "deleted": "Tarefa excluída com sucesso",
+    "paused": "Tarefa pausada",
+    "resumed": "Tarefa retomada",
+    "runStarted": "Execução da tarefa iniciada",
+    "confirmDelete": "Tem certeza de que deseja excluir esta tarefa? Todo o histórico de execuções também será excluído."
+  },
+  "detail": {
+    "title": "Detalhes da Tarefa",
+    "configuration": "Configuração"
+  },
+  "placeholders": {
+    "cronValue": "0 */6 * * * (a cada 6 horas)",
+    "intervalValue": "3600 (segundos)",
+    "onceValue": "2026-03-01T00:00:00"
+  }
+}

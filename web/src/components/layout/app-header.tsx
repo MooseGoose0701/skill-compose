@@ -15,6 +15,8 @@ import {
   MessageSquare,
   Activity,
   Users,
+  Clock,
+  Radio,
 } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { Button } from '@/components/ui/button';
@@ -40,6 +42,8 @@ import { useTranslation } from '@/i18n/client';
 const MORE_MONITOR_ITEMS = [
   { href: '/traces', icon: Activity, labelKey: 'nav.traces' },
   { href: '/sessions', icon: MessageSquare, labelKey: 'nav.sessions' },
+  { href: '/scheduled-tasks', icon: Clock, labelKey: 'nav.scheduledTasks' },
+  { href: '/channels', icon: Radio, labelKey: 'nav.channels' },
 ];
 
 const MORE_SYSTEM_ITEMS = [
