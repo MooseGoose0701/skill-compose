@@ -5,15 +5,22 @@ Manages channel adapter lifecycle and routes inbound messages to agents.
 """
 
 import asyncio
+import base64
 import hashlib
 import logging
+import mimetypes
 import re
 from datetime import datetime
+from pathlib import Path
 from typing import Optional
+from urllib.parse import parse_qs, urlparse
 
 from app.channels.base import ChannelAdapter, InboundMessage, OutboundMessage
 
 logger = logging.getLogger(__name__)
+
+# Image extensions that support vision (base64 encoding for LLM)
+_VISION_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".webp"}
 
 
 class ChannelManager:
@@ -114,8 +121,9 @@ class ChannelManager:
                     logger.debug(f"No binding for {msg.channel_type}:{msg.external_id}")
                     return
 
-                # Check trigger pattern
-                if binding.trigger_pattern:
+                # Check trigger pattern (skip for media messages — images/files
+                # should always be processed regardless of text trigger)
+                if binding.trigger_pattern and not msg.media:
                     if not re.search(binding.trigger_pattern, msg.content):
                         return
 
@@ -165,10 +173,22 @@ class ChannelManager:
 
                 await session.commit()
 
+            # Build image_contents and augment prompt for media files
+            image_contents = None
+            actual_prompt = msg.content
+            if msg.media:
+                image_contents, actual_prompt = self._build_media_context(
+                    msg.media, msg.content
+                )
+
             # Run agent (outside DB session)
-            answer = await self._run_agent(
-                preset, msg.content, conversation_history, session_id
+            answer, output_files = await self._run_agent(
+                preset, actual_prompt, conversation_history, session_id,
+                image_contents=image_contents,
             )
+
+            # Extract file paths from agent output_files for sending back
+            media_paths = self._extract_output_file_paths(output_files)
 
             # Record outbound and update session
             async with AsyncSessionLocal() as session:
@@ -183,12 +203,13 @@ class ChannelManager:
                 await session.commit()
 
             # Send response via adapter
-            if answer:
+            if answer or media_paths:
                 adapter = self._adapters.get(msg.channel_type)
                 if adapter and adapter.is_connected():
                     await adapter.send_message(OutboundMessage(
                         external_id=msg.external_id,
-                        content=answer,
+                        content=answer or "",
+                        media=media_paths,
                     ))
 
         except Exception as e:
@@ -200,8 +221,13 @@ class ChannelManager:
         prompt: str,
         conversation_history: Optional[list] = None,
         session_id: Optional[str] = None,
-    ) -> Optional[str]:
-        """Run a SkillsAgent with the given preset config."""
+        image_contents: Optional[list[dict]] = None,
+    ) -> tuple[Optional[str], list[dict]]:
+        """Run a SkillsAgent with the given preset config.
+
+        Returns:
+            (answer, output_files) tuple.
+        """
         from app.agent import SkillsAgent
 
         try:
@@ -218,7 +244,11 @@ class ChannelManager:
                 workspace_id=session_id,
             )
 
-            result = await agent.run(prompt, conversation_history=conversation_history)
+            result = await agent.run(
+                prompt,
+                conversation_history=conversation_history,
+                image_contents=image_contents,
+            )
 
             # Update session context
             if session_id and result.final_messages:
@@ -242,11 +272,92 @@ class ChannelManager:
                         pub.updated_at = datetime.utcnow()
                         await session.commit()
 
-            return result.answer
+            return result.answer, result.output_files
 
         except Exception as e:
             logger.error(f"Agent execution failed: {e}", exc_info=True)
-            return f"Error: {str(e)}"
+            return f"Error: {str(e)}", []
+
+    @staticmethod
+    def _build_media_context(
+        media_paths: list[str], prompt: str
+    ) -> tuple[Optional[list[dict]], str]:
+        """Build image_contents blocks and augment prompt for non-image files.
+
+        Returns:
+            (image_contents, augmented_prompt)
+        """
+        image_contents: list[dict] = []
+        non_image_info: list[str] = []
+
+        for media_path in media_paths:
+            p = Path(media_path)
+            if not p.exists():
+                continue
+
+            ext = p.suffix.lower()
+            if ext in _VISION_EXTENSIONS:
+                try:
+                    media_type = mimetypes.guess_type(media_path)[0] or "image/png"
+                    with open(media_path, "rb") as f:
+                        b64 = base64.b64encode(f.read()).decode()
+                    image_contents.append({
+                        "type": "image",
+                        "source": {
+                            "type": "base64",
+                            "media_type": media_type,
+                            "data": b64,
+                        },
+                    })
+                except Exception as e:
+                    logger.warning(f"Failed to encode image {media_path}: {e}")
+                    non_image_info.append(
+                        f"- {p.name}: {p.resolve()} (type: image)"
+                    )
+            else:
+                content_type = mimetypes.guess_type(media_path)[0] or "application/octet-stream"
+                non_image_info.append(
+                    f"- {p.name}: {p.resolve()} (type: {content_type})"
+                )
+
+        actual_prompt = prompt
+        if non_image_info:
+            files_info = "\n".join(non_image_info)
+            actual_prompt = f"""{prompt}
+
+[Uploaded Files]
+The user has uploaded the following files that you can access:
+{files_info}
+
+IMPORTANT: Use the absolute file paths shown above when reading or processing files."""
+
+        return (image_contents or None), actual_prompt
+
+    @staticmethod
+    def _extract_output_file_paths(output_files: list[dict]) -> list[str]:
+        """Extract absolute file paths from agent output_files.
+
+        Each output_file dict has a ``download_url`` like:
+        ``/api/v1/files/output/download?path=<base64url_encoded_path>``
+        """
+        paths: list[str] = []
+        for f in output_files:
+            download_url = f.get("download_url", "")
+            if not download_url:
+                continue
+            try:
+                parsed = urlparse(download_url)
+                qs = parse_qs(parsed.query)
+                encoded_path = qs.get("path", [""])[0]
+                if encoded_path:
+                    decoded = base64.urlsafe_b64decode(
+                        encoded_path.encode("ascii")
+                    ).decode("utf-8")
+                    if Path(decoded).exists():
+                        paths.append(decoded)
+            except Exception as e:
+                logger.warning(f"Failed to extract file path from {download_url}: {e}")
+        return paths
 
     async def send_to_channel(self, binding_id: str, content: str):
         """Send a message to a channel binding (used by scheduler)."""
