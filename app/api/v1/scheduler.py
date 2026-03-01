@@ -214,7 +214,8 @@ async def create_scheduled_task(
         updated_at=now,
     )
     db.add(task)
-    await db.flush()
+    await db.commit()
+    await db.refresh(task)
 
     return _task_to_response(task)
 
@@ -260,7 +261,8 @@ async def update_scheduled_task(
         setattr(task, key, value)
 
     task.updated_at = datetime.utcnow()
-    await db.flush()
+    await db.commit()
+    await db.refresh(task)
 
     return _task_to_response(task)
 
@@ -279,6 +281,7 @@ async def delete_scheduled_task(
         raise HTTPException(status_code=404, detail="Scheduled task not found")
 
     await db.delete(task)
+    await db.commit()
 
 
 @router.post("/{task_id}/run-now")
@@ -319,6 +322,8 @@ async def pause_task(
 
     task.status = "paused"
     task.updated_at = datetime.utcnow()
+    await db.commit()
+    await db.refresh(task)
 
     return _task_to_response(task)
 
@@ -344,6 +349,8 @@ async def resume_task(
     task.status = "active"
     task.next_run = _calculate_next_run(task.schedule_type, task.schedule_value)
     task.updated_at = datetime.utcnow()
+    await db.commit()
+    await db.refresh(task)
 
     return _task_to_response(task)
 

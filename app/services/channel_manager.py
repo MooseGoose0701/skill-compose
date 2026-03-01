@@ -124,8 +124,11 @@ class ChannelManager:
                 # Check trigger pattern (skip for media messages — images/files
                 # should always be processed regardless of text trigger)
                 if binding.trigger_pattern and not msg.media:
-                    if not re.search(binding.trigger_pattern, msg.content):
-                        return
+                    try:
+                        if not re.search(binding.trigger_pattern, msg.content):
+                            return
+                    except re.error:
+                        logger.warning(f"Invalid trigger pattern '{binding.trigger_pattern}' for binding {binding.id}, processing anyway")
 
                 # Record inbound message
                 inbound_record = ChannelMessageDB(

@@ -6,8 +6,9 @@ Polls the database for due tasks and executes them via SkillsAgent.
 
 import asyncio
 import logging
-import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
+from dataclasses import asdict
 from datetime import datetime, timedelta
 from typing import Optional
 
@@ -39,7 +40,7 @@ def _calculate_next_run(
 
     elif schedule_type == "once":
         # ISO datetime string
-        run_at = datetime.fromisoformat(schedule_value.replace("Z", "+00:00").replace("+00:00", ""))
+        run_at = datetime.fromisoformat(schedule_value.replace("Z", "+00:00"))
         if run_at > now:
             return run_at
         return None
@@ -69,11 +70,14 @@ def validate_schedule(schedule_type: str, schedule_value: str) -> str | None:
 
     elif schedule_type == "once":
         try:
-            datetime.fromisoformat(schedule_value.replace("Z", "+00:00").replace("+00:00", ""))
+            datetime.fromisoformat(schedule_value.replace("Z", "+00:00"))
         except ValueError:
             return "Invalid ISO datetime for once schedule"
 
     return None
+
+
+MAX_TASK_WORKERS = 5
 
 
 class TaskScheduler:
@@ -82,10 +86,13 @@ class TaskScheduler:
     _instance = None
     _task: Optional[asyncio.Task] = None
     _running: bool = False
+    _executor: Optional[ThreadPoolExecutor] = None
 
     def __new__(cls):
         if cls._instance is None:
-            cls._instance = super().__new__(cls)
+            inst = super().__new__(cls)
+            inst._executor = ThreadPoolExecutor(max_workers=MAX_TASK_WORKERS, thread_name_prefix="sched-task")
+            cls._instance = inst
         return cls._instance
 
     async def start(self):
@@ -93,6 +100,8 @@ class TaskScheduler:
         if self._running:
             return
         self._running = True
+        if not self._executor:
+            self._executor = ThreadPoolExecutor(max_workers=MAX_TASK_WORKERS, thread_name_prefix="sched-task")
         self._task = asyncio.create_task(self._loop())
         logger.info("TaskScheduler started")
 
@@ -106,6 +115,9 @@ class TaskScheduler:
             except asyncio.CancelledError:
                 pass
             self._task = None
+        if self._executor:
+            self._executor.shutdown(wait=False)
+            self._executor = None
         logger.info("TaskScheduler stopped")
 
     async def _loop(self):
@@ -161,20 +173,19 @@ class TaskScheduler:
                         started_at=now,
                         status="running",
                     )
+                    # Capture attributes before commit (avoids MissingGreenlet on expired state)
+                    task_id = task.id
+                    task_name = task.name
+
                     session.add(run_log)
                     await session.commit()
 
-                    # Execute in background thread
-                    task_id = task.id
                     run_log_id = run_log.id
-                    thread = threading.Thread(
-                        target=self._execute_task,
-                        args=(task_id, run_log_id),
-                        daemon=True,
-                    )
-                    thread.start()
 
-                    logger.info(f"Scheduled task '{task.name}' (id={task.id}) dispatched, run_log={run_log_id}")
+                    # Execute in thread pool
+                    self._executor.submit(self._execute_task, task_id, run_log_id)
+
+                    logger.info(f"Scheduled task '{task_name}' (id={task_id}) dispatched, run_log={run_log_id}")
 
                 except Exception as e:
                     logger.error(f"Error dispatching task {task.id}: {e}", exc_info=True)
@@ -186,7 +197,7 @@ class TaskScheduler:
             ScheduledTaskDB, TaskRunLogDB, AgentPresetDB,
             AgentTraceDB, PublishedSessionDB, generate_uuid,
         )
-        from app.agent.run_agent import SkillsAgent
+        from app.agent import SkillsAgent
 
         start_time = time.time()
         session = SyncSessionLocal()
@@ -213,13 +224,13 @@ class TaskScheduler:
 
             # Create agent
             agent = SkillsAgent(
-                system_prompt=preset.system_prompt,
-                skill_names=preset.skill_ids,
-                mcp_servers=preset.mcp_servers,
-                builtin_tool_names=preset.builtin_tools,
+                custom_system_prompt=preset.system_prompt,
+                allowed_skills=preset.skill_ids,
+                equipped_mcp_servers=preset.mcp_servers,
+                allowed_tools=preset.builtin_tools,
                 max_turns=preset.max_turns or 60,
                 model_provider=preset.model_provider,
-                model_name=preset.model_name,
+                model=preset.model_name,
                 executor_name=preset.executor_name,
             )
 
@@ -240,7 +251,7 @@ class TaskScheduler:
                 request=task.prompt,
                 skills_used=list(result.skills_used) if result.skills_used else [],
                 model_provider=preset.model_provider or "kimi",
-                model=result.model or preset.model_name or "kimi-k2.5",
+                model=agent.model or preset.model_name or "kimi-k2.5",
                 status="completed" if result.success else "failed",
                 success=result.success,
                 answer=result.answer,
@@ -248,18 +259,18 @@ class TaskScheduler:
                 total_turns=result.total_turns,
                 total_input_tokens=result.total_input_tokens,
                 total_output_tokens=result.total_output_tokens,
-                steps=result.steps,
-                llm_calls=result.llm_calls,
+                steps=[asdict(s) for s in result.steps],
+                llm_calls=[asdict(c) for c in result.llm_calls],
                 duration_ms=duration_ms,
                 session_id=task.session_id,
             )
             session.add(trace)
 
             # Update session context if session mode
-            if task.context_mode == "session" and task.session_id and result.messages:
+            if task.context_mode == "session" and task.session_id and result.final_messages:
                 pub_session = session.get(PublishedSessionDB, task.session_id)
                 if pub_session:
-                    pub_session.agent_context = result.messages
+                    pub_session.agent_context = result.final_messages
                     pub_session.updated_at = datetime.utcnow()
 
             # Update run log
@@ -348,11 +359,6 @@ class TaskScheduler:
 
             run_log_id = run_log.id
 
-        # Execute in background thread
-        thread = threading.Thread(
-            target=self._execute_task,
-            args=(task_id, run_log_id),
-            daemon=True,
-        )
-        thread.start()
+        # Execute in thread pool
+        self._executor.submit(self._execute_task, task_id, run_log_id)
         return run_log_id
