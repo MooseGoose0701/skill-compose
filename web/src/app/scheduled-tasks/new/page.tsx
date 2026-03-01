@@ -20,6 +20,7 @@ import { Spinner } from '@/components/ui/spinner';
 import { toast } from 'sonner';
 import { useCreateScheduledTask } from '@/hooks/use-scheduled-tasks';
 import { useAgentPresets } from '@/hooks/use-agents';
+import { useChannelBindings } from '@/hooks/use-channels';
 import { useTranslation } from '@/i18n/client';
 
 const SCHEDULE_TYPES = [
@@ -40,6 +41,7 @@ export default function NewScheduledTaskPage() {
 
   const createTask = useCreateScheduledTask();
   const { data: agentsData, isLoading: agentsLoading } = useAgentPresets();
+  const { data: channelsData, isLoading: channelsLoading } = useChannelBindings();
 
   const [name, setName] = useState('');
   const [agentId, setAgentId] = useState('');
@@ -48,8 +50,10 @@ export default function NewScheduledTaskPage() {
   const [scheduleValue, setScheduleValue] = useState('');
   const [contextMode, setContextMode] = useState('isolated');
   const [maxRuns, setMaxRuns] = useState('');
+  const [channelBindingId, setChannelBindingId] = useState('');
 
   const agents = agentsData?.presets || [];
+  const channels = channelsData?.bindings?.filter((b) => b.enabled) || [];
 
   const getPlaceholder = () => {
     switch (scheduleType) {
@@ -81,6 +85,7 @@ export default function NewScheduledTaskPage() {
         schedule_value: scheduleValue.trim(),
         context_mode: contextMode,
         max_runs: maxRuns ? parseInt(maxRuns, 10) : null,
+        channel_binding_id: channelBindingId && channelBindingId !== 'none' ? channelBindingId : null,
       });
       toast.success(t('messages.created'));
       router.push('/scheduled-tasks');
@@ -217,6 +222,35 @@ export default function NewScheduledTaskPage() {
                   onChange={(e) => setMaxRuns(e.target.value)}
                   placeholder="100"
                 />
+              </div>
+
+              {/* Channel Binding */}
+              <div className="space-y-2">
+                <Label htmlFor="channel-binding">
+                  {t('fields.channelBinding')}
+                  <span className="text-muted-foreground text-xs ml-1">({tc('status.optional')})</span>
+                </Label>
+                {channelsLoading ? (
+                  <div className="flex items-center gap-2 py-2">
+                    <Spinner size="sm" />
+                    <span className="text-sm text-muted-foreground">{tc('status.loading')}</span>
+                  </div>
+                ) : (
+                  <Select value={channelBindingId} onValueChange={setChannelBindingId}>
+                    <SelectTrigger id="channel-binding">
+                      <SelectValue placeholder={t('fields.noChannel')} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">{t('fields.noChannel')}</SelectItem>
+                      {channels.map((ch) => (
+                        <SelectItem key={ch.id} value={ch.id}>
+                          [{ch.channel_type}] {ch.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+                <p className="text-xs text-muted-foreground">{t('hints.channelBinding')}</p>
               </div>
 
               {/* Submit */}

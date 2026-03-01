@@ -15,7 +15,12 @@
     "status": "ステータス",
     "nextRun": "次回実行",
     "lastRun": "前回実行",
-    "runCount": "実行回数"
+    "runCount": "実行回数",
+    "channelBinding": "チャンネルに配信",
+    "noChannel": "なし（配信しない）"
+  },
+  "hints": {
+    "channelBinding": "オプション：タスク結果を指定のチャンネルバインディングに送信"
   },
   "scheduleTypes": {
     "cron": "Cron",

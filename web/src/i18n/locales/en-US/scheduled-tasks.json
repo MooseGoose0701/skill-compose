@@ -15,7 +15,12 @@
     "status": "Status",
     "nextRun": "Next Run",
     "lastRun": "Last Run",
-    "runCount": "Run Count"
+    "runCount": "Run Count",
+    "channelBinding": "Deliver To Channel",
+    "noChannel": "None (no delivery)"
+  },
+  "hints": {
+    "channelBinding": "Optionally send task results to a channel binding"
   },
   "scheduleTypes": {
     "cron": "Cron",
