@@ -137,13 +137,13 @@ class FeishuAdapter(ChannelAdapter):
                     import time
                     time.sleep(5)  # reconnect backoff
 
+        self._connected = True
         self._ws_thread = threading.Thread(
             target=_run_ws,
             daemon=True,
             name="feishu-ws",
         )
         self._ws_thread.start()
-        self._connected = True
         logger.info("Feishu adapter connected via WebSocket")
 
     async def disconnect(self) -> None:

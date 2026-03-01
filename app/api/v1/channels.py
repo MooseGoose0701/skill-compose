@@ -12,11 +12,12 @@ Provides endpoints for:
 - Adapter connection status
 """
 
+import re
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import select, desc, func, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -31,6 +32,24 @@ router = APIRouter(prefix="/channels", tags=["channels"])
 # Request / Response schemas
 # ---------------------------------------------------------------------------
 
+def _validate_regex(pattern: Optional[str]) -> Optional[str]:
+    """Validate a regex pattern is compilable.
+
+    NOTE: This only checks syntax, not complexity. Pathological patterns like
+    ``(a+)+$`` will pass validation but could cause catastrophic backtracking.
+    Full ReDoS mitigation would require a complexity checker or execution timeout,
+    which is not available in Python's ``re`` module. The max_length=512 constraint
+    on the field and the try/except at execution time provide partial mitigation.
+    """
+    if pattern is None:
+        return None
+    try:
+        re.compile(pattern)
+    except re.error as e:
+        raise ValueError(f"Invalid regex pattern: {e}")
+    return pattern
+
+
 class ChannelBindingCreate(BaseModel):
     """Request model for creating a channel binding."""
     channel_type: str = Field(..., description="Channel type: feishu / telegram / webhook")
@@ -40,6 +59,11 @@ class ChannelBindingCreate(BaseModel):
     trigger_pattern: Optional[str] = Field(None, max_length=512, description="Regex pattern to trigger the agent")
     config: Optional[Dict[str, Any]] = Field(None, description="Adapter-specific configuration")
 
+    @field_validator("trigger_pattern")
+    @classmethod
+    def validate_trigger_pattern(cls, v: Optional[str]) -> Optional[str]:
+        return _validate_regex(v)
+
 
 class ChannelBindingUpdate(BaseModel):
     """Request model for updating a channel binding."""
@@ -47,6 +71,11 @@ class ChannelBindingUpdate(BaseModel):
     agent_id: Optional[str] = Field(None, description="Agent preset ID to bind")
     trigger_pattern: Optional[str] = Field(None, max_length=512)
     config: Optional[Dict[str, Any]] = None
+
+    @field_validator("trigger_pattern")
+    @classmethod
+    def validate_trigger_pattern(cls, v: Optional[str]) -> Optional[str]:
+        return _validate_regex(v)
 
 
 class ChannelBindingResponse(BaseModel):
