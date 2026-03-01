@@ -53,7 +53,7 @@ export default function NewScheduledTaskPage() {
   const [channelBindingId, setChannelBindingId] = useState('');
 
   const agents = agentsData?.presets || [];
-  const channels = channelsData?.bindings?.filter((b) => b.enabled) || [];
+  const channels = channelsData?.bindings?.filter((b) => b.enabled && !b.is_global) || [];
 
   const getPlaceholder = () => {
     switch (scheduleType) {

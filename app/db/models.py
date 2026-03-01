@@ -732,7 +732,8 @@ class ChannelBindingDB(Base):
     )
 
     __table_args__ = (
-        UniqueConstraint("channel_type", "external_id", name="uq_channel_binding"),
+        # UniqueConstraint replaced by partial indexes (uq_channel_binding_specific,
+        # uq_channel_binding_global) created in _run_migrations() for global binding support
         Index("ix_channel_bindings_channel_type", "channel_type"),
     )
 

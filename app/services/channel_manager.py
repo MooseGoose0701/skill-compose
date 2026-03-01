@@ -296,7 +296,12 @@ class ChannelManager:
     # ------------------------------------------------------------------
 
     async def _handle_inbound(self, msg: InboundMessage):
-        """Handle an inbound message from a channel adapter."""
+        """Handle an inbound message from a channel adapter.
+
+        Uses two-level lookup:
+        1. Exact match: channel_type + external_id (specific group binding)
+        2. Fallback: channel_type + external_id='*' + config app_id match (global binding)
+        """
         from sqlalchemy import select
         from app.db.database import AsyncSessionLocal
         from app.db.models import (
@@ -306,7 +311,7 @@ class ChannelManager:
 
         try:
             async with AsyncSessionLocal() as session:
-                # Find matching binding
+                # Level 1: Exact match on external_id
                 result = await session.execute(
                     select(ChannelBindingDB).where(
                         ChannelBindingDB.channel_type == msg.channel_type,
@@ -315,6 +320,20 @@ class ChannelManager:
                     )
                 )
                 binding = result.scalar_one_or_none()
+
+                # Level 2: Fallback to global binding (external_id='*') matched by app_id
+                if not binding:
+                    app_id = (msg.metadata or {}).get("app_id")
+                    if app_id:
+                        result = await session.execute(
+                            select(ChannelBindingDB).where(
+                                ChannelBindingDB.channel_type == msg.channel_type,
+                                ChannelBindingDB.external_id == "*",
+                                ChannelBindingDB.enabled == True,
+                                ChannelBindingDB.config["app_id"].astext == app_id,
+                            )
+                        )
+                        binding = result.scalar_one_or_none()
 
                 if not binding:
                     logger.debug(f"No binding for {msg.channel_type}:{msg.external_id}")
@@ -568,7 +587,11 @@ IMPORTANT: Use the absolute file paths shown above when reading or processing fi
         return paths
 
     async def send_to_channel(self, binding_id: str, content: str):
-        """Send a message to a channel binding (used by scheduler)."""
+        """Send a message to a channel binding (used by scheduler).
+
+        Global bindings (external_id='*') are skipped because there is no
+        specific chat_id to send to.
+        """
         from sqlalchemy import select
         from app.db.database import AsyncSessionLocal
         from app.db.models import ChannelBindingDB, ChannelMessageDB, generate_uuid
@@ -580,6 +603,11 @@ IMPORTANT: Use the absolute file paths shown above when reading or processing fi
             binding = result.scalar_one_or_none()
             if not binding:
                 logger.warning(f"Channel binding {binding_id} not found")
+                return
+
+            # Global bindings have no specific target chat_id
+            if binding.external_id == "*":
+                logger.info(f"Skipping scheduled message for global binding {binding_id} (no target chat_id)")
                 return
 
             adapter = self._get_adapter_for_binding(binding)

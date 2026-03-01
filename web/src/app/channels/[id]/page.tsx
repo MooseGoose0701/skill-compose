@@ -374,7 +374,13 @@ export default function ChannelDetailPage() {
                 </div>
                 <div>
                   <span className="text-sm font-medium text-muted-foreground">{t('fields.externalId')}</span>
-                  <p className="mt-1 font-mono text-sm">{binding.external_id}</p>
+                  <div className="mt-1">
+                    {binding.is_global ? (
+                      <Badge variant="info">{t('scope.allGroups')}</Badge>
+                    ) : (
+                      <p className="font-mono text-sm">{binding.external_id}</p>
+                    )}
+                  </div>
                 </div>
                 <div>
                   <span className="text-sm font-medium text-muted-foreground">{t('fields.agent')}</span>
