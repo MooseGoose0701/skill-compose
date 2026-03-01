@@ -11,7 +11,9 @@
     "agent": "Agent",
     "triggerPattern": "Trigger Pattern",
     "enabled": "Enabled",
-    "config": "Configuration"
+    "config": "Configuration",
+    "appId": "App ID",
+    "appSecret": "App Secret"
   },
   "channelTypes": {
     "feishu": "Feishu (Lark)",
@@ -21,7 +23,9 @@
   "actions": {
     "toggle": "Toggle",
     "enable": "Enabled",
-    "disable": "Disabled"
+    "disable": "Disabled",
+    "edit": "Edit",
+    "save": "Save"
   },
   "adapters": {
     "title": "Adapter Status",
@@ -48,7 +52,8 @@
     "configured": "configured",
     "alreadyConnected": "Adapter is already connected. Leave fields empty to keep existing credentials.",
     "keepExisting": "Leave empty to keep current value",
-    "hint": "Credentials are saved as environment variables and used to connect the adapter."
+    "hint": "Credentials are saved as environment variables and used to connect the adapter.",
+    "configHint": "Credentials are stored with this binding and used to connect the adapter."
   },
   "hints": {
     "externalId": "The chat or group ID on the external platform",

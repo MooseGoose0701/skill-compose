@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, Info } from 'lucide-react';
@@ -17,9 +17,8 @@ import {
 } from '@/components/ui/select';
 import { Spinner } from '@/components/ui/spinner';
 import { toast } from 'sonner';
-import { useCreateChannelBinding, useAdapterStatus } from '@/hooks/use-channels';
+import { useCreateChannelBinding } from '@/hooks/use-channels';
 import { useAgentPresets } from '@/hooks/use-agents';
-import { settingsApi, channelsApi } from '@/lib/api';
 import { useTranslation } from '@/i18n/client';
 
 const CHANNEL_TYPES = [
@@ -28,14 +27,11 @@ const CHANNEL_TYPES = [
   { value: 'webhook', labelKey: 'channelTypes.webhook' },
 ] as const;
 
-// Credential fields per channel type
-const CREDENTIAL_FIELDS: Record<string, { key: string; label: string; placeholder: string }[]> = {
+// Credential fields per channel type (stored in binding config)
+const CREDENTIAL_FIELDS: Record<string, { key: string; labelKey: string; placeholder: string }[]> = {
   feishu: [
-    { key: 'FEISHU_APP_ID', label: 'App ID', placeholder: 'cli_xxxxxxxxxxxx' },
-    { key: 'FEISHU_APP_SECRET', label: 'App Secret', placeholder: 'xxxxxxxxxxxxxxxxxxxxxxxx' },
-  ],
-  telegram: [
-    { key: 'TELEGRAM_BOT_TOKEN', label: 'Bot Token', placeholder: '123456789:ABCdefGHIjklMNOpqrsTUVwxyz' },
+    { key: 'app_id', labelKey: 'fields.appId', placeholder: 'cli_xxxxxxxxxxxx' },
+    { key: 'app_secret', labelKey: 'fields.appSecret', placeholder: 'xxxxxxxxxxxxxxxxxxxxxxxx' },
   ],
 };
 
@@ -46,7 +42,6 @@ export default function NewChannelBindingPage() {
 
   const createBinding = useCreateChannelBinding();
   const { data: agentsData, isLoading: agentsLoading } = useAgentPresets();
-  const { data: adapterStatus } = useAdapterStatus();
 
   const [name, setName] = useState('');
   const [channelType, setChannelType] = useState('');
@@ -54,32 +49,10 @@ export default function NewChannelBindingPage() {
   const [agentId, setAgentId] = useState('');
   const [triggerPattern, setTriggerPattern] = useState('');
   const [credentials, setCredentials] = useState<Record<string, string>>({});
-  const [existingCredentials, setExistingCredentials] = useState<Record<string, boolean>>({});
   const [submitting, setSubmitting] = useState(false);
 
   const agents = agentsData?.presets || [];
   const credentialFields = channelType ? CREDENTIAL_FIELDS[channelType] || [] : [];
-
-  // Check which credentials are already configured
-  useEffect(() => {
-    if (!channelType || !credentialFields.length) return;
-
-    let cancelled = false;
-    settingsApi.getEnv().then((envData) => {
-      if (cancelled) return;
-      const existing: Record<string, boolean> = {};
-      for (const field of credentialFields) {
-        const envVar = envData.variables?.find((v: { key: string; value: string }) => v.key === field.key);
-        existing[field.key] = !!(envVar && envVar.value);
-      }
-      setExistingCredentials(existing);
-    }).catch(() => {
-      // Ignore - we'll just show the fields
-    });
-    return () => { cancelled = true; };
-  }, [channelType]);
-
-  const isAdapterConnected = adapterStatus && channelType && channelType in adapterStatus;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -89,39 +62,31 @@ export default function NewChannelBindingPage() {
     if (!externalId.trim()) { toast.error('External ID is required'); return; }
     if (!agentId) { toast.error('Agent is required'); return; }
 
+    // Validate required credentials for Feishu
+    if (channelType === 'feishu') {
+      if (!credentials['app_id']?.trim()) { toast.error('App ID is required for Feishu'); return; }
+      if (!credentials['app_secret']?.trim()) { toast.error('App Secret is required for Feishu'); return; }
+    }
+
     setSubmitting(true);
     try {
-      // Step 1: Save credentials if provided
-      let credentialsSaved = false;
+      // Build config from credentials
+      const config: Record<string, string> = {};
       for (const field of credentialFields) {
         const value = credentials[field.key];
         if (value && value.trim()) {
-          if (existingCredentials[field.key]) {
-            await settingsApi.updateEnv(field.key, value.trim());
-          } else {
-            await settingsApi.createEnv(field.key, value.trim());
-          }
-          credentialsSaved = true;
+          config[field.key] = value.trim();
         }
       }
 
-      // Step 2: Create the binding
       await createBinding.mutateAsync({
         name: name.trim(),
         channel_type: channelType,
         external_id: externalId.trim(),
         agent_id: agentId,
         trigger_pattern: triggerPattern.trim() || null,
+        config: Object.keys(config).length > 0 ? config : null,
       });
-
-      // Step 3: Restart adapter if credentials were saved
-      if (credentialsSaved && channelType !== 'webhook') {
-        try {
-          await channelsApi.restartAdapter(channelType);
-        } catch {
-          // Adapter restart may fail if not yet initialized - that's ok
-        }
-      }
 
       toast.success(t('messages.created'));
       router.push('/channels');
@@ -183,42 +148,29 @@ export default function NewChannelBindingPage() {
                 </Select>
               </div>
 
-              {/* Credential Fields - shown based on channel type */}
+              {/* Credential Fields - stored in binding config */}
               {credentialFields.length > 0 && (
                 <div className="space-y-4 rounded-lg border p-4 bg-muted/30">
                   <div className="flex items-center gap-2 text-sm font-medium">
                     <Info className="h-4 w-4 text-blue-500" />
                     {t('credentials.title')}
                   </div>
-                  {isAdapterConnected && (
-                    <p className="text-sm text-green-600 dark:text-green-400">
-                      {t('credentials.alreadyConnected')}
-                    </p>
-                  )}
                   {credentialFields.map((field) => (
                     <div key={field.key} className="space-y-2">
                       <Label htmlFor={field.key}>
-                        {field.label}
-                        {existingCredentials[field.key] && (
-                          <span className="ml-2 text-xs text-green-600 dark:text-green-400">
-                            ({t('credentials.configured')})
-                          </span>
-                        )}
+                        {t(field.labelKey)}
                       </Label>
                       <Input
                         id={field.key}
-                        type="password"
+                        type={field.key === 'app_secret' ? 'password' : 'text'}
                         value={credentials[field.key] || ''}
                         onChange={(e) => setCredentials((prev) => ({ ...prev, [field.key]: e.target.value }))}
-                        placeholder={existingCredentials[field.key]
-                          ? t('credentials.keepExisting')
-                          : field.placeholder
-                        }
+                        placeholder={field.placeholder}
                       />
                     </div>
                   ))}
                   <p className="text-xs text-muted-foreground">
-                    {t('credentials.hint')}
+                    {t('credentials.configHint')}
                   </p>
                 </div>
               )}

@@ -11,7 +11,9 @@
     "agent": "Agente",
     "triggerPattern": "Padrao de ativacao",
     "enabled": "Habilitado",
-    "config": "Configuracao"
+    "config": "Configuracao",
+    "appId": "App ID",
+    "appSecret": "App Secret"
   },
   "channelTypes": {
     "feishu": "Feishu (Lark)",
@@ -21,7 +23,9 @@
   "actions": {
     "toggle": "Alternar",
     "enable": "Habilitado",
-    "disable": "Desabilitado"
+    "disable": "Desabilitado",
+    "edit": "Editar",
+    "save": "Salvar"
   },
   "adapters": {
     "title": "Status do adaptador",
@@ -48,7 +52,8 @@
     "configured": "configurado",
     "alreadyConnected": "O adaptador ja esta conectado. Deixe os campos vazios para manter as credenciais existentes.",
     "keepExisting": "Deixe vazio para manter o valor atual",
-    "hint": "As credenciais sao salvas como variaveis de ambiente e usadas para conectar o adaptador."
+    "hint": "As credenciais sao salvas como variaveis de ambiente e usadas para conectar o adaptador.",
+    "configHint": "As credenciais sao armazenadas com esta vinculacao e usadas para conectar o adaptador."
   },
   "hints": {
     "externalId": "O ID do chat ou grupo na plataforma externa",

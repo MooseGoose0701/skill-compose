@@ -2058,6 +2058,7 @@ export interface ChannelBinding {
   external_id: string;
   name: string;
   agent_id: string;
+  agent_name: string | null;
   trigger_pattern: string | null;
   enabled: boolean;
   config: Record<string, unknown> | null;
