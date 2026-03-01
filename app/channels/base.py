@@ -23,6 +23,7 @@ class InboundMessage:
     external_message_id: Optional[str] = None
     metadata: Optional[dict] = None
     timestamp: datetime = field(default_factory=datetime.utcnow)
+    media: list[str] = field(default_factory=list)  # local file paths of downloaded media
 
 
 @dataclass
@@ -31,6 +32,7 @@ class OutboundMessage:
     external_id: str  # Chat/group ID to send to
     content: str
     message_type: str = "text"
+    media: list[str] = field(default_factory=list)  # local file paths to upload & send
 
 
 MessageHandler = Callable[[InboundMessage], Awaitable[None]]

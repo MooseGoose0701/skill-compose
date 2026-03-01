@@ -13,20 +13,40 @@ Required environment variables:
 Feishu app permissions needed:
     im:message            - Send messages
     im:message.receive_v1 - Receive messages (event subscription)
+    im:resource           - Download message resources (images/files)
+    im:image              - Upload images
+    im:file               - Upload files
 """
 
 import asyncio
 import json
 import logging
+import mimetypes
+from collections import OrderedDict
+from pathlib import Path
 from typing import Optional
 
 import lark_oapi as lark
-from lark_oapi.api.im.v1 import CreateMessageRequest, CreateMessageRequestBody
+from lark_oapi.api.im.v1 import (
+    CreateMessageRequest,
+    CreateMessageRequestBody,
+    GetMessageResourceRequest,
+    CreateImageRequest,
+    CreateImageRequestBody,
+    CreateFileRequest,
+    CreateFileRequestBody,
+)
 from lark_oapi.event.dispatcher_handler import P2ImMessageReceiveV1
 
 from app.channels.base import ChannelAdapter, InboundMessage, OutboundMessage
 
 logger = logging.getLogger(__name__)
+
+MEDIA_DIR = Path("/tmp/feishu_media")
+MAX_DEDUP_SIZE = 1000
+
+# Extensions that should be sent as images (vs generic files) in Feishu
+_IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp"}
 
 
 class FeishuAdapter(ChannelAdapter):
@@ -46,6 +66,9 @@ class FeishuAdapter(ChannelAdapter):
         self._connected = False
         self._bot_open_id: Optional[str] = None
         self._loop: Optional[asyncio.AbstractEventLoop] = None
+        self._seen_messages: OrderedDict = OrderedDict()
+
+        MEDIA_DIR.mkdir(parents=True, exist_ok=True)
 
     # ------------------------------------------------------------------
     # Lifecycle
@@ -140,28 +163,62 @@ class FeishuAdapter(ChannelAdapter):
     # ------------------------------------------------------------------
 
     async def send_message(self, message: OutboundMessage) -> None:
-        """Send a text message to a Feishu chat."""
+        """Send a message to a Feishu chat.
+
+        If ``message.media`` contains file paths, each file is uploaded and
+        sent as a separate image or file message before the text reply.
+        """
         if not self._client:
             raise RuntimeError("Feishu adapter not connected")
 
-        request = (
-            CreateMessageRequest.builder()
-            .receive_id_type("chat_id")
-            .request_body(
-                CreateMessageRequestBody.builder()
-                .receive_id(message.external_id)
-                .msg_type("text")
-                .content(json.dumps({"text": message.content}))
+        loop = asyncio.get_running_loop()
+
+        # Upload and send media files first
+        for file_path in message.media:
+            try:
+                p = Path(file_path)
+                if not p.exists():
+                    logger.warning(f"Media file not found, skipping: {file_path}")
+                    continue
+
+                ext = p.suffix.lower()
+                if ext in _IMAGE_EXTENSIONS:
+                    image_key = await loop.run_in_executor(
+                        None, self._upload_image, file_path
+                    )
+                    if image_key:
+                        self._send_image_message(message.external_id, image_key)
+                else:
+                    file_key = await loop.run_in_executor(
+                        None, self._upload_file, file_path
+                    )
+                    if file_key:
+                        self._send_file_message(
+                            message.external_id, file_key, p.name
+                        )
+            except Exception as e:
+                logger.error(f"Failed to send media {file_path}: {e}", exc_info=True)
+
+        # Send text content
+        if message.content:
+            request = (
+                CreateMessageRequest.builder()
+                .receive_id_type("chat_id")
+                .request_body(
+                    CreateMessageRequestBody.builder()
+                    .receive_id(message.external_id)
+                    .msg_type("text")
+                    .content(json.dumps({"text": message.content}))
+                    .build()
+                )
                 .build()
             )
-            .build()
-        )
 
-        response = self._client.im.v1.message.create(request)
-        if not response.success():
-            logger.error(
-                f"Failed to send Feishu message: code={response.code} msg={response.msg}"
-            )
+            response = self._client.im.v1.message.create(request)
+            if not response.success():
+                logger.error(
+                    f"Failed to send Feishu message: code={response.code} msg={response.msg}"
+                )
 
     # ------------------------------------------------------------------
     # Inbound (called from lark WS daemon thread)
@@ -178,9 +235,13 @@ class FeishuAdapter(ChannelAdapter):
             msg = event.message
             sender = event.sender
 
-            # Only process text messages
-            if msg.message_type != "text":
+            # Message dedup
+            msg_id = msg.message_id
+            if msg_id in self._seen_messages:
                 return
+            self._seen_messages[msg_id] = True
+            if len(self._seen_messages) > MAX_DEDUP_SIZE:
+                self._seen_messages.popitem(last=False)
 
             # Derive sender open_id
             sender_id = ""
@@ -191,23 +252,47 @@ class FeishuAdapter(ChannelAdapter):
             if self._bot_open_id and sender_id == self._bot_open_id:
                 return
 
-            # Parse message content (Feishu wraps text as {"text": "..."})
-            try:
-                content = json.loads(msg.content).get("text", "")
-            except (json.JSONDecodeError, TypeError):
-                content = ""
-            if not content:
+            msg_type = msg.message_type
+            content = ""
+            media_paths: list[str] = []
+
+            if msg_type == "text":
+                try:
+                    content = json.loads(msg.content).get("text", "")
+                except (json.JSONDecodeError, TypeError):
+                    content = ""
+
+            elif msg_type == "post":
+                # Rich text — extract plain text from JSON structure
+                content = self._extract_post_text(msg.content)
+
+            elif msg_type in ("image", "file", "audio", "media"):
+                # Download media and set content to a descriptive placeholder
+                logger.info(f"Feishu inbound {msg_type} message: {msg.message_id}")
+                paths, desc = self._download_and_save_media(
+                    msg_type, msg.content, msg.message_id
+                )
+                media_paths = [str(p) for p in paths]
+                content = desc or f"[{msg_type}]"
+                if not paths:
+                    logger.warning(f"Media download returned no files for {msg_type} message {msg.message_id}")
+
+            else:
+                # Unsupported message type — ignore
                 return
 
-            # Build the platform-agnostic InboundMessage
+            if not content and not media_paths:
+                return
+
             inbound = InboundMessage(
                 channel_type="feishu",
                 external_id=msg.chat_id,
                 sender_id=sender_id,
-                sender_name=sender_id,  # Feishu doesn't expose name in event; use ID
+                sender_name=sender_id,
                 content=content,
-                message_type="text",
+                message_type=msg_type,
                 external_message_id=msg.message_id,
+                media=media_paths,
             )
 
             # Bridge from the WS thread into the async event loop
@@ -218,6 +303,247 @@ class FeishuAdapter(ChannelAdapter):
                 )
         except Exception as e:
             logger.error(f"Error handling Feishu message: {e}", exc_info=True)
+
+    # ------------------------------------------------------------------
+    # Media download (sync — called from WS thread or via run_in_executor)
+    # ------------------------------------------------------------------
+
+    def _download_image(self, message_id: str, image_key: str) -> Optional[Path]:
+        """Download an image from a Feishu message."""
+        try:
+            request = (
+                GetMessageResourceRequest.builder()
+                .message_id(message_id)
+                .file_key(image_key)
+                .type("image")
+                .build()
+            )
+            response = self._client.im.v1.message_resource.get(request)
+            if not response.success():
+                logger.error(f"Download image failed: code={response.code} msg={response.msg}")
+                return None
+            filepath = MEDIA_DIR / f"{image_key}.png"
+            filepath.write_bytes(response.file.read())
+            return filepath
+        except Exception as e:
+            logger.error(f"Error downloading image {image_key}: {e}", exc_info=True)
+            return None
+
+    def _download_file(self, message_id: str, file_key: str, filename: str) -> Optional[Path]:
+        """Download a file from a Feishu message."""
+        try:
+            request = (
+                GetMessageResourceRequest.builder()
+                .message_id(message_id)
+                .file_key(file_key)
+                .type("file")
+                .build()
+            )
+            response = self._client.im.v1.message_resource.get(request)
+            if not response.success():
+                logger.error(f"Download file failed: code={response.code} msg={response.msg}")
+                return None
+            filepath = MEDIA_DIR / f"{file_key}_{filename}"
+            filepath.write_bytes(response.file.read())
+            return filepath
+        except Exception as e:
+            logger.error(f"Error downloading file {file_key}: {e}", exc_info=True)
+            return None
+
+    def _download_and_save_media(
+        self, msg_type: str, content_json: str, message_id: str
+    ) -> tuple[list[Path], str]:
+        """Dispatch media download by message type.
+
+        Returns (file_paths, extracted_text_description).
+        """
+        paths: list[Path] = []
+        desc = ""
+
+        try:
+            content = json.loads(content_json)
+        except (json.JSONDecodeError, TypeError):
+            return paths, desc
+
+        if msg_type == "image":
+            image_key = content.get("image_key", "")
+            if image_key:
+                p = self._download_image(message_id, image_key)
+                if p:
+                    paths.append(p)
+                    desc = "[User sent an image]"
+
+        elif msg_type == "file":
+            file_key = content.get("file_key", "")
+            file_name = content.get("file_name", "file")
+            if file_key:
+                p = self._download_file(message_id, file_key, file_name)
+                if p:
+                    paths.append(p)
+                    desc = f"[User sent a file: {file_name}]"
+
+        elif msg_type == "audio":
+            file_key = content.get("file_key", "")
+            if file_key:
+                p = self._download_file(message_id, file_key, "audio.opus")
+                if p:
+                    paths.append(p)
+                    desc = "[User sent an audio message]"
+
+        elif msg_type == "media":
+            # Video message
+            file_key = content.get("file_key", "")
+            file_name = content.get("file_name", "video.mp4")
+            if file_key:
+                p = self._download_file(message_id, file_key, file_name)
+                if p:
+                    paths.append(p)
+                    desc = f"[User sent a video: {file_name}]"
+
+        return paths, desc
+
+    # ------------------------------------------------------------------
+    # Media upload (sync — called via run_in_executor)
+    # ------------------------------------------------------------------
+
+    def _upload_image(self, file_path: str) -> Optional[str]:
+        """Upload an image to Feishu, returning the image_key."""
+        try:
+            with open(file_path, "rb") as f:
+                request = (
+                    CreateImageRequest.builder()
+                    .request_body(
+                        CreateImageRequestBody.builder()
+                        .image_type("message")
+                        .image(f)
+                        .build()
+                    )
+                    .build()
+                )
+                response = self._client.im.v1.image.create(request)
+            if not response.success():
+                logger.error(f"Upload image failed: code={response.code} msg={response.msg}")
+                return None
+            return response.data.image_key
+        except Exception as e:
+            logger.error(f"Error uploading image {file_path}: {e}", exc_info=True)
+            return None
+
+    def _upload_file(self, file_path: str) -> Optional[str]:
+        """Upload a file to Feishu, returning the file_key."""
+        try:
+            p = Path(file_path)
+            content_type = mimetypes.guess_type(p.name)[0] or "application/octet-stream"
+            # Map content type to Feishu file_type
+            file_type = "stream"
+            if content_type.startswith("audio/"):
+                file_type = "opus"
+            elif content_type == "application/pdf":
+                file_type = "pdf"
+            elif content_type in (
+                "application/msword",
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            ):
+                file_type = "doc"
+            elif content_type in (
+                "application/vnd.ms-excel",
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            ):
+                file_type = "xls"
+            elif content_type in (
+                "application/vnd.ms-powerpoint",
+                "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+            ):
+                file_type = "ppt"
+
+            with open(file_path, "rb") as f:
+                request = (
+                    CreateFileRequest.builder()
+                    .request_body(
+                        CreateFileRequestBody.builder()
+                        .file_type(file_type)
+                        .file_name(p.name)
+                        .file(f)
+                        .build()
+                    )
+                    .build()
+                )
+                response = self._client.im.v1.file.create(request)
+            if not response.success():
+                logger.error(f"Upload file failed: code={response.code} msg={response.msg}")
+                return None
+            return response.data.file_key
+        except Exception as e:
+            logger.error(f"Error uploading file {file_path}: {e}", exc_info=True)
+            return None
+
+    # ------------------------------------------------------------------
+    # Outbound helpers
+    # ------------------------------------------------------------------
+
+    def _send_image_message(self, chat_id: str, image_key: str) -> None:
+        """Send an image message to a Feishu chat."""
+        request = (
+            CreateMessageRequest.builder()
+            .receive_id_type("chat_id")
+            .request_body(
+                CreateMessageRequestBody.builder()
+                .receive_id(chat_id)
+                .msg_type("image")
+                .content(json.dumps({"image_key": image_key}))
+                .build()
+            )
+            .build()
+        )
+        response = self._client.im.v1.message.create(request)
+        if not response.success():
+            logger.error(
+                f"Failed to send image message: code={response.code} msg={response.msg}"
+            )
+
+    def _send_file_message(self, chat_id: str, file_key: str, file_name: str) -> None:
+        """Send a file message to a Feishu chat."""
+        request = (
+            CreateMessageRequest.builder()
+            .receive_id_type("chat_id")
+            .request_body(
+                CreateMessageRequestBody.builder()
+                .receive_id(chat_id)
+                .msg_type("file")
+                .content(json.dumps({"file_key": file_key}))
+                .build()
+            )
+            .build()
+        )
+        response = self._client.im.v1.message.create(request)
+        if not response.success():
+            logger.error(
+                f"Failed to send file message: code={response.code} msg={response.msg}"
+            )
+
+    # ------------------------------------------------------------------
+    # Text extraction helpers
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _extract_post_text(content_json: str) -> str:
+        """Extract plain text from a Feishu rich-text (post) message."""
+        try:
+            content = json.loads(content_json)
+            # Post structure: {"title": "...", "content": [[{"tag":"text","text":"..."},...],...]}
+            parts: list[str] = []
+            title = content.get("title", "")
+            if title:
+                parts.append(title)
+            for line in content.get("content", []):
+                for elem in line:
+                    if elem.get("tag") == "text":
+                        parts.append(elem.get("text", ""))
+                    elif elem.get("tag") == "a":
+                        parts.append(elem.get("text", "") or elem.get("href", ""))
+            return " ".join(parts).strip()
+        except (json.JSONDecodeError, TypeError, AttributeError):
+            return ""
 
     # ------------------------------------------------------------------
     # Helpers
