@@ -120,28 +120,40 @@ export default function ChannelsPage() {
               <Spinner size="sm" />
             ) : adapterStatus && Object.keys(adapterStatus).length > 0 ? (
               <div className="flex flex-wrap gap-3">
-                {Object.entries(adapterStatus).map(([name, connected]) => (
-                  <div key={name} className="flex items-center gap-2 rounded-lg border px-3 py-2">
-                    {connected ? (
-                      <Wifi className="h-4 w-4 text-green-500" />
-                    ) : (
-                      <WifiOff className="h-4 w-4 text-red-500" />
-                    )}
-                    <span className="text-sm font-medium capitalize">{name}</span>
-                    <Badge variant={connected ? 'success' : 'error'} className="text-xs">
-                      {connected ? t('adapters.connected') : t('adapters.disconnected')}
-                    </Badge>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-6 w-6 p-0"
-                      onClick={() => handleRestartAdapter(name)}
-                      title={t('adapters.restart')}
-                    >
-                      <RefreshCw className="h-3 w-3" />
-                    </Button>
-                  </div>
-                ))}
+                {Object.entries(adapterStatus).map(([key, connected]) => {
+                  // Parse adapter key: "feishu:cli_xxx" → "Feishu (cli_xxx...)"
+                  let displayName = key;
+                  if (key.startsWith('feishu:')) {
+                    const appId = key.slice(7);
+                    const truncated = appId.length > 12 ? appId.slice(0, 12) + '...' : appId;
+                    displayName = `Feishu (${truncated})`;
+                  } else {
+                    displayName = key.charAt(0).toUpperCase() + key.slice(1);
+                  }
+
+                  return (
+                    <div key={key} className="flex items-center gap-2 rounded-lg border px-3 py-2">
+                      {connected ? (
+                        <Wifi className="h-4 w-4 text-green-500" />
+                      ) : (
+                        <WifiOff className="h-4 w-4 text-red-500" />
+                      )}
+                      <span className="text-sm font-medium">{displayName}</span>
+                      <Badge variant={connected ? 'success' : 'error'} className="text-xs">
+                        {connected ? t('adapters.connected') : t('adapters.disconnected')}
+                      </Badge>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 w-6 p-0"
+                        onClick={() => handleRestartAdapter(key)}
+                        title={t('adapters.restart')}
+                      >
+                        <RefreshCw className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  );
+                })}
               </div>
             ) : (
               <p className="text-sm text-muted-foreground">{t('adapters.noAdapters')}</p>

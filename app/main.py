@@ -125,41 +125,71 @@ async def lifespan(app: FastAPI):
     # Warmup this worker's database connections
     await _warmup_worker()
 
-    # Start scheduler and channel manager
+    # Start scheduler and channel manager in ONE worker only.
+    # With multiple uvicorn workers, each worker is a separate process.
+    # Services like ChannelManager open WebSocket connections to external
+    # platforms; starting them in all workers wastes connections and can
+    # exceed platform limits. Use a file lock to elect a single worker.
+    import fcntl
     scheduler_task = None
     channel_manager = None
-    try:
-        from app.config import settings as app_settings
-        if app_settings.scheduler_enabled:
-            from app.services.scheduler import TaskScheduler
-            scheduler = TaskScheduler()
-            await scheduler.start()
-            logger.info("Task scheduler started")
-    except Exception as e:
-        logger.warning(f"Failed to start scheduler: {e}")
+    _lock_file = None
+    _is_service_leader = False
 
     try:
-        from app.services.channel_manager import ChannelManager
-        channel_manager = ChannelManager()
-        await channel_manager.start()
-        logger.info("Channel manager started")
-    except Exception as e:
-        logger.warning(f"Failed to start channel manager: {e}")
+        _lock_file = open("/tmp/.skills_service_leader.lock", "w")
+        fcntl.flock(_lock_file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        _is_service_leader = True
+        _lock_file.write(str(os.getpid()))
+        _lock_file.flush()
+    except (IOError, OSError):
+        # Another worker already holds the lock
+        _is_service_leader = False
+        if _lock_file:
+            _lock_file.close()
+            _lock_file = None
+
+    if _is_service_leader:
+        try:
+            from app.config import settings as app_settings
+            if app_settings.scheduler_enabled:
+                from app.services.scheduler import TaskScheduler
+                scheduler = TaskScheduler()
+                await scheduler.start()
+                logger.info("Task scheduler started")
+        except Exception as e:
+            logger.warning(f"Failed to start scheduler: {e}")
+
+        try:
+            from app.services.channel_manager import ChannelManager
+            channel_manager = ChannelManager()
+            await channel_manager.start()
+            logger.info("Channel manager started")
+        except Exception as e:
+            logger.warning(f"Failed to start channel manager: {e}")
 
     yield
 
     # Shutdown: stop scheduler and channel manager
-    try:
-        from app.services.scheduler import TaskScheduler
-        scheduler = TaskScheduler()
-        await scheduler.stop()
-    except Exception:
-        pass
-    try:
-        if channel_manager:
-            await channel_manager.stop()
-    except Exception:
-        pass
+    if _is_service_leader:
+        try:
+            from app.services.scheduler import TaskScheduler
+            scheduler = TaskScheduler()
+            await scheduler.stop()
+        except Exception:
+            pass
+        try:
+            if channel_manager:
+                await channel_manager.stop()
+        except Exception:
+            pass
+        # Release lock
+        if _lock_file:
+            try:
+                fcntl.flock(_lock_file.fileno(), fcntl.LOCK_UN)
+                _lock_file.close()
+            except Exception:
+                pass
 
 
 # Public path prefixes that bypass auth

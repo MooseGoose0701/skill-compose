@@ -11,7 +11,9 @@
     "agent": "エージェント",
     "triggerPattern": "トリガーパターン",
     "enabled": "有効",
-    "config": "設定"
+    "config": "設定",
+    "appId": "App ID",
+    "appSecret": "App Secret"
   },
   "channelTypes": {
     "feishu": "Feishu (Lark)",
@@ -21,7 +23,9 @@
   "actions": {
     "toggle": "切替",
     "enable": "有効",
-    "disable": "無効"
+    "disable": "無効",
+    "edit": "編集",
+    "save": "保存"
   },
   "adapters": {
     "title": "アダプターステータス",
@@ -48,7 +52,8 @@
     "configured": "設定済み",
     "alreadyConnected": "アダプターは既に接続されています。既存の資格情報を保持するにはフィールドを空のままにしてください。",
     "keepExisting": "現在の値を保持するには空のまま",
-    "hint": "資格情報は環境変数として保存され、アダプターの接続に使用されます。"
+    "hint": "資格情報は環境変数として保存され、アダプターの接続に使用されます。",
+    "configHint": "資格情報はこのバインディングと一緒に保存され、アダプターの接続に使用されます。"
   },
   "hints": {
     "externalId": "外部プラットフォームのチャットまたはグループID",

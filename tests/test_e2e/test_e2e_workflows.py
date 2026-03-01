@@ -4067,3 +4067,333 @@ class TestSessionDisplayFormatE2E:
         pid = type(self)._state.get("preset_id")
         if pid:
             await e2e_client.delete(f"/api/v1/agents/{pid}")
+
+
+# ===================================================================
+# Class: Multi-Feishu-App Channel Bindings
+# ===================================================================
+
+@pytest.mark.e2e
+@pytest.mark.asyncio(loop_scope="class")
+class TestMultiFeishuChannelE2E:
+    """Test multi-Feishu-app support, secret masking, config merge,
+    agent_name in response, and channel edit (update) flow.
+    """
+
+    _state: dict = {}
+
+    async def test_01_create_preset(self, e2e_client: AsyncClient):
+        """Create an agent preset for channel binding tests."""
+        resp = await e2e_client.post("/api/v1/agents", json={
+            "name": "e2e-channel-agent",
+            "description": "Agent for channel E2E tests",
+            "max_turns": 5,
+        })
+        assert resp.status_code == 200
+        body = resp.json()
+        type(self)._state["preset_id"] = body["id"]
+        type(self)._state["preset_name"] = body["name"]
+
+    async def test_02_create_second_preset(self, e2e_client: AsyncClient):
+        """Create a second agent preset for edit tests."""
+        resp = await e2e_client.post("/api/v1/agents", json={
+            "name": "e2e-channel-agent-2",
+            "description": "Second agent for channel E2E tests",
+            "max_turns": 10,
+        })
+        assert resp.status_code == 200
+        type(self)._state["preset_id_2"] = resp.json()["id"]
+
+    async def test_03_create_binding_with_feishu_config(self, e2e_client: AsyncClient):
+        """Create a Feishu binding with app_id/app_secret in config."""
+        pid = type(self)._state["preset_id"]
+        resp = await e2e_client.post("/api/v1/channels", json={
+            "channel_type": "feishu",
+            "external_id": "oc_e2e_test_001",
+            "name": "E2E Feishu Binding 1",
+            "agent_id": pid,
+            "trigger_pattern": "@bot",
+            "config": {
+                "app_id": "cli_e2e_app_001",
+                "app_secret": "secret_value_abc123xyz",
+            },
+        })
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["name"] == "E2E Feishu Binding 1"
+        assert body["channel_type"] == "feishu"
+        assert body["agent_id"] == pid
+        type(self)._state["binding_id_1"] = body["id"]
+
+    async def test_04_secret_is_masked_in_response(self, e2e_client: AsyncClient):
+        """GET binding should return masked app_secret."""
+        bid = type(self)._state["binding_id_1"]
+        resp = await e2e_client.get(f"/api/v1/channels/{bid}")
+        assert resp.status_code == 200
+        body = resp.json()
+        config = body["config"]
+        assert config is not None
+        assert config["app_id"] == "cli_e2e_app_001"
+        # Secret should be masked: ****<last4>
+        assert config["app_secret"].startswith("****")
+        assert config["app_secret"].endswith("3xyz")
+        assert len(config["app_secret"]) == 8  # ****xxxx
+
+    async def test_05_agent_name_in_response(self, e2e_client: AsyncClient):
+        """Response should include agent_name from the preset."""
+        bid = type(self)._state["binding_id_1"]
+        resp = await e2e_client.get(f"/api/v1/channels/{bid}")
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["agent_name"] == "e2e-channel-agent"
+
+    async def test_06_agent_name_in_list_response(self, e2e_client: AsyncClient):
+        """List endpoint should also include agent_name."""
+        resp = await e2e_client.get("/api/v1/channels?channel_type=feishu")
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["total"] >= 1
+        binding = next(b for b in body["bindings"] if b["id"] == type(self)._state["binding_id_1"])
+        assert binding["agent_name"] == "e2e-channel-agent"
+
+    async def test_07_create_second_binding_different_app(self, e2e_client: AsyncClient):
+        """Create a second Feishu binding with a different app_id."""
+        pid = type(self)._state["preset_id"]
+        resp = await e2e_client.post("/api/v1/channels", json={
+            "channel_type": "feishu",
+            "external_id": "oc_e2e_test_002",
+            "name": "E2E Feishu Binding 2",
+            "agent_id": pid,
+            "config": {
+                "app_id": "cli_e2e_app_002",
+                "app_secret": "another_secret_999",
+            },
+        })
+        assert resp.status_code == 200
+        body = resp.json()
+        type(self)._state["binding_id_2"] = body["id"]
+        # Verify both bindings exist
+        resp2 = await e2e_client.get("/api/v1/channels?channel_type=feishu")
+        assert resp2.status_code == 200
+        assert resp2.json()["total"] >= 2
+
+    async def test_08_update_name_and_agent(self, e2e_client: AsyncClient):
+        """Update binding name and agent_id via PUT."""
+        bid = type(self)._state["binding_id_1"]
+        pid2 = type(self)._state["preset_id_2"]
+        resp = await e2e_client.put(f"/api/v1/channels/{bid}", json={
+            "name": "E2E Feishu Binding 1 Updated",
+            "agent_id": pid2,
+        })
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["name"] == "E2E Feishu Binding 1 Updated"
+        assert body["agent_id"] == pid2
+        assert body["agent_name"] == "e2e-channel-agent-2"
+
+    async def test_09_update_trigger_pattern(self, e2e_client: AsyncClient):
+        """Update trigger pattern."""
+        bid = type(self)._state["binding_id_1"]
+        resp = await e2e_client.put(f"/api/v1/channels/{bid}", json={
+            "trigger_pattern": "@newbot|/help",
+        })
+        assert resp.status_code == 200
+        assert resp.json()["trigger_pattern"] == "@newbot|/help"
+
+    async def test_10_update_config_preserves_masked_secret(self, e2e_client: AsyncClient):
+        """PUT with masked app_secret should preserve the original secret."""
+        bid = type(self)._state["binding_id_1"]
+
+        # First, get the current masked config
+        resp = await e2e_client.get(f"/api/v1/channels/{bid}")
+        assert resp.status_code == 200
+        masked_secret = resp.json()["config"]["app_secret"]
+        assert masked_secret.startswith("****")
+
+        # Update config with the masked value — should preserve original
+        resp = await e2e_client.put(f"/api/v1/channels/{bid}", json={
+            "config": {
+                "app_id": "cli_e2e_app_001_new",
+                "app_secret": masked_secret,
+            },
+        })
+        assert resp.status_code == 200
+        body = resp.json()
+        # app_id should be updated
+        assert body["config"]["app_id"] == "cli_e2e_app_001_new"
+        # Secret should still be masked (same last 4 chars)
+        assert body["config"]["app_secret"].startswith("****")
+        assert body["config"]["app_secret"].endswith("3xyz")
+
+    async def test_11_update_config_with_new_secret(self, e2e_client: AsyncClient):
+        """PUT with a new (non-masked) app_secret should update it."""
+        bid = type(self)._state["binding_id_1"]
+        resp = await e2e_client.put(f"/api/v1/channels/{bid}", json={
+            "config": {
+                "app_secret": "brand_new_secret_value",
+            },
+        })
+        assert resp.status_code == 200
+        body = resp.json()
+        # New secret should be masked with its last 4 chars
+        assert body["config"]["app_secret"].startswith("****")
+        assert body["config"]["app_secret"].endswith("alue")
+
+    async def test_12_clear_trigger_pattern(self, e2e_client: AsyncClient):
+        """Setting trigger_pattern to null should clear it."""
+        bid = type(self)._state["binding_id_1"]
+        resp = await e2e_client.put(f"/api/v1/channels/{bid}", json={
+            "trigger_pattern": None,
+        })
+        assert resp.status_code == 200
+        assert resp.json()["trigger_pattern"] is None
+
+    async def test_13_invalid_agent_id_rejected(self, e2e_client: AsyncClient):
+        """Updating with a non-existent agent_id should fail."""
+        bid = type(self)._state["binding_id_1"]
+        resp = await e2e_client.put(f"/api/v1/channels/{bid}", json={
+            "agent_id": "non-existent-agent-id",
+        })
+        assert resp.status_code == 400
+
+    async def test_14_duplicate_binding_rejected(self, e2e_client: AsyncClient):
+        """Creating a binding with duplicate channel_type+external_id should fail."""
+        pid = type(self)._state["preset_id"]
+        resp = await e2e_client.post("/api/v1/channels", json={
+            "channel_type": "feishu",
+            "external_id": "oc_e2e_test_001",  # Same as binding 1
+            "name": "Duplicate binding",
+            "agent_id": pid,
+        })
+        assert resp.status_code == 409
+
+    async def test_15_toggle_binding(self, e2e_client: AsyncClient):
+        """Toggle enabled/disabled should flip the state."""
+        bid = type(self)._state["binding_id_1"]
+        # Get current state
+        resp = await e2e_client.get(f"/api/v1/channels/{bid}")
+        was_enabled = resp.json()["enabled"]
+
+        # Toggle
+        resp = await e2e_client.post(f"/api/v1/channels/{bid}/toggle")
+        assert resp.status_code == 200
+        assert resp.json()["enabled"] == (not was_enabled)
+        # Toggle includes agent_name
+        assert resp.json()["agent_name"] is not None
+
+        # Toggle back
+        resp = await e2e_client.post(f"/api/v1/channels/{bid}/toggle")
+        assert resp.status_code == 200
+        assert resp.json()["enabled"] == was_enabled
+
+    async def test_16_binding_without_config(self, e2e_client: AsyncClient):
+        """Create a non-Feishu binding without config — should work fine."""
+        pid = type(self)._state["preset_id"]
+        resp = await e2e_client.post("/api/v1/channels", json={
+            "channel_type": "webhook",
+            "external_id": "webhook_e2e_001",
+            "name": "E2E Webhook Binding",
+            "agent_id": pid,
+        })
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["config"] is None
+        assert body["agent_name"] == "e2e-channel-agent"
+        type(self)._state["webhook_binding_id"] = body["id"]
+
+    async def test_17_adapter_key_derivation(self, e2e_client: AsyncClient):
+        """Verify the adapter key derivation helper logic."""
+        from app.services.channel_manager import adapter_key_for_binding
+
+        class _FakeBinding:
+            def __init__(self, channel_type, config):
+                self.channel_type = channel_type
+                self.config = config
+
+        # Feishu with config
+        b1 = _FakeBinding("feishu", {"app_id": "cli_abc", "app_secret": "s"})
+        assert adapter_key_for_binding(b1) == "feishu:cli_abc"
+
+        # Feishu without config
+        b2 = _FakeBinding("feishu", None)
+        assert adapter_key_for_binding(b2) is None
+
+        # Feishu with empty config
+        b3 = _FakeBinding("feishu", {})
+        assert adapter_key_for_binding(b3) is None
+
+        # Telegram
+        b4 = _FakeBinding("telegram", None)
+        assert adapter_key_for_binding(b4) == "telegram"
+
+        # Webhook
+        b5 = _FakeBinding("webhook", {"url": "http://example.com"})
+        assert adapter_key_for_binding(b5) == "webhook"
+
+    async def test_18_mask_config_helper(self, e2e_client: AsyncClient):
+        """Test the _mask_config helper directly."""
+        from app.api.v1.channels import _mask_config
+
+        # None config
+        assert _mask_config(None) is None
+
+        # Empty config
+        assert _mask_config({}) == {}
+
+        # Config without secret
+        assert _mask_config({"app_id": "cli_abc"}) == {"app_id": "cli_abc"}
+
+        # Config with long secret
+        result = _mask_config({"app_id": "cli_abc", "app_secret": "my_long_secret"})
+        assert result["app_id"] == "cli_abc"
+        assert result["app_secret"] == "****cret"
+
+        # Config with short secret (<=4 chars)
+        result = _mask_config({"app_secret": "ab"})
+        assert result["app_secret"] == "****"
+
+    async def test_19_merge_config_helper(self, e2e_client: AsyncClient):
+        """Test the _merge_config helper directly."""
+        from app.api.v1.channels import _merge_config
+
+        # None incoming -> keep existing
+        assert _merge_config({"app_id": "x"}, None) == {"app_id": "x"}
+
+        # None existing -> use incoming (strip masked secrets)
+        assert _merge_config(None, {"app_id": "x", "app_secret": "real"}) == {"app_id": "x", "app_secret": "real"}
+
+        # Masked secret in incoming -> preserve existing
+        result = _merge_config(
+            {"app_id": "old", "app_secret": "original_secret"},
+            {"app_id": "new", "app_secret": "****cret"},
+        )
+        assert result["app_id"] == "new"
+        assert result["app_secret"] == "original_secret"
+
+        # Real secret in incoming -> overwrite
+        result = _merge_config(
+            {"app_id": "old", "app_secret": "original_secret"},
+            {"app_id": "new", "app_secret": "brand_new"},
+        )
+        assert result["app_id"] == "new"
+        assert result["app_secret"] == "brand_new"
+
+    async def test_20_delete_bindings(self, e2e_client: AsyncClient):
+        """Delete all test bindings."""
+        for key in ["binding_id_1", "binding_id_2", "webhook_binding_id"]:
+            bid = type(self)._state.get(key)
+            if bid:
+                resp = await e2e_client.delete(f"/api/v1/channels/{bid}")
+                assert resp.status_code == 200
+
+    async def test_21_delete_nonexistent_binding(self, e2e_client: AsyncClient):
+        """Deleting a non-existent binding should return 404."""
+        resp = await e2e_client.delete("/api/v1/channels/nonexistent-id")
+        assert resp.status_code == 404
+
+    async def test_22_cleanup_presets(self, e2e_client: AsyncClient):
+        """Clean up test agent presets."""
+        for key in ["preset_id", "preset_id_2"]:
+            pid = type(self)._state.get(key)
+            if pid:
+                await e2e_client.delete(f"/api/v1/agents/{pid}")

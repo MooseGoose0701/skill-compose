@@ -2,6 +2,10 @@
 Channel Manager service.
 
 Manages channel adapter lifecycle and routes inbound messages to agents.
+
+Supports multiple Feishu apps via per-binding credentials stored in the
+``config`` JSONB column. Adapters are keyed by ``feishu:{app_id}`` so that
+multiple bindings sharing the same app_id reuse one WebSocket connection.
 """
 
 import asyncio
@@ -12,6 +16,7 @@ import mimetypes
 import re
 from datetime import datetime
 from pathlib import Path
+from collections import namedtuple
 from typing import Optional
 from urllib.parse import parse_qs, urlparse
 
@@ -19,8 +24,25 @@ from app.channels.base import ChannelAdapter, InboundMessage, OutboundMessage
 
 logger = logging.getLogger(__name__)
 
+_BindingInfo = namedtuple("_BindingInfo", ["channel_type", "config"])
+
 # Image extensions that support vision (base64 encoding for LLM)
 _VISION_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".webp"}
+
+
+def adapter_key_for_binding(binding) -> Optional[str]:
+    """Derive the adapter dict key from a channel binding.
+
+    For Feishu bindings the key is ``feishu:{app_id}`` (from config).
+    For other channel types the key is just the channel_type string.
+    """
+    if binding.channel_type == "feishu":
+        config = binding.config or {}
+        app_id = config.get("app_id")
+        if not app_id:
+            return None
+        return f"feishu:{app_id}"
+    return binding.channel_type
 
 
 class ChannelManager:
@@ -33,28 +55,23 @@ class ChannelManager:
         if cls._instance is None:
             inst = super().__new__(cls)
             inst._adapters = {}
+            inst._is_leader = False
             cls._instance = inst
         return cls._instance
 
+    # ------------------------------------------------------------------
+    # Lifecycle
+    # ------------------------------------------------------------------
+
     async def start(self):
-        """Start all adapters that have credentials configured."""
+        """Start adapters from DB bindings + env-based Telegram."""
+        self._is_leader = True
         from app.config import settings
 
-        # Feishu adapter
-        if settings.feishu_app_id and settings.feishu_app_secret:
-            try:
-                from app.channels.feishu import FeishuAdapter
-                adapter = FeishuAdapter(settings.feishu_app_id, settings.feishu_app_secret)
-                adapter.set_message_handler(self._handle_inbound)
-                await adapter.connect()
-                self._adapters["feishu"] = adapter
-                logger.info("Feishu adapter started")
-            except ImportError:
-                logger.info("Feishu adapter not available (lark-oapi not installed)")
-            except Exception as e:
-                logger.warning(f"Failed to start Feishu adapter: {e}")
+        # --- Feishu: start one adapter per unique app_id from DB bindings ---
+        await self._start_feishu_adapters_from_db()
 
-        # Telegram adapter
+        # --- Telegram: still env-based (single bot token) ---
         if settings.telegram_bot_token:
             try:
                 from app.channels.telegram import TelegramAdapter
@@ -67,6 +84,72 @@ class ChannelManager:
                 logger.info("Telegram adapter not available (python-telegram-bot not installed)")
             except Exception as e:
                 logger.warning(f"Failed to start Telegram adapter: {e}")
+
+    async def _start_feishu_adapters_from_db(self):
+        """Query all enabled Feishu bindings and start one adapter per unique app_id."""
+        from sqlalchemy import select
+        from app.db.database import AsyncSessionLocal
+        from app.db.models import ChannelBindingDB
+
+        try:
+            async with AsyncSessionLocal() as session:
+                result = await session.execute(
+                    select(ChannelBindingDB).where(
+                        ChannelBindingDB.channel_type == "feishu",
+                        ChannelBindingDB.enabled == True,
+                    )
+                )
+                bindings = result.scalars().all()
+
+                # Group by app_id, start one adapter per unique app_id
+                seen_app_ids: dict[str, str] = {}  # app_id -> app_secret
+                for b in bindings:
+                    config = b.config or {}
+                    app_id = config.get("app_id")
+                    app_secret = config.get("app_secret")
+                    if app_id and app_secret and app_id not in seen_app_ids:
+                        seen_app_ids[app_id] = app_secret
+
+            for app_id, app_secret in seen_app_ids.items():
+                await self._start_feishu_adapter(app_id, app_secret)
+
+        except Exception as e:
+            logger.warning(f"Failed to load Feishu bindings from DB: {e}")
+
+    async def _start_feishu_adapter(self, app_id: str, app_secret: str) -> bool:
+        """Start a single Feishu adapter for the given credentials."""
+        key = f"feishu:{app_id}"
+        if key in self._adapters:
+            logger.debug(f"Feishu adapter {key} already running")
+            return True
+
+        try:
+            from app.channels.feishu import FeishuAdapter
+            adapter = FeishuAdapter(app_id, app_secret)
+            adapter.set_message_handler(self._handle_inbound)
+            await adapter.connect()
+            self._adapters[key] = adapter
+            logger.info(f"Feishu adapter started: {key}")
+            return True
+        except ImportError:
+            logger.info("Feishu adapter not available (lark-oapi not installed)")
+            return False
+        except Exception as e:
+            logger.warning(f"Failed to start Feishu adapter {key}: {e}")
+            return False
+
+    async def _stop_adapter(self, adapter_key: str) -> bool:
+        """Stop and remove an adapter by its key."""
+        adapter = self._adapters.pop(adapter_key, None)
+        if not adapter:
+            return False
+        try:
+            await adapter.disconnect()
+            logger.info(f"Channel adapter '{adapter_key}' stopped")
+            return True
+        except Exception as e:
+            logger.warning(f"Error stopping adapter '{adapter_key}': {e}")
+            return False
 
     async def stop(self):
         """Stop all adapters."""
@@ -95,6 +178,122 @@ class ChannelManager:
         except Exception as e:
             logger.error(f"Failed to restart adapter '{adapter_type}': {e}")
             return False
+
+    # ------------------------------------------------------------------
+    # Hot-reload hooks (called from API after CRUD operations)
+    # ------------------------------------------------------------------
+
+    async def on_binding_created(self, binding_id: str):
+        """Start adapter if this binding introduces a new app_id."""
+        if not self._is_leader:
+            return
+        from sqlalchemy import select
+        from app.db.database import AsyncSessionLocal
+        from app.db.models import ChannelBindingDB
+
+        try:
+            async with AsyncSessionLocal() as session:
+                result = await session.execute(
+                    select(ChannelBindingDB).where(ChannelBindingDB.id == binding_id)
+                )
+                binding = result.scalar_one_or_none()
+                if not binding or binding.channel_type != "feishu":
+                    return
+                config = binding.config or {}
+
+            app_id = config.get("app_id")
+            app_secret = config.get("app_secret")
+            if app_id and app_secret:
+                await self._start_feishu_adapter(app_id, app_secret)
+        except Exception as e:
+            logger.warning(f"on_binding_created error: {e}", exc_info=True)
+
+    async def on_binding_updated(self, binding_id: str, old_config: Optional[dict]):
+        """If app_id changed, stop old adapter (if unused) and start new one."""
+        if not self._is_leader:
+            return
+        from sqlalchemy import select
+        from app.db.database import AsyncSessionLocal
+        from app.db.models import ChannelBindingDB
+
+        try:
+            async with AsyncSessionLocal() as session:
+                result = await session.execute(
+                    select(ChannelBindingDB).where(ChannelBindingDB.id == binding_id)
+                )
+                binding = result.scalar_one_or_none()
+                if not binding or binding.channel_type != "feishu":
+                    return
+                new_config = binding.config or {}
+
+            old_app_id = (old_config or {}).get("app_id")
+            new_app_id = new_config.get("app_id")
+            new_app_secret = new_config.get("app_secret")
+
+            # Start new adapter if needed
+            if new_app_id and new_app_secret:
+                await self._start_feishu_adapter(new_app_id, new_app_secret)
+
+            # Stop old adapter if app_id changed and no other bindings use it
+            if old_app_id and old_app_id != new_app_id:
+                await self._maybe_stop_feishu_adapter(old_app_id)
+
+        except Exception as e:
+            logger.warning(f"on_binding_updated error: {e}", exc_info=True)
+
+    async def on_binding_deleted(self, binding_id: str, config: Optional[dict]):
+        """Stop adapter if no remaining bindings use this app_id."""
+        if not self._is_leader:
+            return
+        if not config:
+            return
+        app_id = config.get("app_id")
+        if not app_id:
+            return
+
+        try:
+            await self._maybe_stop_feishu_adapter(app_id)
+        except Exception as e:
+            logger.warning(f"on_binding_deleted error for {binding_id}: {e}", exc_info=True)
+
+    async def _maybe_stop_feishu_adapter(self, app_id: str):
+        """Stop the Feishu adapter for app_id if no enabled bindings still reference it."""
+        from sqlalchemy import select, func
+        from app.db.database import AsyncSessionLocal
+        from app.db.models import ChannelBindingDB
+
+        key = f"feishu:{app_id}"
+        if key not in self._adapters:
+            return
+
+        async with AsyncSessionLocal() as session:
+            # Count remaining enabled bindings that use this app_id
+            count_result = await session.execute(
+                select(func.count()).select_from(ChannelBindingDB).where(
+                    ChannelBindingDB.channel_type == "feishu",
+                    ChannelBindingDB.enabled == True,
+                    ChannelBindingDB.config["app_id"].astext == app_id,
+                )
+            )
+            remaining = count_result.scalar() or 0
+
+        if remaining == 0:
+            await self._stop_adapter(key)
+
+    # ------------------------------------------------------------------
+    # Adapter lookup helper
+    # ------------------------------------------------------------------
+
+    def _get_adapter_for_binding(self, binding) -> Optional[ChannelAdapter]:
+        """Look up the correct adapter for a binding."""
+        key = adapter_key_for_binding(binding)
+        if not key:
+            return None
+        return self._adapters.get(key)
+
+    # ------------------------------------------------------------------
+    # Inbound message handling
+    # ------------------------------------------------------------------
 
     async def _handle_inbound(self, msg: InboundMessage):
         """Handle an inbound message from a channel adapter."""
@@ -174,6 +373,10 @@ class ChannelManager:
                     )
                     session.add(pub_session)
 
+                # Save binding config for adapter lookup after session closes
+                binding_config = binding.config
+                binding_channel_type = binding.channel_type
+
                 await session.commit()
 
             # Build image_contents and augment prompt for media files
@@ -205,9 +408,11 @@ class ChannelManager:
                 session.add(outbound_record)
                 await session.commit()
 
-            # Send response via adapter
+            # Send response via adapter — use binding config to find correct adapter
             if answer or media_paths:
-                adapter = self._adapters.get(msg.channel_type)
+                adapter = self._get_adapter_for_binding(
+                    _BindingInfo(binding_channel_type, binding_config)
+                )
                 if adapter and adapter.is_connected():
                     await adapter.send_message(OutboundMessage(
                         external_id=msg.external_id,
@@ -377,9 +582,9 @@ IMPORTANT: Use the absolute file paths shown above when reading or processing fi
                 logger.warning(f"Channel binding {binding_id} not found")
                 return
 
-            adapter = self._adapters.get(binding.channel_type)
+            adapter = self._get_adapter_for_binding(binding)
             if not adapter or not adapter.is_connected():
-                logger.warning(f"No connected adapter for {binding.channel_type}")
+                logger.warning(f"No connected adapter for binding {binding_id}")
                 return
 
             # Send message

@@ -6,9 +6,8 @@ so no public URL / webhook endpoint is needed. The lark WS client runs
 in a daemon thread; inbound messages are bridged to the async event loop
 via ``asyncio.run_coroutine_threadsafe``.
 
-Required environment variables:
-    FEISHU_APP_ID      - Feishu app ID
-    FEISHU_APP_SECRET  - Feishu app secret
+Credentials (app_id / app_secret) are passed via constructor parameters,
+typically sourced from the channel binding's ``config`` JSONB column.
 
 Feishu app permissions needed:
     im:message            - Send messages
@@ -27,6 +26,25 @@ from pathlib import Path
 from typing import Optional
 
 import lark_oapi as lark
+import lark_oapi.ws.client as _lark_ws_mod
+
+
+class _LoopProxy:
+    """Proxy that delegates all attribute access to the thread-local event loop.
+
+    The lark SDK captures a module-level ``loop = asyncio.get_event_loop()``
+    at import time, then calls ``loop.run_until_complete()`` on it.  Under
+    uvicorn this is the running uvloop, causing RuntimeError.  This proxy
+    always resolves to the *current thread's* event loop, enabling multiple
+    adapters to each run their own loop in separate threads.
+
+    Uses ``get_event_loop_policy().get_event_loop()`` to avoid the
+    DeprecationWarning emitted by ``asyncio.get_event_loop()`` in
+    Python 3.10+ when no running loop exists on the current thread.
+    """
+    def __getattr__(self, name):
+        loop = asyncio.get_event_loop_policy().get_event_loop()
+        return getattr(loop, name)
 from lark_oapi.api.im.v1 import (
     CreateMessageRequest,
     CreateMessageRequestBody,
@@ -70,6 +88,11 @@ class FeishuAdapter(ChannelAdapter):
 
         MEDIA_DIR.mkdir(parents=True, exist_ok=True)
 
+    @property
+    def app_id(self) -> str:
+        """Return the Feishu app_id for adapter identification."""
+        return self._app_id
+
     # ------------------------------------------------------------------
     # Lifecycle
     # ------------------------------------------------------------------
@@ -101,24 +124,17 @@ class FeishuAdapter(ChannelAdapter):
             .build()
         )
 
-        # Start the WebSocket client in a separate thread.
-        #
-        # The lark SDK captures a MODULE-LEVEL event loop at import time:
-        #   lark_oapi/ws/client.py:  loop = asyncio.get_event_loop()
-        # Then start() calls loop.run_until_complete() on this captured loop.
-        # Under uvicorn, this is the running uvloop → RuntimeError.
-        #
-        # Fix: monkey-patch the module-level `loop` variable in the SDK
-        # with a fresh stdlib event loop before calling start().
+        # Replace the lark SDK's module-level event loop with our _LoopProxy
+        # (defined at module level) so each adapter thread uses its own loop.
         import threading
-        import lark_oapi.ws.client as _lark_ws_mod
+
+        if not isinstance(getattr(_lark_ws_mod, 'loop', None), _LoopProxy):
+            _lark_ws_mod.loop = _LoopProxy()
 
         def _run_ws():
-            # Create a clean stdlib event loop for this thread
-            fresh_loop = asyncio.SelectorEventLoop()
+            # Create a clean stdlib event loop for this thread.
+            fresh_loop = asyncio.new_event_loop()
             asyncio.set_event_loop(fresh_loop)
-            # Patch the SDK's module-level loop so start() uses ours
-            _lark_ws_mod.loop = fresh_loop
 
             ws_client = lark.ws.Client(
                 self._app_id,
@@ -141,10 +157,10 @@ class FeishuAdapter(ChannelAdapter):
         self._ws_thread = threading.Thread(
             target=_run_ws,
             daemon=True,
-            name="feishu-ws",
+            name=f"feishu-ws-{self._app_id[:8]}",
         )
         self._ws_thread.start()
-        logger.info("Feishu adapter connected via WebSocket")
+        logger.info(f"Feishu adapter connected via WebSocket (app_id={self._app_id[:8]}...)")
 
     async def disconnect(self) -> None:
         """Stop the Feishu connection."""
