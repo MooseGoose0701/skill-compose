@@ -377,6 +377,29 @@ async def _run_migrations():
         await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_channel_messages_binding_id ON channel_messages (channel_binding_id)"))
         await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_channel_messages_created_at ON channel_messages (created_at)"))
 
+    # Migrate channel_bindings unique constraint to partial indexes for global binding support
+    async with engine.begin() as conn:
+        # Drop old unique constraint (if exists)
+        await conn.execute(text("""
+            DO $$ BEGIN
+                ALTER TABLE channel_bindings DROP CONSTRAINT IF EXISTS uq_channel_binding;
+            END $$
+        """))
+
+        # Partial unique index for specific (non-global) bindings
+        await conn.execute(text("""
+            CREATE UNIQUE INDEX IF NOT EXISTS uq_channel_binding_specific
+            ON channel_bindings (channel_type, external_id)
+            WHERE external_id != '*'
+        """))
+
+        # Partial unique index for global bindings: one per (channel_type, app_id)
+        await conn.execute(text("""
+            CREATE UNIQUE INDEX IF NOT EXISTS uq_channel_binding_global
+            ON channel_bindings (channel_type, (config->>'app_id'))
+            WHERE external_id = '*'
+        """))
+
     # Ensure meta skills from filesystem are registered in the database
     await _ensure_meta_skills_registered()
 

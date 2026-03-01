@@ -45,11 +45,14 @@ export default function NewChannelBindingPage() {
 
   const [name, setName] = useState('');
   const [channelType, setChannelType] = useState('');
+  const [scope, setScope] = useState<'specific' | 'all'>('specific');
   const [externalId, setExternalId] = useState('');
   const [agentId, setAgentId] = useState('');
   const [triggerPattern, setTriggerPattern] = useState('');
   const [credentials, setCredentials] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
+
+  const isGlobal = channelType === 'feishu' && scope === 'all';
 
   const agents = agentsData?.presets || [];
   const credentialFields = channelType ? CREDENTIAL_FIELDS[channelType] || [] : [];
@@ -59,7 +62,7 @@ export default function NewChannelBindingPage() {
 
     if (!name.trim()) { toast.error('Name is required'); return; }
     if (!channelType) { toast.error('Channel type is required'); return; }
-    if (!externalId.trim()) { toast.error('External ID is required'); return; }
+    if (!isGlobal && !externalId.trim()) { toast.error('External ID is required'); return; }
     if (!agentId) { toast.error('Agent is required'); return; }
 
     // Validate required credentials for Feishu
@@ -82,7 +85,7 @@ export default function NewChannelBindingPage() {
       await createBinding.mutateAsync({
         name: name.trim(),
         channel_type: channelType,
-        external_id: externalId.trim(),
+        ...(isGlobal ? {} : { external_id: externalId.trim() }),
         agent_id: agentId,
         trigger_pattern: triggerPattern.trim() || null,
         config: Object.keys(config).length > 0 ? config : null,
@@ -134,6 +137,7 @@ export default function NewChannelBindingPage() {
                 <Select value={channelType} onValueChange={(v) => {
                   setChannelType(v);
                   setCredentials({});
+                  setScope('specific');
                 }}>
                   <SelectTrigger id="channel-type">
                     <SelectValue placeholder={t('fields.channelType')} />
@@ -175,7 +179,41 @@ export default function NewChannelBindingPage() {
                 </div>
               )}
 
-              {/* External ID */}
+              {/* Scope Toggle (Feishu only) */}
+              {channelType === 'feishu' && (
+                <div className="space-y-2">
+                  <Label>{t('fields.scope')}</Label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setScope('all')}
+                      className={`rounded-lg border p-3 text-left transition-colors ${
+                        scope === 'all'
+                          ? 'border-primary bg-primary/5 ring-1 ring-primary'
+                          : 'border-border hover:border-muted-foreground/30'
+                      }`}
+                    >
+                      <div className="text-sm font-medium">{t('scope.allGroups')}</div>
+                      <div className="text-xs text-muted-foreground mt-0.5">{t('scope.allGroupsHint')}</div>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setScope('specific')}
+                      className={`rounded-lg border p-3 text-left transition-colors ${
+                        scope === 'specific'
+                          ? 'border-primary bg-primary/5 ring-1 ring-primary'
+                          : 'border-border hover:border-muted-foreground/30'
+                      }`}
+                    >
+                      <div className="text-sm font-medium">{t('scope.specificGroup')}</div>
+                      <div className="text-xs text-muted-foreground mt-0.5">{t('scope.specificGroupHint')}</div>
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* External ID (hidden for global bindings) */}
+              {!isGlobal && (
               <div className="space-y-2">
                 <Label htmlFor="external-id">{t('fields.externalId')}</Label>
                 <Input
@@ -194,6 +232,7 @@ export default function NewChannelBindingPage() {
                   }
                 </p>
               </div>
+              )}
 
               {/* Agent */}
               <div className="space-y-2">

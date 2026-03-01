@@ -221,6 +221,11 @@ async def create_scheduled_task(
         cb = cb_result.scalar_one_or_none()
         if not cb:
             raise HTTPException(status_code=400, detail="Channel binding not found")
+        if cb.external_id == "*":
+            raise HTTPException(
+                status_code=400,
+                detail="Global bindings (all groups) cannot be used as scheduled task targets",
+            )
         channel_binding_name = cb.name
 
     # Validate schedule
@@ -304,8 +309,14 @@ async def update_scheduled_task(
         cb_result = await db.execute(
             select(ChannelBindingDB).where(ChannelBindingDB.id == update_fields["channel_binding_id"])
         )
-        if not cb_result.scalar_one_or_none():
+        cb = cb_result.scalar_one_or_none()
+        if not cb:
             raise HTTPException(status_code=400, detail="Channel binding not found")
+        if cb.external_id == "*":
+            raise HTTPException(
+                status_code=400,
+                detail="Global bindings (all groups) cannot be used as scheduled task targets",
+            )
 
     for key, value in update_fields.items():
         setattr(task, key, value)

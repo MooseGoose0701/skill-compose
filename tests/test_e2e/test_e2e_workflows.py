@@ -4397,3 +4397,137 @@ class TestMultiFeishuChannelE2E:
             pid = type(self)._state.get(key)
             if pid:
                 await e2e_client.delete(f"/api/v1/agents/{pid}")
+
+
+@pytest.mark.e2e
+@pytest.mark.asyncio(loop_scope="class")
+class TestGlobalFeishuBindingE2E:
+    """E2E tests for global Feishu binding support (external_id='*').
+
+    Covers: create global, duplicate rejection, coexistence with specific,
+    is_global in responses, and cleanup.
+    """
+
+    _state: dict = {}
+
+    async def test_01_create_preset(self, e2e_client: AsyncClient):
+        """Create agent preset for global binding tests."""
+        resp = await e2e_client.post("/api/v1/agents", json={
+            "name": "e2e-global-agent",
+            "description": "Agent for global binding tests",
+            "max_turns": 5,
+        })
+        assert resp.status_code == 200
+        type(self)._state["preset_id"] = resp.json()["id"]
+
+    async def test_02_create_global_binding(self, e2e_client: AsyncClient):
+        """Create a global Feishu binding (no external_id)."""
+        pid = type(self)._state["preset_id"]
+        resp = await e2e_client.post("/api/v1/channels", json={
+            "channel_type": "feishu",
+            "name": "Global Feishu E2E",
+            "agent_id": pid,
+            "config": {"app_id": "cli_global_e2e_001", "app_secret": "globalsecret123"},
+        })
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["external_id"] == "*"
+        assert body["is_global"] is True
+        assert body["channel_type"] == "feishu"
+        type(self)._state["global_id"] = body["id"]
+
+    async def test_03_global_secret_masked(self, e2e_client: AsyncClient):
+        """Global binding should also mask app_secret."""
+        gid = type(self)._state["global_id"]
+        resp = await e2e_client.get(f"/api/v1/channels/{gid}")
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["config"]["app_secret"].startswith("****")
+        assert body["config"]["app_secret"].endswith("t123")
+        assert body["is_global"] is True
+
+    async def test_04_duplicate_global_rejected(self, e2e_client: AsyncClient):
+        """A second global binding for the same app_id should be rejected."""
+        pid = type(self)._state["preset_id"]
+        resp = await e2e_client.post("/api/v1/channels", json={
+            "channel_type": "feishu",
+            "name": "Duplicate Global",
+            "agent_id": pid,
+            "config": {"app_id": "cli_global_e2e_001", "app_secret": "other_secret"},
+        })
+        assert resp.status_code == 409
+
+    async def test_05_global_non_feishu_rejected(self, e2e_client: AsyncClient):
+        """Global binding for non-Feishu channel types should be rejected."""
+        pid = type(self)._state["preset_id"]
+        resp = await e2e_client.post("/api/v1/channels", json={
+            "channel_type": "webhook",
+            "name": "Global Webhook Fail",
+            "agent_id": pid,
+        })
+        assert resp.status_code == 400
+        assert "Feishu" in resp.json()["detail"]
+
+    async def test_06_global_requires_app_id(self, e2e_client: AsyncClient):
+        """Global Feishu binding without app_id in config should be rejected."""
+        pid = type(self)._state["preset_id"]
+        resp = await e2e_client.post("/api/v1/channels", json={
+            "channel_type": "feishu",
+            "name": "Global No AppId",
+            "agent_id": pid,
+            "config": {"app_secret": "only_secret"},
+        })
+        assert resp.status_code == 400
+        assert "app_id" in resp.json()["detail"]
+
+    async def test_07_create_specific_binding_same_app(self, e2e_client: AsyncClient):
+        """A specific binding for the same app_id can coexist with the global one."""
+        pid = type(self)._state["preset_id"]
+        resp = await e2e_client.post("/api/v1/channels", json={
+            "channel_type": "feishu",
+            "external_id": "oc_specific_e2e_001",
+            "name": "Specific Feishu E2E",
+            "agent_id": pid,
+            "config": {"app_id": "cli_global_e2e_001", "app_secret": "specificsecret"},
+        })
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["is_global"] is False
+        assert body["external_id"] == "oc_specific_e2e_001"
+        type(self)._state["specific_id"] = body["id"]
+
+    async def test_08_list_shows_is_global(self, e2e_client: AsyncClient):
+        """List endpoint should show is_global correctly for both bindings."""
+        resp = await e2e_client.get("/api/v1/channels?channel_type=feishu")
+        assert resp.status_code == 200
+        bindings = resp.json()["bindings"]
+        global_b = next((b for b in bindings if b["id"] == type(self)._state["global_id"]), None)
+        specific_b = next((b for b in bindings if b["id"] == type(self)._state["specific_id"]), None)
+        assert global_b is not None and global_b["is_global"] is True
+        assert specific_b is not None and specific_b["is_global"] is False
+
+    async def test_09_second_app_global_binding(self, e2e_client: AsyncClient):
+        """A global binding for a different app_id should succeed."""
+        pid = type(self)._state["preset_id"]
+        resp = await e2e_client.post("/api/v1/channels", json={
+            "channel_type": "feishu",
+            "name": "Global Feishu App 2",
+            "agent_id": pid,
+            "config": {"app_id": "cli_global_e2e_002", "app_secret": "app2secret"},
+        })
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["is_global"] is True
+        type(self)._state["global_id_2"] = body["id"]
+
+    async def test_10_cleanup(self, e2e_client: AsyncClient):
+        """Delete all test bindings and preset."""
+        for key in ["global_id", "global_id_2", "specific_id"]:
+            bid = type(self)._state.get(key)
+            if bid:
+                resp = await e2e_client.delete(f"/api/v1/channels/{bid}")
+                assert resp.status_code == 200
+
+        pid = type(self)._state.get("preset_id")
+        if pid:
+            await e2e_client.delete(f"/api/v1/agents/{pid}")
