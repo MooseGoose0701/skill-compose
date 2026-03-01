@@ -14,7 +14,7 @@ from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.database import get_db
-from app.db.models import ScheduledTaskDB, TaskRunLogDB, AgentPresetDB, generate_uuid
+from app.db.models import ScheduledTaskDB, TaskRunLogDB, AgentPresetDB, ChannelBindingDB, generate_uuid
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +31,7 @@ class ScheduledTaskCreate(BaseModel):
     schedule_value: str = Field(..., min_length=1)
     context_mode: str = Field(default="isolated", pattern="^(isolated|session)$")
     max_runs: Optional[int] = Field(default=None, ge=1)
+    channel_binding_id: Optional[str] = None
 
 
 class ScheduledTaskUpdate(BaseModel):
@@ -40,6 +41,7 @@ class ScheduledTaskUpdate(BaseModel):
     schedule_value: Optional[str] = Field(default=None, min_length=1)
     context_mode: Optional[str] = Field(default=None, pattern="^(isolated|session)$")
     max_runs: Optional[int] = Field(default=None, ge=1)
+    channel_binding_id: Optional[str] = None
 
 
 class ScheduledTaskResponse(BaseModel):
@@ -53,6 +55,7 @@ class ScheduledTaskResponse(BaseModel):
     context_mode: str
     session_id: Optional[str] = None
     channel_binding_id: Optional[str] = None
+    channel_binding_name: Optional[str] = None
     status: str
     next_run: Optional[str] = None
     last_run: Optional[str] = None
@@ -75,7 +78,7 @@ class TaskRunLogResponse(BaseModel):
     created_at: str
 
 
-def _task_to_response(task: ScheduledTaskDB, agent_name: str = None) -> dict:
+def _task_to_response(task: ScheduledTaskDB, agent_name: str = None, channel_binding_name: str = None) -> dict:
     return {
         "id": task.id,
         "name": task.name,
@@ -87,6 +90,7 @@ def _task_to_response(task: ScheduledTaskDB, agent_name: str = None) -> dict:
         "context_mode": task.context_mode,
         "session_id": task.session_id,
         "channel_binding_id": task.channel_binding_id,
+        "channel_binding_name": channel_binding_name,
         "status": task.status,
         "next_run": task.next_run.isoformat() if task.next_run else None,
         "last_run": task.last_run.isoformat() if task.last_run else None,
@@ -139,7 +143,21 @@ async def list_scheduled_tasks(
         )
         agent_names = {row[0]: row[1] for row in agent_result.fetchall()}
 
-    return [_task_to_response(t, agent_names.get(t.agent_id)) for t in tasks]
+    # Batch load channel binding names
+    binding_ids = list(set(t.channel_binding_id for t in tasks if t.channel_binding_id))
+    binding_names = {}
+    if binding_ids:
+        binding_result = await db.execute(
+            select(ChannelBindingDB.id, ChannelBindingDB.name).where(
+                ChannelBindingDB.id.in_(binding_ids)
+            )
+        )
+        binding_names = {row[0]: row[1] for row in binding_result.fetchall()}
+
+    return [
+        _task_to_response(t, agent_names.get(t.agent_id), binding_names.get(t.channel_binding_id))
+        for t in tasks
+    ]
 
 
 @router.get("/{task_id}")
@@ -164,7 +182,17 @@ async def get_scheduled_task(
     if row:
         agent_name = row
 
-    return _task_to_response(task, agent_name)
+    # Load channel binding name
+    channel_binding_name = None
+    if task.channel_binding_id:
+        cb_result = await db.execute(
+            select(ChannelBindingDB.name).where(ChannelBindingDB.id == task.channel_binding_id)
+        )
+        cb_row = cb_result.scalar_one_or_none()
+        if cb_row:
+            channel_binding_name = cb_row
+
+    return _task_to_response(task, agent_name, channel_binding_name)
 
 
 @router.post("", status_code=201)
@@ -179,8 +207,21 @@ async def create_scheduled_task(
     agent_result = await db.execute(
         select(AgentPresetDB).where(AgentPresetDB.id == data.agent_id)
     )
-    if not agent_result.scalar_one_or_none():
+    agent = agent_result.scalar_one_or_none()
+    if not agent:
         raise HTTPException(status_code=400, detail="Agent preset not found")
+    agent_name = agent.name
+
+    # Validate channel binding exists (if provided)
+    channel_binding_name = None
+    if data.channel_binding_id:
+        cb_result = await db.execute(
+            select(ChannelBindingDB).where(ChannelBindingDB.id == data.channel_binding_id)
+        )
+        cb = cb_result.scalar_one_or_none()
+        if not cb:
+            raise HTTPException(status_code=400, detail="Channel binding not found")
+        channel_binding_name = cb.name
 
     # Validate schedule
     error = validate_schedule(data.schedule_type, data.schedule_value)
@@ -206,6 +247,7 @@ async def create_scheduled_task(
         schedule_type=data.schedule_type,
         schedule_value=data.schedule_value,
         context_mode=data.context_mode,
+        channel_binding_id=data.channel_binding_id,
         max_runs=data.max_runs,
         next_run=next_run,
         status="active",
@@ -217,7 +259,7 @@ async def create_scheduled_task(
     await db.commit()
     await db.refresh(task)
 
-    return _task_to_response(task)
+    return _task_to_response(task, agent_name, channel_binding_name)
 
 
 @router.put("/{task_id}")
@@ -257,6 +299,14 @@ async def update_scheduled_task(
         if existing.scalar_one_or_none():
             raise HTTPException(status_code=409, detail=f"Task name '{update_fields['name']}' already exists")
 
+    # Validate channel binding exists (if changing)
+    if "channel_binding_id" in update_fields and update_fields["channel_binding_id"]:
+        cb_result = await db.execute(
+            select(ChannelBindingDB).where(ChannelBindingDB.id == update_fields["channel_binding_id"])
+        )
+        if not cb_result.scalar_one_or_none():
+            raise HTTPException(status_code=400, detail="Channel binding not found")
+
     for key, value in update_fields.items():
         setattr(task, key, value)
 
@@ -264,7 +314,24 @@ async def update_scheduled_task(
     await db.commit()
     await db.refresh(task)
 
-    return _task_to_response(task)
+    # Load agent name
+    agent_name = None
+    agent_result = await db.execute(
+        select(AgentPresetDB.name).where(AgentPresetDB.id == task.agent_id)
+    )
+    row = agent_result.scalar_one_or_none()
+    if row:
+        agent_name = row
+
+    # Load channel binding name
+    channel_binding_name = None
+    if task.channel_binding_id:
+        cb_result = await db.execute(
+            select(ChannelBindingDB.name).where(ChannelBindingDB.id == task.channel_binding_id)
+        )
+        channel_binding_name = cb_result.scalar_one_or_none()
+
+    return _task_to_response(task, agent_name, channel_binding_name)
 
 
 @router.delete("/{task_id}", status_code=204)

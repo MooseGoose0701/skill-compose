@@ -10,6 +10,7 @@ import {
   Zap,
   ExternalLink,
   Clock,
+  Send,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -279,6 +280,22 @@ export default function ScheduledTaskDetailPage() {
               <div>
                 <span className="text-sm font-medium text-muted-foreground">{t('fields.runCount')}</span>
                 <p className="mt-1 text-sm">{task.run_count}</p>
+              </div>
+              <div>
+                <span className="text-sm font-medium text-muted-foreground">{t('fields.channelBinding')}</span>
+                <div className="mt-1 text-sm">
+                  {task.channel_binding_id ? (
+                    <Link
+                      href={`/channels/${task.channel_binding_id}`}
+                      className="inline-flex items-center gap-1 text-blue-500 hover:text-blue-600"
+                    >
+                      <Send className="h-3 w-3" />
+                      {task.channel_binding_name || task.channel_binding_id}
+                    </Link>
+                  ) : (
+                    <span className="text-muted-foreground">-</span>
+                  )}
+                </div>
               </div>
               <div>
                 <span className="text-sm font-medium text-muted-foreground">{t('fields.nextRun')}</span>

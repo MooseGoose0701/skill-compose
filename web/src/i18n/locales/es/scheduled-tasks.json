@@ -15,7 +15,12 @@
     "status": "Estado",
     "nextRun": "Próxima Ejecución",
     "lastRun": "Última Ejecución",
-    "runCount": "Cantidad de Ejecuciones"
+    "runCount": "Cantidad de Ejecuciones",
+    "channelBinding": "Entregar al Canal",
+    "noChannel": "Ninguno (sin entrega)"
+  },
+  "hints": {
+    "channelBinding": "Opcional: enviar los resultados de la tarea a un canal vinculado"
   },
   "scheduleTypes": {
     "cron": "Cron",
