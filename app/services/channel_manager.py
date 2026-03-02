@@ -19,7 +19,7 @@ import time
 from datetime import datetime
 from pathlib import Path
 from collections import namedtuple
-from typing import Optional
+from typing import Awaitable, Callable, Optional
 from urllib.parse import parse_qs, urlparse
 
 from app.channels.base import ChannelAdapter, InboundMessage, OutboundMessage
@@ -433,10 +433,30 @@ class ChannelManager:
                     msg.media, msg.content
                 )
 
+            # Resolve adapter for progress callback
+            adapter = self._get_adapter_for_binding(
+                _BindingInfo(binding_channel_type, binding_config)
+            )
+
+            # Progress callback: send intermediate turn results to Feishu.
+            # Track the last sent text so we can avoid duplicating it in
+            # the final message (review issue #4).
+            last_progress_text: list[str] = []  # mutable container for closure
+
+            async def _on_progress(text: str):
+                if adapter and adapter.is_connected():
+                    await adapter.send_message(OutboundMessage(
+                        external_id=msg.external_id,
+                        content=text,
+                    ))
+                    last_progress_text.clear()
+                    last_progress_text.append(text)
+
             # Run agent (outside DB session)
             answer, output_files = await self._run_agent(
                 preset, actual_prompt, conversation_history, session_id,
                 image_contents=image_contents,
+                on_progress=_on_progress,
             )
 
             # Extract file paths from agent output_files for sending back
@@ -454,8 +474,15 @@ class ChannelManager:
                 session.add(outbound_record)
                 await session.commit()
 
-            # Send response via adapter — use binding config to find correct adapter
-            if answer or media_paths:
+            # Send final response via adapter.
+            # Skip if the answer was already sent as the last progress
+            # message and there are no output files to attach.
+            already_sent = (
+                last_progress_text
+                and last_progress_text[0] == (answer or "")
+                and not media_paths
+            )
+            if (answer or media_paths) and not already_sent:
                 adapter = self._get_adapter_for_binding(
                     _BindingInfo(binding_channel_type, binding_config)
                 )
@@ -476,8 +503,14 @@ class ChannelManager:
         conversation_history: Optional[list] = None,
         session_id: Optional[str] = None,
         image_contents: Optional[list[dict]] = None,
+        on_progress: Optional[Callable[[str], Awaitable[None]]] = None,
     ) -> tuple[Optional[str], list[dict]]:
         """Run a SkillsAgent with the given preset config.
+
+        When *on_progress* is provided the agent is executed with an
+        ``EventStream`` so that intermediate turn results (text + tool
+        hints) can be forwarded to the caller (e.g. Feishu channel)
+        before the final answer is ready.
 
         Returns:
             (answer, output_files) tuple.
@@ -501,11 +534,18 @@ class ChannelManager:
                 )
 
             start_time = time.time()
-            result = await agent.run(
-                prompt,
-                conversation_history=conversation_history,
-                image_contents=image_contents,
-            )
+
+            if on_progress is not None:
+                result = await self._run_agent_streaming(
+                    agent, prompt, conversation_history, image_contents, on_progress,
+                )
+            else:
+                result = await agent.run(
+                    prompt,
+                    conversation_history=conversation_history,
+                    image_contents=image_contents,
+                )
+
             duration_ms = int((time.time() - start_time) * 1000)
 
             # Save trace (the core bug fix — channel messages now get traced)
@@ -540,6 +580,81 @@ class ChannelManager:
         finally:
             if agent:
                 agent.cleanup()
+
+    @staticmethod
+    async def _run_agent_streaming(
+        agent,
+        prompt: str,
+        conversation_history: Optional[list],
+        image_contents: Optional[list[dict]],
+        on_progress: Callable[[str], Awaitable[None]],
+    ):
+        """Run an agent with an EventStream and send per-turn progress.
+
+        Consumes stream events, accumulates text/tool hints per turn, and
+        calls *on_progress* at each ``turn_complete`` boundary (only when
+        there will be more turns, i.e. the agent hasn't finished yet).
+        """
+        from app.agent.event_stream import EventStream
+
+        event_stream = EventStream()
+        agent_task = asyncio.create_task(
+            agent.run(
+                prompt,
+                conversation_history=conversation_history,
+                image_contents=image_contents,
+                event_stream=event_stream,
+            )
+        )
+
+        turn_buffer: list[str] = []
+
+        try:
+            async for event in event_stream:
+                etype = event.event_type
+
+                if etype == "text_delta":
+                    text = event.data.get("text", "")
+                    if text:
+                        turn_buffer.append(text)
+
+                elif etype == "tool_call":
+                    tool_name = event.data.get("tool_name", "unknown")
+                    turn_buffer.append(f"\n> Using tool: {tool_name}...")
+
+                elif etype == "turn_complete":
+                    # Send progress only when there is content — the
+                    # agent will continue with more turns after this.
+                    content = "".join(turn_buffer).strip()
+                    if content:
+                        try:
+                            await on_progress(content)
+                        except Exception as cb_err:
+                            logger.warning(f"on_progress callback failed: {cb_err}")
+                    turn_buffer.clear()
+
+                elif etype in ("complete", "error"):
+                    # Final turn's buffered text is intentionally discarded
+                    # here — the definitive answer comes from the AgentResult
+                    # returned by agent.run(), which is sent by the caller.
+                    break
+
+                # Heartbeat events (emitted by EventStream on idle timeout)
+                # are silently ignored — they only serve SSE keep-alive.
+
+        except Exception as e:
+            logger.warning(f"Error consuming event stream: {e}", exc_info=True)
+
+        # Await the AgentResult.  If the agent task itself raised, let
+        # the exception propagate so the caller's try/except handles it
+        # (e.g. returning "Error: ..." and calling agent.cleanup()).
+        try:
+            return await agent_task
+        except Exception:
+            # Cancel dangling task if still running after stream error
+            if not agent_task.done():
+                agent_task.cancel()
+            raise
 
     @staticmethod
     def _build_media_context(
