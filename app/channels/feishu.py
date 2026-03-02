@@ -21,6 +21,7 @@ import asyncio
 import json
 import logging
 import mimetypes
+import re
 from collections import OrderedDict
 from pathlib import Path
 from typing import Optional
@@ -381,7 +382,8 @@ class FeishuAdapter(ChannelAdapter):
             if not response.success():
                 logger.error(f"Download file failed: code={response.code} msg={response.msg}")
                 return None
-            filepath = MEDIA_DIR / f"{file_key}_{filename}"
+            safe_name = re.sub(r'[^\w.\-]', '_', filename)
+            filepath = MEDIA_DIR / f"{file_key}_{safe_name}"
             filepath.write_bytes(response.file.read())
             return filepath
         except Exception as e:

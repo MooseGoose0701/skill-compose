@@ -14,6 +14,7 @@ import hashlib
 import logging
 import mimetypes
 import re
+import shutil
 import time
 from datetime import datetime
 from pathlib import Path
@@ -22,6 +23,7 @@ from typing import Optional
 from urllib.parse import parse_qs, urlparse
 
 from app.channels.base import ChannelAdapter, InboundMessage, OutboundMessage
+from app.tools.code_executor import WORKSPACES_BASE_DIR
 
 logger = logging.getLogger(__name__)
 
@@ -398,6 +400,30 @@ class ChannelManager:
                 binding_channel_type = binding.channel_type
 
                 await session.commit()
+
+            # Move media files into the shared workspace so executor
+            # containers can access them (api and executor share the
+            # workspaces volume, but /tmp is container-local).
+            # NOTE: src.name already includes the file_key prefix
+            # (e.g. "filekey_report.pdf") set by the channel adapter,
+            # so collisions across different uploads are not expected.
+            if msg.media:
+                ws_dir = WORKSPACES_BASE_DIR / session_id
+                ws_dir.mkdir(parents=True, exist_ok=True)
+                new_paths = []
+                for p in msg.media:
+                    src = Path(p)
+                    if src.exists():
+                        dst = ws_dir / src.name
+                        try:
+                            shutil.move(str(src), str(dst))
+                            new_paths.append(str(dst))
+                        except OSError as e:
+                            logger.warning(f"Failed to move media file {src} -> {dst}: {e}")
+                            new_paths.append(p)
+                    else:
+                        new_paths.append(p)
+                msg.media = new_paths
 
             # Build image_contents and augment prompt for media files
             image_contents = None
