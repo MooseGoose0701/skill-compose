@@ -2,7 +2,7 @@
 import pytest
 import pytest_asyncio
 
-from tests.factories import make_preset, make_scheduled_task, make_task_run_log
+from tests.factories import make_preset, make_scheduled_task, make_task_run_log, make_channel_binding
 
 
 @pytest.mark.asyncio
@@ -194,3 +194,130 @@ class TestSchedulerAPI:
         assert resp.status_code == 201
         assert resp.json()["schedule_type"] == "cron"
         assert resp.json()["next_run"] is not None
+
+    async def test_create_task_with_global_binding_and_delivery_to(self, client, db_session):
+        """Global binding + delivery_to should succeed."""
+        preset = make_preset(name="sched-agent-global-ok")
+        binding = make_channel_binding(
+            name="global-feishu",
+            channel_type="feishu",
+            external_id="*",
+            agent_id=preset.id,
+        )
+        db_session.add(preset)
+        db_session.add(binding)
+        await db_session.commit()
+
+        resp = await client.post("/api/v1/scheduled-tasks", json={
+            "name": "global-task-ok",
+            "agent_id": preset.id,
+            "prompt": "Report",
+            "schedule_type": "interval",
+            "schedule_value": "3600",
+            "channel_binding_id": binding.id,
+            "delivery_to": "oc_target_chat_123",
+        })
+        assert resp.status_code == 201
+        data = resp.json()
+        assert data["delivery_to"] == "oc_target_chat_123"
+        assert data["channel_binding_id"] == binding.id
+
+    async def test_create_task_with_global_binding_no_delivery_to_fails(self, client, db_session):
+        """Global binding without delivery_to should fail with 400."""
+        preset = make_preset(name="sched-agent-global-fail")
+        binding = make_channel_binding(
+            name="global-feishu-2",
+            channel_type="feishu",
+            external_id="*",
+            agent_id=preset.id,
+        )
+        db_session.add(preset)
+        db_session.add(binding)
+        await db_session.commit()
+
+        resp = await client.post("/api/v1/scheduled-tasks", json={
+            "name": "global-task-fail",
+            "agent_id": preset.id,
+            "prompt": "Report",
+            "schedule_type": "interval",
+            "schedule_value": "3600",
+            "channel_binding_id": binding.id,
+        })
+        assert resp.status_code == 400
+        assert "delivery_to" in resp.json()["detail"].lower()
+
+    async def test_create_task_with_delivery_to_override(self, client, db_session):
+        """Specific binding + delivery_to override should succeed."""
+        preset = make_preset(name="sched-agent-override")
+        binding = make_channel_binding(
+            name="specific-feishu",
+            channel_type="feishu",
+            external_id="oc_original_chat",
+            agent_id=preset.id,
+        )
+        db_session.add(preset)
+        db_session.add(binding)
+        await db_session.commit()
+
+        resp = await client.post("/api/v1/scheduled-tasks", json={
+            "name": "override-task",
+            "agent_id": preset.id,
+            "prompt": "Report",
+            "schedule_type": "interval",
+            "schedule_value": "3600",
+            "channel_binding_id": binding.id,
+            "delivery_to": "oc_different_chat",
+        })
+        assert resp.status_code == 201
+        data = resp.json()
+        assert data["delivery_to"] == "oc_different_chat"
+
+    async def test_update_clear_delivery_to_with_global_binding_fails(self, client, db_session):
+        """Clearing delivery_to on a task with global binding should fail."""
+        preset = make_preset(name="sched-agent-clear-fail")
+        binding = make_channel_binding(
+            name="global-feishu-3",
+            channel_type="feishu",
+            external_id="*",
+            agent_id=preset.id,
+        )
+        db_session.add(preset)
+        db_session.add(binding)
+        await db_session.commit()
+
+        # Create task with global binding + delivery_to
+        create_resp = await client.post("/api/v1/scheduled-tasks", json={
+            "name": "clear-fail-task",
+            "agent_id": preset.id,
+            "prompt": "Report",
+            "schedule_type": "interval",
+            "schedule_value": "3600",
+            "channel_binding_id": binding.id,
+            "delivery_to": "oc_target_123",
+        })
+        assert create_resp.status_code == 201
+        task_id = create_resp.json()["id"]
+
+        # Try to clear delivery_to — should fail
+        resp = await client.put(f"/api/v1/scheduled-tasks/{task_id}", json={
+            "delivery_to": None,
+        })
+        assert resp.status_code == 400
+        assert "delivery_to" in resp.json()["detail"].lower()
+
+    async def test_create_task_delivery_to_without_channel_fails(self, client, db_session):
+        """delivery_to without channel_binding_id should fail with 400."""
+        preset = make_preset(name="sched-agent-no-channel")
+        db_session.add(preset)
+        await db_session.commit()
+
+        resp = await client.post("/api/v1/scheduled-tasks", json={
+            "name": "orphan-delivery",
+            "agent_id": preset.id,
+            "prompt": "Report",
+            "schedule_type": "interval",
+            "schedule_value": "3600",
+            "delivery_to": "oc_some_chat",
+        })
+        assert resp.status_code == 400
+        assert "delivery_to" in resp.json()["detail"].lower()

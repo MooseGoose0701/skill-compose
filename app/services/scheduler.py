@@ -287,7 +287,10 @@ class TaskScheduler:
                     send_loop = asyncio.new_event_loop()
                     try:
                         send_loop.run_until_complete(
-                            manager.send_to_channel(task.channel_binding_id, result.answer)
+                            manager.send_to_channel(
+                                task.channel_binding_id, result.answer,
+                                target_override=task.delivery_to,
+                            )
                         )
                     finally:
                         send_loop.close()

@@ -51,9 +51,12 @@ export default function NewScheduledTaskPage() {
   const [contextMode, setContextMode] = useState('isolated');
   const [maxRuns, setMaxRuns] = useState('');
   const [channelBindingId, setChannelBindingId] = useState('');
+  const [deliveryTo, setDeliveryTo] = useState('');
 
   const agents = agentsData?.presets || [];
-  const channels = channelsData?.bindings?.filter((b) => b.enabled && !b.is_global) || [];
+  const channels = channelsData?.bindings?.filter((b) => b.enabled) || [];
+  const selectedChannel = channels.find((ch) => ch.id === channelBindingId);
+  const isGlobalBinding = selectedChannel?.is_global ?? false;
 
   const getPlaceholder = () => {
     switch (scheduleType) {
@@ -76,7 +79,13 @@ export default function NewScheduledTaskPage() {
       return;
     }
 
+    if (isGlobalBinding && !deliveryTo.trim()) {
+      toast.error(t('hints.deliveryToRequired'));
+      return;
+    }
+
     try {
+      const hasChannel = channelBindingId && channelBindingId !== 'none';
       await createTask.mutateAsync({
         name: name.trim(),
         agent_id: agentId,
@@ -85,7 +94,8 @@ export default function NewScheduledTaskPage() {
         schedule_value: scheduleValue.trim(),
         context_mode: contextMode,
         max_runs: maxRuns ? parseInt(maxRuns, 10) : null,
-        channel_binding_id: channelBindingId && channelBindingId !== 'none' ? channelBindingId : null,
+        channel_binding_id: hasChannel ? channelBindingId : null,
+        delivery_to: hasChannel && deliveryTo.trim() ? deliveryTo.trim() : null,
       });
       toast.success(t('messages.created'));
       router.push('/scheduled-tasks');
@@ -236,7 +246,7 @@ export default function NewScheduledTaskPage() {
                     <span className="text-sm text-muted-foreground">{tc('status.loading')}</span>
                   </div>
                 ) : (
-                  <Select value={channelBindingId} onValueChange={setChannelBindingId}>
+                  <Select value={channelBindingId} onValueChange={(v) => { setChannelBindingId(v); setDeliveryTo(''); }}>
                     <SelectTrigger id="channel-binding">
                       <SelectValue placeholder={t('fields.noChannel')} />
                     </SelectTrigger>
@@ -244,7 +254,7 @@ export default function NewScheduledTaskPage() {
                       <SelectItem value="none">{t('fields.noChannel')}</SelectItem>
                       {channels.map((ch) => (
                         <SelectItem key={ch.id} value={ch.id}>
-                          [{ch.channel_type}] {ch.name}
+                          [{ch.channel_type}] {ch.name}{ch.is_global ? ` ${t('fields.allGroups')}` : ''}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -252,6 +262,30 @@ export default function NewScheduledTaskPage() {
                 )}
                 <p className="text-xs text-muted-foreground">{t('hints.channelBinding')}</p>
               </div>
+
+              {/* Delivery To (visible when channel selected) */}
+              {channelBindingId && channelBindingId !== 'none' && (
+                <div className="space-y-2">
+                  <Label htmlFor="delivery-to">
+                    {t('fields.deliveryTo')}
+                    {isGlobalBinding ? (
+                      <span className="text-destructive text-xs ml-1">*</span>
+                    ) : (
+                      <span className="text-muted-foreground text-xs ml-1">({tc('status.optional')})</span>
+                    )}
+                  </Label>
+                  <Input
+                    id="delivery-to"
+                    value={deliveryTo}
+                    onChange={(e) => setDeliveryTo(e.target.value)}
+                    placeholder={t('placeholders.deliveryTo')}
+                    required={isGlobalBinding}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    {isGlobalBinding ? t('hints.deliveryToRequired') : t('hints.deliveryTo')}
+                  </p>
+                </div>
+              )}
 
               {/* Submit */}
               <div className="flex justify-end gap-3">

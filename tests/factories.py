@@ -219,6 +219,7 @@ def make_scheduled_task(
         schedule_value=schedule_value,
         context_mode=context_mode,
         status=status,
+        delivery_to=kwargs.get("delivery_to"),
         next_run=kwargs.get("next_run"),
         last_run=kwargs.get("last_run"),
         max_runs=kwargs.get("max_runs"),

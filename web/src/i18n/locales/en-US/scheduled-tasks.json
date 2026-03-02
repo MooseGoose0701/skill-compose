@@ -17,10 +17,14 @@
     "lastRun": "Last Run",
     "runCount": "Run Count",
     "channelBinding": "Deliver To Channel",
-    "noChannel": "None (no delivery)"
+    "noChannel": "None (no delivery)",
+    "deliveryTo": "Target Chat ID",
+    "allGroups": "(all groups)"
   },
   "hints": {
-    "channelBinding": "Optionally send task results to a channel binding"
+    "channelBinding": "Optionally send task results to a channel binding",
+    "deliveryTo": "Specify the target chat/group ID for delivery",
+    "deliveryToRequired": "Required for all-groups bindings"
   },
   "scheduleTypes": {
     "cron": "Cron",
@@ -66,6 +70,7 @@
   "placeholders": {
     "cronValue": "0 */6 * * * (every 6 hours)",
     "intervalValue": "3600 (seconds)",
-    "onceValue": "2026-03-01T00:00:00"
+    "onceValue": "2026-03-01T00:00:00",
+    "deliveryTo": "oc_xxxxxxxxxxxx"
   }
 }

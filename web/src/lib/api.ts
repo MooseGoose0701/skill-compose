@@ -2225,6 +2225,7 @@ export interface ScheduledTask {
   session_id: string | null;
   channel_binding_id: string | null;
   channel_binding_name: string | null;
+  delivery_to: string | null;
   status: string;
   next_run: string | null;
   last_run: string | null;
@@ -2243,6 +2244,7 @@ export interface ScheduledTaskCreateRequest {
   context_mode?: string;
   max_runs?: number | null;
   channel_binding_id?: string | null;
+  delivery_to?: string | null;
 }
 
 export interface ScheduledTaskUpdateRequest {
@@ -2253,6 +2255,7 @@ export interface ScheduledTaskUpdateRequest {
   context_mode?: string;
   max_runs?: number | null;
   channel_binding_id?: string | null;
+  delivery_to?: string | null;
 }
 
 export interface TaskRunLog {

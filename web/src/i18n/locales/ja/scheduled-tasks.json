@@ -17,10 +17,14 @@
     "lastRun": "前回実行",
     "runCount": "実行回数",
     "channelBinding": "チャンネルに配信",
-    "noChannel": "なし（配信しない）"
+    "noChannel": "なし（配信しない）",
+    "deliveryTo": "ターゲットチャットID",
+    "allGroups": "（全グループ）"
   },
   "hints": {
-    "channelBinding": "オプション：タスク結果を指定のチャンネルバインディングに送信"
+    "channelBinding": "オプション：タスク結果を指定のチャンネルバインディングに送信",
+    "deliveryTo": "配信先のチャット/グループIDを指定",
+    "deliveryToRequired": "全グループバインディングには必須です"
   },
   "scheduleTypes": {
     "cron": "Cron",
@@ -66,6 +70,7 @@
   "placeholders": {
     "cronValue": "0 */6 * * *（6時間ごと）",
     "intervalValue": "3600（秒）",
-    "onceValue": "2026-03-01T00:00:00"
+    "onceValue": "2026-03-01T00:00:00",
+    "deliveryTo": "oc_xxxxxxxxxxxx"
   }
 }

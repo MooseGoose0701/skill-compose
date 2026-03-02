@@ -32,6 +32,7 @@ class ScheduledTaskCreate(BaseModel):
     context_mode: str = Field(default="isolated", pattern="^(isolated|session)$")
     max_runs: Optional[int] = Field(default=None, ge=1)
     channel_binding_id: Optional[str] = None
+    delivery_to: Optional[str] = Field(default=None, max_length=256)
 
 
 class ScheduledTaskUpdate(BaseModel):
@@ -42,6 +43,7 @@ class ScheduledTaskUpdate(BaseModel):
     context_mode: Optional[str] = Field(default=None, pattern="^(isolated|session)$")
     max_runs: Optional[int] = Field(default=None, ge=1)
     channel_binding_id: Optional[str] = None
+    delivery_to: Optional[str] = Field(default=None, max_length=256)
 
 
 class ScheduledTaskResponse(BaseModel):
@@ -56,6 +58,7 @@ class ScheduledTaskResponse(BaseModel):
     session_id: Optional[str] = None
     channel_binding_id: Optional[str] = None
     channel_binding_name: Optional[str] = None
+    delivery_to: Optional[str] = None
     status: str
     next_run: Optional[str] = None
     last_run: Optional[str] = None
@@ -91,6 +94,7 @@ def _task_to_response(task: ScheduledTaskDB, agent_name: str = None, channel_bin
         "session_id": task.session_id,
         "channel_binding_id": task.channel_binding_id,
         "channel_binding_name": channel_binding_name,
+        "delivery_to": task.delivery_to,
         "status": task.status,
         "next_run": task.next_run.isoformat() if task.next_run else None,
         "last_run": task.last_run.isoformat() if task.last_run else None,
@@ -221,12 +225,17 @@ async def create_scheduled_task(
         cb = cb_result.scalar_one_or_none()
         if not cb:
             raise HTTPException(status_code=400, detail="Channel binding not found")
-        if cb.external_id == "*":
+        if cb.external_id == "*" and not data.delivery_to:
             raise HTTPException(
                 status_code=400,
-                detail="Global bindings (all groups) cannot be used as scheduled task targets",
+                detail="Global bindings require a delivery_to target chat ID",
             )
         channel_binding_name = cb.name
+    elif data.delivery_to:
+        raise HTTPException(
+            status_code=400,
+            detail="delivery_to requires a channel_binding_id",
+        )
 
     # Validate schedule
     error = validate_schedule(data.schedule_type, data.schedule_value)
@@ -253,6 +262,7 @@ async def create_scheduled_task(
         schedule_value=data.schedule_value,
         context_mode=data.context_mode,
         channel_binding_id=data.channel_binding_id,
+        delivery_to=data.delivery_to,
         max_runs=data.max_runs,
         next_run=next_run,
         status="active",
@@ -304,7 +314,10 @@ async def update_scheduled_task(
         if existing.scalar_one_or_none():
             raise HTTPException(status_code=409, detail=f"Task name '{update_fields['name']}' already exists")
 
-    # Validate channel binding exists (if changing)
+    # Validate channel binding + delivery_to combination
+    effective_binding_id = update_fields.get("channel_binding_id", task.channel_binding_id)
+    effective_delivery_to = update_fields.get("delivery_to", task.delivery_to)
+
     if "channel_binding_id" in update_fields and update_fields["channel_binding_id"]:
         cb_result = await db.execute(
             select(ChannelBindingDB).where(ChannelBindingDB.id == update_fields["channel_binding_id"])
@@ -312,11 +325,28 @@ async def update_scheduled_task(
         cb = cb_result.scalar_one_or_none()
         if not cb:
             raise HTTPException(status_code=400, detail="Channel binding not found")
-        if cb.external_id == "*":
+        if cb.external_id == "*" and not effective_delivery_to:
             raise HTTPException(
                 status_code=400,
-                detail="Global bindings (all groups) cannot be used as scheduled task targets",
+                detail="Global bindings require a delivery_to target chat ID",
             )
+    elif not effective_binding_id and effective_delivery_to:
+        raise HTTPException(
+            status_code=400,
+            detail="delivery_to requires a channel_binding_id",
+        )
+    elif effective_binding_id:
+        # Binding unchanged — but delivery_to may be cleared; validate
+        if "delivery_to" in update_fields:
+            cb_result = await db.execute(
+                select(ChannelBindingDB).where(ChannelBindingDB.id == effective_binding_id)
+            )
+            cb = cb_result.scalar_one_or_none()
+            if cb and cb.external_id == "*" and not effective_delivery_to:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Global bindings require a delivery_to target chat ID",
+                )
 
     for key, value in update_fields.items():
         setattr(task, key, value)

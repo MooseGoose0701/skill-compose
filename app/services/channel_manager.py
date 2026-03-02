@@ -596,11 +596,12 @@ IMPORTANT: Use the absolute file paths shown above when reading or processing fi
                 logger.warning(f"Failed to extract file path from {download_url}: {e}")
         return paths
 
-    async def send_to_channel(self, binding_id: str, content: str):
+    async def send_to_channel(self, binding_id: str, content: str, target_override: Optional[str] = None):
         """Send a message to a channel binding (used by scheduler).
 
-        Global bindings (external_id='*') are skipped because there is no
-        specific chat_id to send to.
+        If target_override is provided, it is used as the delivery target
+        instead of the binding's external_id. This allows global bindings
+        (external_id='*') to deliver to a specific chat.
         """
         from sqlalchemy import select
         from app.db.database import AsyncSessionLocal
@@ -615,9 +616,9 @@ IMPORTANT: Use the absolute file paths shown above when reading or processing fi
                 logger.warning(f"Channel binding {binding_id} not found")
                 return
 
-            # Global bindings have no specific target chat_id
-            if binding.external_id == "*":
-                logger.info(f"Skipping scheduled message for global binding {binding_id} (no target chat_id)")
+            target_id = target_override or binding.external_id
+            if target_id == "*":
+                logger.info(f"Skipping scheduled message for binding {binding_id} (no specific target)")
                 return
 
             adapter = self._get_adapter_for_binding(binding)
@@ -627,17 +628,19 @@ IMPORTANT: Use the absolute file paths shown above when reading or processing fi
 
             # Send message
             await adapter.send_message(OutboundMessage(
-                external_id=binding.external_id,
+                external_id=target_id,
                 content=content,
             ))
 
-            # Record outbound
+            # Record outbound (include actual target in metadata when overridden)
+            msg_metadata = {"target_id": target_id} if target_override else None
             msg_record = ChannelMessageDB(
                 id=generate_uuid(),
                 channel_binding_id=binding.id,
                 direction="outbound",
                 content=content,
                 message_type="text",
+                metadata=msg_metadata,
             )
             session.add(msg_record)
             await session.commit()

@@ -17,10 +17,14 @@
     "lastRun": "上次运行",
     "runCount": "运行次数",
     "channelBinding": "投递到渠道",
-    "noChannel": "无（不投递）"
+    "noChannel": "无（不投递）",
+    "deliveryTo": "目标会话 ID",
+    "allGroups": "（所有群）"
   },
   "hints": {
-    "channelBinding": "可选：将任务结果发送到指定的渠道绑定"
+    "channelBinding": "可选：将任务结果发送到指定的渠道绑定",
+    "deliveryTo": "指定投递目标的会话/群组 ID",
+    "deliveryToRequired": "全群绑定必须指定目标会话"
   },
   "scheduleTypes": {
     "cron": "Cron 表达式",
@@ -66,6 +70,7 @@
   "placeholders": {
     "cronValue": "0 */6 * * *（每6小时）",
     "intervalValue": "3600（秒）",
-    "onceValue": "2026-03-01T00:00:00"
+    "onceValue": "2026-03-01T00:00:00",
+    "deliveryTo": "oc_xxxxxxxxxxxx"
   }
 }

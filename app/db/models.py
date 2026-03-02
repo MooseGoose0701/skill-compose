@@ -602,6 +602,9 @@ class ScheduledTaskDB(Base):
     channel_binding_id: Mapped[Optional[str]] = mapped_column(
         String(36), nullable=True
     )  # Optional: send results to a channel
+    delivery_to: Mapped[Optional[str]] = mapped_column(
+        String(256), nullable=True
+    )  # Explicit target chat_id (overrides binding's external_id)
     status: Mapped[str] = mapped_column(
         String(32), default="active", nullable=False
     )  # active / paused / completed

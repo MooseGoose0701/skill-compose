@@ -17,10 +17,14 @@
     "lastRun": "Última Ejecución",
     "runCount": "Cantidad de Ejecuciones",
     "channelBinding": "Entregar al Canal",
-    "noChannel": "Ninguno (sin entrega)"
+    "noChannel": "Ninguno (sin entrega)",
+    "deliveryTo": "ID del Chat Destino",
+    "allGroups": "(todos los grupos)"
   },
   "hints": {
-    "channelBinding": "Opcional: enviar los resultados de la tarea a un canal vinculado"
+    "channelBinding": "Opcional: enviar los resultados de la tarea a un canal vinculado",
+    "deliveryTo": "Especifica el ID del chat/grupo de destino para la entrega",
+    "deliveryToRequired": "Requerido para vinculaciones de todos los grupos"
   },
   "scheduleTypes": {
     "cron": "Cron",
@@ -66,6 +70,7 @@
   "placeholders": {
     "cronValue": "0 */6 * * * (cada 6 horas)",
     "intervalValue": "3600 (segundos)",
-    "onceValue": "2026-03-01T00:00:00"
+    "onceValue": "2026-03-01T00:00:00",
+    "deliveryTo": "oc_xxxxxxxxxxxx"
   }
 }

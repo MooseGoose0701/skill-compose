@@ -298,6 +298,16 @@ export default function ScheduledTaskDetailPage() {
                 </div>
               </div>
               <div>
+                <span className="text-sm font-medium text-muted-foreground">{t('fields.deliveryTo')}</span>
+                <p className="mt-1 text-sm">
+                  {task.delivery_to ? (
+                    <code className="bg-muted px-2 py-1 rounded">{task.delivery_to}</code>
+                  ) : (
+                    <span className="text-muted-foreground">-</span>
+                  )}
+                </p>
+              </div>
+              <div>
                 <span className="text-sm font-medium text-muted-foreground">{t('fields.nextRun')}</span>
                 <p className="mt-1 text-sm">{task.next_run ? formatDateTime(task.next_run) : '-'}</p>
               </div>

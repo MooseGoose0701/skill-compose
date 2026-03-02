@@ -341,6 +341,15 @@ async def _run_migrations():
         await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_task_run_logs_task_id ON task_run_logs (task_id)"))
         await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_task_run_logs_started_at ON task_run_logs (started_at)"))
 
+    # Add delivery_to column to scheduled_tasks table
+    async with engine.begin() as conn:
+        await conn.execute(text("""
+            DO $$ BEGIN
+                ALTER TABLE scheduled_tasks ADD COLUMN delivery_to VARCHAR(256) DEFAULT NULL;
+            EXCEPTION WHEN duplicate_column THEN NULL;
+            END $$
+        """))
+
     # Create channel_bindings and channel_messages tables
     async with engine.begin() as conn:
         await conn.execute(text("""
