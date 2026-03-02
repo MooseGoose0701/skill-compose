@@ -13,7 +13,14 @@
     "enabled": "Habilitado",
     "config": "Configuracion",
     "appId": "App ID",
-    "appSecret": "App Secret"
+    "appSecret": "App Secret",
+    "scope": "Alcance"
+  },
+  "scope": {
+    "allGroups": "Todos los grupos",
+    "specificGroup": "Grupo especifico",
+    "allGroupsHint": "Responder en todos los grupos donde se agrego el bot",
+    "specificGroupHint": "Responder solo en un grupo especifico"
   },
   "channelTypes": {
     "feishu": "Feishu (Lark)",

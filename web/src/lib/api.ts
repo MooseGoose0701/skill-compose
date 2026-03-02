@@ -2061,6 +2061,7 @@ export interface ChannelBinding {
   agent_name: string | null;
   trigger_pattern: string | null;
   enabled: boolean;
+  is_global: boolean;
   config: Record<string, unknown> | null;
   created_at: string;
   updated_at: string;
@@ -2073,7 +2074,7 @@ export interface ChannelBindingListResponse {
 
 export interface ChannelBindingCreateRequest {
   channel_type: string;
-  external_id: string;
+  external_id?: string;
   name: string;
   agent_id: string;
   trigger_pattern?: string | null;

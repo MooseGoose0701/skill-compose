@@ -21,6 +21,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import select, desc, func, and_
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.database import get_db
@@ -54,9 +55,14 @@ def _validate_regex(pattern: Optional[str]) -> Optional[str]:
 
 
 class ChannelBindingCreate(BaseModel):
-    """Request model for creating a channel binding."""
+    """Request model for creating a channel binding.
+
+    When ``external_id`` is omitted (or explicitly set to ``"*"``), the
+    binding is treated as a **global** binding that matches all groups
+    for the given Feishu app.  Global bindings are only supported for Feishu.
+    """
     channel_type: str = Field(..., description="Channel type: feishu / telegram / webhook")
-    external_id: str = Field(..., min_length=1, max_length=256, description="Platform-side group/chat ID")
+    external_id: Optional[str] = Field(None, min_length=1, max_length=256, description="Platform-side group/chat ID. Omit for global (all-groups) binding.")
     name: str = Field(..., min_length=1, max_length=128)
     agent_id: str = Field(..., description="Agent preset ID to bind")
     trigger_pattern: Optional[str] = Field(None, max_length=512, description="Regex pattern to trigger the agent")
@@ -91,6 +97,7 @@ class ChannelBindingResponse(BaseModel):
     agent_name: Optional[str] = None
     trigger_pattern: Optional[str] = None
     enabled: bool
+    is_global: bool = False
     config: Optional[Dict[str, Any]] = None
     created_at: datetime
     updated_at: datetime
@@ -156,6 +163,7 @@ def _build_binding_response(
         agent_name=agent_name,
         trigger_pattern=binding.trigger_pattern,
         enabled=binding.enabled,
+        is_global=(binding.external_id == "*"),
         config=_mask_config(binding.config),
         created_at=binding.created_at,
         updated_at=binding.updated_at,
@@ -367,6 +375,9 @@ async def create_channel_binding(
     Validates that the referenced agent_id exists and that the
     (channel_type, external_id) pair is unique.
     """
+    # Resolve external_id: omitted or "*" → global binding
+    external_id = data.external_id or "*"
+
     # 1. Validate agent_id exists
     agent_result = await db.execute(
         select(AgentPresetDB).where(AgentPresetDB.id == data.agent_id)
@@ -375,25 +386,54 @@ async def create_channel_binding(
     if not agent:
         raise HTTPException(status_code=400, detail="Agent preset not found for the given agent_id")
 
-    # 2. Check unique constraint (channel_type + external_id)
-    existing_result = await db.execute(
-        select(ChannelBindingDB).where(
-            and_(
+    # 2. Validate and check uniqueness
+    if external_id == "*":
+        # Global binding: only supported for Feishu
+        if data.channel_type != "feishu":
+            raise HTTPException(
+                status_code=400,
+                detail="Global bindings (all groups) are only supported for Feishu",
+            )
+        # Require app_id in config
+        app_id = (data.config or {}).get("app_id")
+        if not app_id:
+            raise HTTPException(
+                status_code=400,
+                detail="Global Feishu bindings require 'app_id' in config",
+            )
+        # Check uniqueness: one global binding per (channel_type, app_id)
+        existing_result = await db.execute(
+            select(ChannelBindingDB).where(
                 ChannelBindingDB.channel_type == data.channel_type,
-                ChannelBindingDB.external_id == data.external_id,
+                ChannelBindingDB.external_id == "*",
+                ChannelBindingDB.config["app_id"].astext == str(app_id),
             )
         )
-    )
-    if existing_result.scalar_one_or_none():
-        raise HTTPException(
-            status_code=409,
-            detail=f"A binding for channel_type='{data.channel_type}' and external_id='{data.external_id}' already exists",
+        if existing_result.scalar_one_or_none():
+            raise HTTPException(
+                status_code=409,
+                detail="A global binding for this Feishu app already exists",
+            )
+    else:
+        # Specific binding: check unique constraint (channel_type + external_id)
+        existing_result = await db.execute(
+            select(ChannelBindingDB).where(
+                and_(
+                    ChannelBindingDB.channel_type == data.channel_type,
+                    ChannelBindingDB.external_id == external_id,
+                )
+            )
         )
+        if existing_result.scalar_one_or_none():
+            raise HTTPException(
+                status_code=409,
+                detail=f"A binding for channel_type='{data.channel_type}' and external_id='{external_id}' already exists",
+            )
 
     # 3. Create record
     binding = ChannelBindingDB(
         channel_type=data.channel_type,
-        external_id=data.external_id,
+        external_id=external_id,
         name=data.name,
         agent_id=data.agent_id,
         trigger_pattern=data.trigger_pattern,
@@ -402,7 +442,14 @@ async def create_channel_binding(
     )
 
     db.add(binding)
-    await db.commit()
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(
+            status_code=409,
+            detail="A binding with this configuration already exists",
+        )
     await db.refresh(binding)
 
     # 4. Hot-reload: start adapter if needed

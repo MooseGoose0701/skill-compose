@@ -530,7 +530,7 @@ class TestAgentPresetLifecycleE2E:
 
     @patch("app.api.v1.agent.save_session_messages", new_callable=AsyncMock)
     @patch("app.api.v1.agent.load_or_create_session", new_callable=AsyncMock, return_value=SessionData(session_id="test-session-id"))
-    @patch("app.api.v1.agent.SkillsAgent")
+    @patch("app.api.v1.agent.create_agent")
     async def test_06_run_agent(self, MockAgent, _mock_load, _mock_save, e2e_client: AsyncClient):
         MockAgent.return_value = _make_mock_agent()
         resp = await e2e_client.post(
@@ -635,7 +635,7 @@ class TestAgentRunAndTraceE2E:
 
     @patch("app.api.v1.agent.save_session_messages", new_callable=AsyncMock)
     @patch("app.api.v1.agent.load_or_create_session", new_callable=AsyncMock, return_value=SessionData(session_id="test-session-id"))
-    @patch("app.api.v1.agent.SkillsAgent")
+    @patch("app.api.v1.agent.create_agent")
     async def test_01_run_simple(self, MockAgent, _mock_load, _mock_save, e2e_client: AsyncClient):
         MockAgent.return_value = _make_mock_agent()
         resp = await e2e_client.post(
@@ -673,7 +673,7 @@ class TestAgentRunAndTraceE2E:
 
     @patch("app.api.v1.agent.save_session_messages", new_callable=AsyncMock)
     @patch("app.api.v1.agent.load_or_create_session", new_callable=AsyncMock, return_value=SessionData(session_id="test-session-id"))
-    @patch("app.api.v1.agent.SkillsAgent")
+    @patch("app.api.v1.agent.create_agent")
     async def test_05_run_with_skills_and_session(
         self, MockAgent, _mock_load, _mock_save, e2e_client: AsyncClient
     ):
@@ -696,7 +696,7 @@ class TestAgentRunAndTraceE2E:
     @patch("app.api.v1.agent.save_session_messages", new_callable=AsyncMock)
     @patch("app.api.v1.agent.load_or_create_session", new_callable=AsyncMock, return_value=SessionData(session_id="test-session-id"))
     @patch("app.api.v1.agent.AsyncSessionLocal")
-    @patch("app.api.v1.agent.SkillsAgent")
+    @patch("app.api.v1.agent.create_agent")
     async def test_06_run_stream(
         self, MockAgent, MockSessionLocal, _mock_load, _mock_save, _mock_checkpoint, _mock_precompress, e2e_client: AsyncClient
     ):
@@ -764,7 +764,7 @@ class TestFileUploadE2E:
 
     @patch("app.api.v1.agent.save_session_messages", new_callable=AsyncMock)
     @patch("app.api.v1.agent.load_or_create_session", new_callable=AsyncMock, return_value=SessionData(session_id="test-session-id"))
-    @patch("app.api.v1.agent.SkillsAgent")
+    @patch("app.api.v1.agent.create_agent")
     async def test_03_run_agent_with_file(
         self, MockAgent, _mock_load, _mock_save, e2e_client: AsyncClient
     ):
@@ -2413,7 +2413,7 @@ class TestAutoDetectOutputFilesE2E:
 
     @patch("app.api.v1.agent.save_session_messages", new_callable=AsyncMock)
     @patch("app.api.v1.agent.load_or_create_session", new_callable=AsyncMock, return_value=SessionData(session_id="test-session-id"))
-    @patch("app.api.v1.agent.SkillsAgent")
+    @patch("app.api.v1.agent.create_agent")
     async def test_01_run_with_output_files(
         self, MockAgent, _mock_load, _mock_save, e2e_client: AsyncClient
     ):
@@ -2445,7 +2445,7 @@ class TestAutoDetectOutputFilesE2E:
 
     @patch("app.api.v1.agent.save_session_messages", new_callable=AsyncMock)
     @patch("app.api.v1.agent.load_or_create_session", new_callable=AsyncMock, return_value=SessionData(session_id="test-session-id"))
-    @patch("app.api.v1.agent.SkillsAgent")
+    @patch("app.api.v1.agent.create_agent")
     async def test_02_run_no_output_files(
         self, MockAgent, _mock_load, _mock_save, e2e_client: AsyncClient
     ):
@@ -2466,7 +2466,7 @@ class TestAutoDetectOutputFilesE2E:
     @patch("app.api.v1.agent.save_session_messages", new_callable=AsyncMock)
     @patch("app.api.v1.agent.load_or_create_session", new_callable=AsyncMock, return_value=SessionData(session_id="test-session-id"))
     @patch("app.api.v1.agent.AsyncSessionLocal")
-    @patch("app.api.v1.agent.SkillsAgent")
+    @patch("app.api.v1.agent.create_agent")
     async def test_03_stream_with_output_file_events(
         self, MockAgent, MockSessionLocal, _mock_load, _mock_save, _mock_checkpoint, _mock_precompress, e2e_client: AsyncClient
     ):
@@ -2544,7 +2544,7 @@ class TestAutoDetectOutputFilesE2E:
     @patch("app.api.v1.agent.save_session_messages", new_callable=AsyncMock)
     @patch("app.api.v1.agent.load_or_create_session", new_callable=AsyncMock, return_value=SessionData(session_id="test-session-id"))
     @patch("app.api.v1.agent.AsyncSessionLocal")
-    @patch("app.api.v1.agent.SkillsAgent")
+    @patch("app.api.v1.agent.create_agent")
     async def test_04_stream_no_output_files(
         self, MockAgent, MockSessionLocal, _mock_load, _mock_save, _mock_checkpoint, _mock_precompress, e2e_client: AsyncClient
     ):
@@ -3407,7 +3407,7 @@ class TestResilientStreamingE2E:
     @patch("app.api.v1.agent.save_session_messages", new_callable=AsyncMock)
     @patch("app.api.v1.agent.load_or_create_session", new_callable=AsyncMock, return_value=SessionData(session_id="test-resilient-session"))
     @patch("app.api.v1.agent.AsyncSessionLocal")
-    @patch("app.api.v1.agent.SkillsAgent")
+    @patch("app.api.v1.agent.create_agent")
     async def test_05_agent_endpoint_turn_complete_incremental_save(
         self, MockAgent, MockSessionLocal, _mock_load, MockSave, _mock_checkpoint, _mock_precompress, e2e_client: AsyncClient
     ):
@@ -3438,7 +3438,7 @@ class TestResilientStreamingE2E:
     @patch("app.api.v1.agent.save_session_messages", new_callable=AsyncMock)
     @patch("app.api.v1.agent.load_or_create_session", new_callable=AsyncMock, return_value=SessionData(session_id="test-resilient-session"))
     @patch("app.api.v1.agent.AsyncSessionLocal")
-    @patch("app.api.v1.agent.SkillsAgent")
+    @patch("app.api.v1.agent.create_agent")
     async def test_06_no_turn_complete_means_no_incremental_save(
         self, MockAgent, MockSessionLocal, _mock_load, MockSave, _mock_checkpoint, _mock_precompress, e2e_client: AsyncClient
     ):
@@ -3624,7 +3624,7 @@ class TestAskUserE2E:
     @patch("app.api.v1.agent.save_session_messages", new_callable=AsyncMock)
     @patch("app.api.v1.agent.load_or_create_session", new_callable=AsyncMock, return_value=SessionData(session_id="ask-user-session"))
     @patch("app.api.v1.agent.AsyncSessionLocal")
-    @patch("app.api.v1.agent.SkillsAgent")
+    @patch("app.api.v1.agent.create_agent")
     async def test_02_stream_with_ask_user_ends_run(
         self, MockAgent, MockSessionLocal, _mock_load, _mock_save, _mock_checkpoint, _mock_precompress, e2e_client: AsyncClient
     ):
@@ -3714,7 +3714,7 @@ class TestAskUserE2E:
 
     @patch("app.api.v1.agent.save_session_messages", new_callable=AsyncMock)
     @patch("app.api.v1.agent.load_or_create_session", new_callable=AsyncMock, return_value=SessionData(session_id="ask-user-sync"))
-    @patch("app.api.v1.agent.SkillsAgent")
+    @patch("app.api.v1.agent.create_agent")
     async def test_04_non_streaming_ask_user_ends_run(self, MockAgent, _mock_load, _mock_save, e2e_client: AsyncClient):
         """In non-streaming (sync) mode, ask_user also ends the run (same as streaming)."""
         MockAgent.return_value = _make_mock_agent()
@@ -3757,7 +3757,7 @@ class TestSessionDisplayFormatE2E:
     @patch("app.api.v1.agent.save_session_checkpoint", new_callable=AsyncMock)
     @patch("app.api.v1.agent.save_session_messages", new_callable=AsyncMock)
     @patch("app.api.v1.agent.load_or_create_session", new_callable=AsyncMock)
-    @patch("app.api.v1.agent.SkillsAgent")
+    @patch("app.api.v1.agent.create_agent")
     async def test_02_streaming_display_has_stream_events(
         self, MockAgent, MockLoadSession, MockSaveMessages, MockCheckpoint, MockPreCompress,
         e2e_client: AsyncClient, e2e_db_session,
@@ -3824,7 +3824,7 @@ class TestSessionDisplayFormatE2E:
 
     @patch("app.api.v1.agent.save_session_messages", new_callable=AsyncMock)
     @patch("app.api.v1.agent.load_or_create_session", new_callable=AsyncMock)
-    @patch("app.api.v1.agent.SkillsAgent")
+    @patch("app.api.v1.agent.create_agent")
     async def test_03_non_streaming_display_has_stream_events(
         self, MockAgent, MockLoadSession, MockSaveMessages,
         e2e_client: AsyncClient, e2e_db_session,
@@ -3864,7 +3864,7 @@ class TestSessionDisplayFormatE2E:
     @patch("app.api.v1.agent.save_session_checkpoint", new_callable=AsyncMock)
     @patch("app.api.v1.agent.save_session_messages", new_callable=AsyncMock)
     @patch("app.api.v1.agent.load_or_create_session", new_callable=AsyncMock)
-    @patch("app.api.v1.agent.SkillsAgent")
+    @patch("app.api.v1.agent.create_agent")
     async def test_04_uploaded_files_stored_as_attached_files(
         self, MockAgent, MockLoadSession, MockSaveMessages, MockCheckpoint, MockPreCompress,
         e2e_client: AsyncClient, e2e_db_session,
@@ -3916,7 +3916,7 @@ class TestSessionDisplayFormatE2E:
     @patch("app.api.v1.agent.save_session_checkpoint", new_callable=AsyncMock)
     @patch("app.api.v1.agent.save_session_messages", new_callable=AsyncMock)
     @patch("app.api.v1.agent.load_or_create_session", new_callable=AsyncMock)
-    @patch("app.api.v1.agent.SkillsAgent")
+    @patch("app.api.v1.agent.create_agent")
     async def test_05_ask_user_event_in_display(
         self, MockAgent, MockLoadSession, MockSaveMessages, MockCheckpoint, MockPreCompress,
         e2e_client: AsyncClient, e2e_db_session,
@@ -3966,7 +3966,7 @@ class TestSessionDisplayFormatE2E:
     @patch("app.api.v1.agent.save_session_checkpoint", new_callable=AsyncMock)
     @patch("app.api.v1.agent.save_session_messages", new_callable=AsyncMock)
     @patch("app.api.v1.agent.load_or_create_session", new_callable=AsyncMock)
-    @patch("app.api.v1.agent.SkillsAgent")
+    @patch("app.api.v1.agent.create_agent")
     async def test_06_output_file_event_in_display(
         self, MockAgent, MockLoadSession, MockSaveMessages, MockCheckpoint, MockPreCompress,
         e2e_client: AsyncClient, e2e_db_session,
@@ -4014,7 +4014,7 @@ class TestSessionDisplayFormatE2E:
     @patch("app.api.v1.agent.save_session_checkpoint", new_callable=AsyncMock)
     @patch("app.api.v1.agent.save_session_messages", new_callable=AsyncMock)
     @patch("app.api.v1.agent.load_or_create_session", new_callable=AsyncMock)
-    @patch("app.api.v1.agent.SkillsAgent")
+    @patch("app.api.v1.agent.create_agent")
     async def test_07_display_appends_to_existing_session(
         self, MockAgent, MockLoadSession, MockSaveMessages, MockCheckpoint, MockPreCompress,
         e2e_client: AsyncClient, e2e_db_session,
@@ -4397,3 +4397,137 @@ class TestMultiFeishuChannelE2E:
             pid = type(self)._state.get(key)
             if pid:
                 await e2e_client.delete(f"/api/v1/agents/{pid}")
+
+
+@pytest.mark.e2e
+@pytest.mark.asyncio(loop_scope="class")
+class TestGlobalFeishuBindingE2E:
+    """E2E tests for global Feishu binding support (external_id='*').
+
+    Covers: create global, duplicate rejection, coexistence with specific,
+    is_global in responses, and cleanup.
+    """
+
+    _state: dict = {}
+
+    async def test_01_create_preset(self, e2e_client: AsyncClient):
+        """Create agent preset for global binding tests."""
+        resp = await e2e_client.post("/api/v1/agents", json={
+            "name": "e2e-global-agent",
+            "description": "Agent for global binding tests",
+            "max_turns": 5,
+        })
+        assert resp.status_code == 200
+        type(self)._state["preset_id"] = resp.json()["id"]
+
+    async def test_02_create_global_binding(self, e2e_client: AsyncClient):
+        """Create a global Feishu binding (no external_id)."""
+        pid = type(self)._state["preset_id"]
+        resp = await e2e_client.post("/api/v1/channels", json={
+            "channel_type": "feishu",
+            "name": "Global Feishu E2E",
+            "agent_id": pid,
+            "config": {"app_id": "cli_global_e2e_001", "app_secret": "globalsecret123"},
+        })
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["external_id"] == "*"
+        assert body["is_global"] is True
+        assert body["channel_type"] == "feishu"
+        type(self)._state["global_id"] = body["id"]
+
+    async def test_03_global_secret_masked(self, e2e_client: AsyncClient):
+        """Global binding should also mask app_secret."""
+        gid = type(self)._state["global_id"]
+        resp = await e2e_client.get(f"/api/v1/channels/{gid}")
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["config"]["app_secret"].startswith("****")
+        assert body["config"]["app_secret"].endswith("t123")
+        assert body["is_global"] is True
+
+    async def test_04_duplicate_global_rejected(self, e2e_client: AsyncClient):
+        """A second global binding for the same app_id should be rejected."""
+        pid = type(self)._state["preset_id"]
+        resp = await e2e_client.post("/api/v1/channels", json={
+            "channel_type": "feishu",
+            "name": "Duplicate Global",
+            "agent_id": pid,
+            "config": {"app_id": "cli_global_e2e_001", "app_secret": "other_secret"},
+        })
+        assert resp.status_code == 409
+
+    async def test_05_global_non_feishu_rejected(self, e2e_client: AsyncClient):
+        """Global binding for non-Feishu channel types should be rejected."""
+        pid = type(self)._state["preset_id"]
+        resp = await e2e_client.post("/api/v1/channels", json={
+            "channel_type": "webhook",
+            "name": "Global Webhook Fail",
+            "agent_id": pid,
+        })
+        assert resp.status_code == 400
+        assert "Feishu" in resp.json()["detail"]
+
+    async def test_06_global_requires_app_id(self, e2e_client: AsyncClient):
+        """Global Feishu binding without app_id in config should be rejected."""
+        pid = type(self)._state["preset_id"]
+        resp = await e2e_client.post("/api/v1/channels", json={
+            "channel_type": "feishu",
+            "name": "Global No AppId",
+            "agent_id": pid,
+            "config": {"app_secret": "only_secret"},
+        })
+        assert resp.status_code == 400
+        assert "app_id" in resp.json()["detail"]
+
+    async def test_07_create_specific_binding_same_app(self, e2e_client: AsyncClient):
+        """A specific binding for the same app_id can coexist with the global one."""
+        pid = type(self)._state["preset_id"]
+        resp = await e2e_client.post("/api/v1/channels", json={
+            "channel_type": "feishu",
+            "external_id": "oc_specific_e2e_001",
+            "name": "Specific Feishu E2E",
+            "agent_id": pid,
+            "config": {"app_id": "cli_global_e2e_001", "app_secret": "specificsecret"},
+        })
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["is_global"] is False
+        assert body["external_id"] == "oc_specific_e2e_001"
+        type(self)._state["specific_id"] = body["id"]
+
+    async def test_08_list_shows_is_global(self, e2e_client: AsyncClient):
+        """List endpoint should show is_global correctly for both bindings."""
+        resp = await e2e_client.get("/api/v1/channels?channel_type=feishu")
+        assert resp.status_code == 200
+        bindings = resp.json()["bindings"]
+        global_b = next((b for b in bindings if b["id"] == type(self)._state["global_id"]), None)
+        specific_b = next((b for b in bindings if b["id"] == type(self)._state["specific_id"]), None)
+        assert global_b is not None and global_b["is_global"] is True
+        assert specific_b is not None and specific_b["is_global"] is False
+
+    async def test_09_second_app_global_binding(self, e2e_client: AsyncClient):
+        """A global binding for a different app_id should succeed."""
+        pid = type(self)._state["preset_id"]
+        resp = await e2e_client.post("/api/v1/channels", json={
+            "channel_type": "feishu",
+            "name": "Global Feishu App 2",
+            "agent_id": pid,
+            "config": {"app_id": "cli_global_e2e_002", "app_secret": "app2secret"},
+        })
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["is_global"] is True
+        type(self)._state["global_id_2"] = body["id"]
+
+    async def test_10_cleanup(self, e2e_client: AsyncClient):
+        """Delete all test bindings and preset."""
+        for key in ["global_id", "global_id_2", "specific_id"]:
+            bid = type(self)._state.get(key)
+            if bid:
+                resp = await e2e_client.delete(f"/api/v1/channels/{bid}")
+                assert resp.status_code == 200
+
+        pid = type(self)._state.get("preset_id")
+        if pid:
+            await e2e_client.delete(f"/api/v1/agents/{pid}")

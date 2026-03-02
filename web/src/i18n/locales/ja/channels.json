@@ -13,7 +13,14 @@
     "enabled": "有効",
     "config": "設定",
     "appId": "App ID",
-    "appSecret": "App Secret"
+    "appSecret": "App Secret",
+    "scope": "スコープ"
+  },
+  "scope": {
+    "allGroups": "全グループ",
+    "specificGroup": "特定グループ",
+    "allGroupsHint": "ボットが追加されたすべてのグループで応答",
+    "specificGroupHint": "特定の1つのグループでのみ応答"
   },
   "channelTypes": {
     "feishu": "Feishu (Lark)",

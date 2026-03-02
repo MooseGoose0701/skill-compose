@@ -269,7 +269,11 @@ function BindingCard({
         <div className="space-y-1.5 text-sm text-muted-foreground flex-1">
           <div>
             <span className="font-medium">{t('fields.externalId')}:</span>{' '}
-            <span className="font-mono text-xs">{binding.external_id}</span>
+            {binding.is_global ? (
+              <Badge variant="info" className="text-xs">{t('scope.allGroups')}</Badge>
+            ) : (
+              <span className="font-mono text-xs">{binding.external_id}</span>
+            )}
           </div>
           {binding.trigger_pattern && (
             <div>

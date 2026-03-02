@@ -251,6 +251,12 @@ class FeishuAdapter(ChannelAdapter):
             msg = event.message
             sender = event.sender
 
+            chat_type = getattr(msg, "chat_type", "unknown")
+            logger.info(
+                f"Feishu inbound event: chat_type={chat_type} chat_id={msg.chat_id} "
+                f"msg_id={msg.message_id} msg_type={msg.message_type}"
+            )
+
             # Message dedup
             msg_id = msg.message_id
             if msg_id in self._seen_messages:
@@ -309,6 +315,7 @@ class FeishuAdapter(ChannelAdapter):
                 message_type=msg_type,
                 external_message_id=msg.message_id,
                 media=media_paths,
+                metadata={"app_id": self._app_id, "chat_type": chat_type},
             )
 
             # Bridge from the WS thread into the async event loop

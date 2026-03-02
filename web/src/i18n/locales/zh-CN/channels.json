@@ -13,7 +13,14 @@
     "enabled": "已启用",
     "config": "配置",
     "appId": "App ID",
-    "appSecret": "App Secret"
+    "appSecret": "App Secret",
+    "scope": "作用范围"
+  },
+  "scope": {
+    "allGroups": "所有群组",
+    "specificGroup": "指定群组",
+    "allGroupsHint": "在机器人加入的所有群组中响应",
+    "specificGroupHint": "仅在一个指定群组中响应"
   },
   "channelTypes": {
     "feishu": "飞书",
