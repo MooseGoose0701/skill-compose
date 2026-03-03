@@ -767,6 +767,8 @@ class SkillsAgent:
                     "\nBefore answering anything about prior work, decisions, dates, "
                     "people, preferences, or todos: run memory_search on MEMORY.md + "
                     "memory/*.md; then use memory_get to pull only the needed lines. "
+                    "Note: memory/*.md daily logs are not included in this prompt — "
+                    "use memory_get to read them on demand. "
                     "If low confidence after search, say you checked."
                     "\nCitations: include Source: <path#line> when it helps the user "
                     "verify memory snippets."

@@ -17,7 +17,8 @@ Agent memory gives agents the ability to remember information across sessions. W
                     │  │ SOUL.md       │  │  ← persona, tone
                     │  │ USER.md       │  │  ← user preferences
                     │  │ MEMORY.md     │  │  ← curated facts
-                    │  │ memory/*.md   │  │  ← daily logs
+                    │  │               │  │     (daily logs accessed
+                    │  │               │  │      via memory_get tool)
                     │  └───────────────┘  │
                     │  ### Memory Recall  │  ← search directive
                     └────────────────────┘
@@ -91,13 +92,9 @@ When a file exceeds its limit, it's split into head + truncation marker + tail:
 [last 20% of content]
 ```
 
-### Daily Log Loading
+### Daily Logs
 
-At session start, the two most recent daily logs are loaded automatically:
-- `memory/YYYY-MM-DD.md` (today, UTC)
-- `memory/YYYY-MM-DD.md` (yesterday, UTC)
-
-This provides continuity between sessions without unbounded growth.
+Daily log files (`memory/YYYY-MM-DD.md`) are **not** injected into the system prompt. They remain on disk and are accessible at runtime via the `memory_get` tool. This matches OpenClaw's approach — only `SOUL.md`, `USER.md`, and `MEMORY.md` are loaded into the prompt.
 
 ## System Prompt Injection
 
@@ -119,14 +116,13 @@ instructions override it.
 ### MEMORY.md
 [file content]
 
-### memory/2026-03-02.md
-[file content]
-
 ### Memory Recall
 Before answering anything about prior work, decisions, dates,
 people, preferences, or todos: run memory_search on MEMORY.md +
 memory/*.md; then use memory_get to pull only the needed lines.
-If low confidence after search, say you checked.
+Note: memory/*.md daily logs are not included in this prompt —
+use memory_get to read them on demand. If low confidence after
+search, say you checked.
 
 Citations: include Source: <path#line> when it helps the user
 verify memory snippets.

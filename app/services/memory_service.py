@@ -12,7 +12,7 @@ import asyncio
 import json
 import logging
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -197,25 +197,6 @@ def load_bootstrap_files(agent_id: Optional[str] = None) -> Dict[str, str]:
             result[filename] = content
             total_chars += len(content)
 
-    # Load recent daily memory logs (today + yesterday)
-    if agent_id:
-        memory_log_dir = base / "agents" / agent_id / "memory"
-        if memory_log_dir.exists():
-            today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-            yesterday = (datetime.now(timezone.utc) - timedelta(days=1)).strftime("%Y-%m-%d")
-            for date_str in [yesterday, today]:
-                log_path = memory_log_dir / f"{date_str}.md"
-                if log_path.exists():
-                    try:
-                        content = log_path.read_text(encoding="utf-8")
-                    except Exception:
-                        continue
-                    log_filename = f"memory/{date_str}.md"
-                    content = _truncate_content(content, PER_FILE_CHAR_LIMIT, log_filename)
-                    if total_chars + len(content) <= TOTAL_CHAR_LIMIT:
-                        result[log_filename] = content
-                        total_chars += len(content)
-
     return result
 
 
@@ -243,6 +224,8 @@ def read_memory_file(agent_id: str, rel_path: str, from_line: int = 1, lines: in
     """Read a memory file by relative path, with optional line range.
 
     Returns None if path traversal is detected or file doesn't exist.
+    No truncation — aligns with OpenClaw which returns full content;
+    callers use from_line/lines for partial reads.
     """
     base = _memory_dir() / "agents" / agent_id
     resolved = (base / rel_path).resolve()

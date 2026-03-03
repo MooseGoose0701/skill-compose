@@ -506,66 +506,16 @@ class TestReadMemoryFile:
             result = memory_service.read_memory_file("test-agent", "memory/2026-03-02.md")
             assert result == "today's notes"
 
-
-class TestLoadBootstrapFilesWithDailyLogs:
-    """Tests for load_bootstrap_files() daily log loading."""
-
-    def test_loads_todays_log(self, tmp_path: Path):
-        """Should include today's daily log when loading bootstrap files."""
-        from datetime import datetime as dt, timezone
-        agent_id = "test-agent-daily"
-        agent_dir = tmp_path / "agents" / agent_id
-        memory_dir = agent_dir / "memory"
-        memory_dir.mkdir(parents=True)
-        today = dt.now(timezone.utc).strftime("%Y-%m-%d")
-        (memory_dir / f"{today}.md").write_text("today's progress", encoding="utf-8")
+    def test_large_file_returned_in_full(self, tmp_path: Path):
+        """Large files should be returned without truncation (aligns with OpenClaw)."""
+        agent_dir = tmp_path / "agents" / "test-agent"
+        agent_dir.mkdir(parents=True)
+        big_content = "x" * 50_000
+        (agent_dir / "MEMORY.md").write_text(big_content, encoding="utf-8")
 
         with patch.object(memory_service, "_memory_dir", return_value=tmp_path):
-            result = memory_service.load_bootstrap_files(agent_id)
-            assert f"memory/{today}.md" in result
-            assert result[f"memory/{today}.md"] == "today's progress"
-
-    def test_loads_yesterdays_log(self, tmp_path: Path):
-        """Should include yesterday's daily log when loading bootstrap files."""
-        from datetime import datetime as dt, timedelta as td, timezone
-        agent_id = "test-agent-daily"
-        agent_dir = tmp_path / "agents" / agent_id
-        memory_dir = agent_dir / "memory"
-        memory_dir.mkdir(parents=True)
-        yesterday = (dt.now(timezone.utc) - td(days=1)).strftime("%Y-%m-%d")
-        (memory_dir / f"{yesterday}.md").write_text("yesterday's progress", encoding="utf-8")
-
-        with patch.object(memory_service, "_memory_dir", return_value=tmp_path):
-            result = memory_service.load_bootstrap_files(agent_id)
-            assert f"memory/{yesterday}.md" in result
-
-    def test_no_daily_logs_without_agent_id(self, tmp_path: Path):
-        """Without agent_id, no daily logs should be loaded."""
-        with patch.object(memory_service, "_memory_dir", return_value=tmp_path):
-            result = memory_service.load_bootstrap_files(agent_id=None)
-            # No memory/ keys
-            assert not any(k.startswith("memory/") for k in result)
-
-    def test_daily_logs_respect_total_limit(self, tmp_path: Path):
-        """Daily logs should not exceed total char limit."""
-        from datetime import datetime as dt, timezone
-        agent_id = "test-agent-limit"
-        agent_dir = tmp_path / "agents" / agent_id
-
-        # Fill up with large bootstrap files first
-        for f in memory_service.BOOTSTRAP_FILES:
-            (agent_dir).mkdir(parents=True, exist_ok=True)
-            (agent_dir / f).write_text("x" * memory_service.PER_FILE_CHAR_LIMIT, encoding="utf-8")
-
-        memory_dir = agent_dir / "memory"
-        memory_dir.mkdir(parents=True, exist_ok=True)
-        today = dt.now(timezone.utc).strftime("%Y-%m-%d")
-        (memory_dir / f"{today}.md").write_text("y" * 10000, encoding="utf-8")
-
-        with patch.object(memory_service, "_memory_dir", return_value=tmp_path):
-            result = memory_service.load_bootstrap_files(agent_id)
-            total = sum(len(v) for v in result.values())
-            assert total <= memory_service.TOTAL_CHAR_LIMIT
+            result = memory_service.read_memory_file("test-agent", "MEMORY.md")
+            assert result == big_content
 
 
 # ─── Save Memory Sync Tests ─────────────────────────────────
