@@ -10,6 +10,7 @@ const sidebars: SidebarsConfig = {
       label: 'Concepts',
       items: [
         'concepts/agents',
+        'concepts/memory',
         'concepts/skills',
         'concepts/executors',
         'concepts/tools',
