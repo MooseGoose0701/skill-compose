@@ -41,6 +41,10 @@ OpenRouter provides access to multiple providers through a single API key (`OPEN
 | x-ai/grok-code-fast-1 | 131K | Yes | No |
 | x-ai/grok-4.1-fast | 131K | Yes | Yes |
 
+### Requesty
+
+Requesty provides access to multiple providers through a single API key (`REQUESTY_API_KEY`) using the same `provider/model` naming as OpenRouter (e.g. `openai/gpt-4o-mini`). Set `REQUESTY_API_KEY` in your `.env` file and select the `requesty` provider to route requests through https://router.requesty.ai/v1.
+
 ## Vision Support
 
 Models with **Vision: Yes** can directly see uploaded images. When you upload an image in Chat, the system:

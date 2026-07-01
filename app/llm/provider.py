@@ -8,6 +8,7 @@ Supports:
 - DeepSeek - via openai SDK (OpenAI-compatible endpoint)
 - Kimi (Moonshot) - via openai SDK (OpenAI-compatible endpoint)
 - OpenRouter - via openai SDK (OpenAI-compatible endpoint, access to 200+ models)
+- Requesty - via openai SDK (OpenAI-compatible endpoint, unified router for many models)
 """
 
 import json
@@ -26,6 +27,7 @@ PROVIDER_BASE_URLS = {
     "kimi": "https://api.moonshot.cn/v1",
     "google": "https://generativelanguage.googleapis.com/v1beta/openai/",
     "openrouter": "https://openrouter.ai/api/v1",
+    "requesty": "https://router.requesty.ai/v1",
 }
 
 @dataclass
@@ -81,6 +83,7 @@ PROVIDER_API_KEY_MAP = {
     "deepseek": "DEEPSEEK_API_KEY",
     "kimi": "MOONSHOT_API_KEY",
     "openrouter": "OPENROUTER_API_KEY",
+    "requesty": "REQUESTY_API_KEY",
 }
 
 
@@ -132,8 +135,8 @@ class LLMClient:
             # Generous timeout for long streaming responses
             timeout = httpx.Timeout(600.0, connect=10.0)
 
-            # OpenRouter requires/recommends additional headers
-            if self.provider == "openrouter":
+            # OpenRouter/Requesty support/recommend additional attribution headers
+            if self.provider in ("openrouter", "requesty"):
                 self._client = OpenAI(
                     api_key=self.api_key,
                     base_url=base_url,
@@ -166,7 +169,7 @@ class LLMClient:
             base_url = PROVIDER_BASE_URLS.get(self.provider)
             timeout = httpx.Timeout(600.0, connect=10.0)
 
-            if self.provider == "openrouter":
+            if self.provider in ("openrouter", "requesty"):
                 self._async_client = AsyncOpenAI(
                     api_key=self.api_key,
                     base_url=base_url,

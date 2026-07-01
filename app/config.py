@@ -29,6 +29,7 @@ class Settings(BaseSettings):
     # LLM API Keys
     anthropic_api_key: str = ""
     openrouter_api_key: str = ""
+    requesty_api_key: str = ""
     openai_api_key: str = ""
     google_api_key: str = ""  # For Gemini
 
