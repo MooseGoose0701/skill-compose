@@ -8,6 +8,7 @@ Supports:
 - DeepSeek - via openai SDK (OpenAI-compatible endpoint)
 - Kimi (Moonshot) - via openai SDK (OpenAI-compatible endpoint)
 - OpenRouter - via openai SDK (OpenAI-compatible endpoint, access to 200+ models)
+- Atlas Cloud - via openai SDK (OpenAI-compatible endpoint)
 """
 
 import json
@@ -26,6 +27,7 @@ PROVIDER_BASE_URLS = {
     "kimi": "https://api.moonshot.cn/v1",
     "google": "https://generativelanguage.googleapis.com/v1beta/openai/",
     "openrouter": "https://openrouter.ai/api/v1",
+    "atlascloud": "https://api.atlascloud.ai/v1",
 }
 
 @dataclass
@@ -81,6 +83,7 @@ PROVIDER_API_KEY_MAP = {
     "deepseek": "DEEPSEEK_API_KEY",
     "kimi": "MOONSHOT_API_KEY",
     "openrouter": "OPENROUTER_API_KEY",
+    "atlascloud": "ATLASCLOUD_API_KEY",
 }
 
 
@@ -89,7 +92,7 @@ class LLMClient:
     Unified LLM client using native SDKs.
 
     - Anthropic: uses anthropic SDK
-    - OpenAI/DeepSeek/Kimi/Google: uses openai SDK with custom base_url
+    - OpenAI/DeepSeek/Kimi/Google/Atlas Cloud: uses openai SDK with custom base_url
     """
 
     def __init__(
@@ -102,7 +105,7 @@ class LLMClient:
         Initialize the LLM client.
 
         Args:
-            provider: The LLM provider (anthropic, openai, google, deepseek, kimi)
+            provider: The LLM provider (anthropic, openai, google, deepseek, kimi, atlascloud)
             model: The model name/ID
             api_key: Optional API key (will use environment variable if not provided)
         """
