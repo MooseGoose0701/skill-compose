@@ -5,6 +5,10 @@ Model registry with capabilities and context limits for all supported LLM provid
 from typing import Dict, List, Optional, TypedDict
 
 
+DEFAULT_CONTEXT_LIMIT = 200000
+DEFAULT_MAX_OUTPUT_TOKENS = 16384
+
+
 class ModelInfo(TypedDict):
     """Model information."""
     provider: str
@@ -83,6 +87,16 @@ SUPPORTED_MODELS: Dict[str, ModelInfo] = {
         "display_name": "DeepSeek Reasoner",
         "context_limit": 64000,
         "max_output_tokens": 8192,
+        "supports_tools": True,
+        "supports_vision": False,
+    },
+    # Atlas Cloud (OpenAI-compatible API)
+    "atlascloud/deepseek-ai/deepseek-v4-pro": {
+        "provider": "atlascloud",
+        "model_id": "deepseek-ai/deepseek-v4-pro",
+        "display_name": "DeepSeek V4 Pro (Atlas Cloud)",
+        "context_limit": DEFAULT_CONTEXT_LIMIT,
+        "max_output_tokens": DEFAULT_MAX_OUTPUT_TOKENS,
         "supports_tools": True,
         "supports_vision": False,
     },
@@ -207,16 +221,11 @@ MODEL_CONTEXT_LIMITS.update({
     "claude-opus-4-6": 200000,
 })
 
-DEFAULT_CONTEXT_LIMIT = 200000
-
 # Max output tokens by model_id (for backward compatibility)
 MODEL_MAX_OUTPUT_TOKENS: Dict[str, int] = {
     info["model_id"]: info["max_output_tokens"]
     for info in SUPPORTED_MODELS.values()
 }
-
-DEFAULT_MAX_OUTPUT_TOKENS = 16384
-
 
 def get_model_info(model_key: str) -> Optional[ModelInfo]:
     """Get model info by full key (provider/model)."""

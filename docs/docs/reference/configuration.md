@@ -22,6 +22,7 @@ At least one is required.
 | `GOOGLE_API_KEY` | Google (Gemini) | No* |
 | `DEEPSEEK_API_KEY` | DeepSeek | No* |
 | `OPENROUTER_API_KEY` | OpenRouter (multiple providers) | No* |
+| `ATLASCLOUD_API_KEY` | Atlas Cloud | No* |
 
 *At least one API key is required.
 

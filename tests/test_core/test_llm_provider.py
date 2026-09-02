@@ -58,6 +58,7 @@ class TestLLMClientInit:
             ("google", "GOOGLE_API_KEY", "key3"),
             ("deepseek", "DEEPSEEK_API_KEY", "key4"),
             ("kimi", "MOONSHOT_API_KEY", "key5"),
+            ("atlascloud", "ATLASCLOUD_API_KEY", "key6"),
         ]
         for provider, env_var, key_value in test_cases:
             def _mock_read(key, expected_var=env_var, val=key_value):
@@ -76,6 +77,7 @@ class TestProviderConfig:
         assert "deepseek.com" in PROVIDER_BASE_URLS["deepseek"]
         assert "moonshot.cn" in PROVIDER_BASE_URLS["kimi"]
         assert "googleapis.com" in PROVIDER_BASE_URLS["google"]
+        assert PROVIDER_BASE_URLS["atlascloud"] == "https://api.atlascloud.ai/v1"
 
     def test_model_max_output_tokens(self):
         """Verify max output tokens are set per model."""
@@ -83,6 +85,7 @@ class TestProviderConfig:
         assert get_max_output_tokens("kimi", "kimi-k2.5") == 65535
         assert get_max_output_tokens("anthropic", "claude-sonnet-4-5-20250929") == 64000
         assert get_max_output_tokens("openai", "gpt-4o") == 16384
+        assert get_max_output_tokens("atlascloud", "deepseek-ai/deepseek-v4-pro") >= 512
 
     def test_llm_client_max_output_tokens(self):
         """LLMClient should expose max_output_tokens from model registry."""
@@ -320,7 +323,9 @@ class TestSupportedModels:
         for info in SUPPORTED_MODELS.values():
             providers.add(info["provider"])
 
-        expected = {"anthropic", "openai", "google", "deepseek", "kimi", "openrouter"}
+        expected = {
+            "anthropic", "openai", "google", "deepseek", "kimi", "openrouter", "atlascloud"
+        }
         assert providers == expected
 
     def test_model_info_structure(self):
@@ -339,6 +344,15 @@ class TestSupportedModels:
         assert info["provider"] == "kimi"
         assert info["model_id"] == "kimi-k2.5"
         assert info["context_limit"] == 256000
+        assert info["supports_tools"] is True
+
+    def test_atlascloud_model_config(self):
+        """Verify the Atlas Cloud model uses the provider-specific route."""
+        key = "atlascloud/deepseek-ai/deepseek-v4-pro"
+        assert key in SUPPORTED_MODELS
+        info = SUPPORTED_MODELS[key]
+        assert info["provider"] == "atlascloud"
+        assert info["model_id"] == "deepseek-ai/deepseek-v4-pro"
         assert info["supports_tools"] is True
 
 

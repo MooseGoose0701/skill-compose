@@ -19,6 +19,7 @@ Skill Compose supports multiple LLM providers. Each provider requires its own AP
 | **Google** | gemini-2.0-flash | 1M | Yes | Yes | `GOOGLE_API_KEY` |
 | **DeepSeek** | deepseek-chat | 64K | Yes | No | `DEEPSEEK_API_KEY` |
 | **DeepSeek** | deepseek-reasoner | 64K | Yes | No | `DEEPSEEK_API_KEY` |
+| **Atlas Cloud** | deepseek-ai/deepseek-v4-pro | App default | Yes | No | `ATLASCLOUD_API_KEY` |
 
 :::info Default Model
 **Kimi K2.5** is the default model. Set `MOONSHOT_API_KEY` in your `.env` file to use it.
@@ -96,12 +97,17 @@ ANTHROPIC_API_KEY=sk-ant-...
 OPENAI_API_KEY=sk-...
 GOOGLE_API_KEY=...
 DEEPSEEK_API_KEY=...
+ATLASCLOUD_API_KEY=...
 
 # OpenRouter (access multiple providers with one key)
 OPENROUTER_API_KEY=sk-or-...
 ```
 
 You need at least one key. Additional keys are optional.
+
+Atlas Cloud uses its OpenAI-compatible endpoint at `https://api.atlascloud.ai/v1`.
+Select `atlascloud/deepseek-ai/deepseek-v4-pro`; because it is a reasoning model,
+allow at least 512 output tokens.
 
 ## Context Window Management
 
